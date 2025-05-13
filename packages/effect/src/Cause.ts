@@ -4,6 +4,7 @@
 import type * as Context from "./Context.js"
 import type * as Effect from "./Effect.js"
 import type { Equal } from "./Equal.js"
+import { dual } from "./Function.js"
 import type { Inspectable } from "./Inspectable.js"
 import * as core from "./internal/core.js"
 import * as effect from "./internal/effect.js"
@@ -332,3 +333,21 @@ export interface UnknownError extends YieldableError {
  * @category errors
  */
 export const UnknownError: new(cause: unknown, message?: string) => UnknownError = effect.UnknownError
+
+export const map: {
+  <E, F>(f: (e: E) => F): (cause: Cause<E>) => Cause<F>
+  <E, F>(cause: Cause<E>, f: (e: E) => F): Cause<F>
+} = dual(2, function map<E, F>(cause: Cause<E>, f: (e: E) => F): Cause<F> {
+  return fromFailures(cause.failures.flatMap(failureMap(f)))
+})
+
+function failureMap<E, F>(f: (e: E) => F) {
+  return (failure: Failure<E>): ReadonlyArray<Failure<F>> => {
+    switch (failure._tag) {
+      case "Fail":
+        return fail(f(failure.error)).failures
+      default:
+        return [failure]
+    }
+  }
+}
