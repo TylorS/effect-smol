@@ -2,11 +2,11 @@ import * as Cause from "./Cause.js"
 import * as Deferred from "./Deferred.js"
 import type * as Duration from "./Duration.js"
 import * as Effect from "./Effect.js"
-import { Fiber } from "./Fiber.js"
+import type { Fiber } from "./Fiber.js"
 import * as FiberHandle from "./FiberHandle.js"
 import * as FiberSet from "./FiberSet.js"
 import type { LazyArg } from "./Function.js"
-import { constVoid, dual, flow, identity } from "./Function.js"
+import { constant, constVoid, dual, flow, identity } from "./Function.js"
 import * as Option from "./Option.js"
 import type { Pipeable } from "./Pipeable.js"
 import { pipeArguments } from "./Pipeable.js"
@@ -23,12 +23,18 @@ export interface Push<A, E = never, R = never> extends Pipeable {
 }
 
 export namespace Push {
+  export type Any = Push<any, any, any>
+
   export type Variance<A, E, R> = {
     readonly _A: Covariant<A>
     readonly _E: Covariant<E>
     readonly _R: Covariant<R>
   }
 }
+
+export type Success<P extends Push.Any> = P extends Push<infer A, infer _E, infer _R> ? A : never
+export type Error<P extends Push.Any> = P extends Push<infer _A, infer E, infer _R> ? E : never
+export type Context<P extends Push.Any> = P extends Push<infer _A, infer _E, infer R> ? R : never
 
 const _variance: Push.Variance<any, any, any> = {
   _A: identity,
@@ -244,7 +250,10 @@ class Filter<A, E, R> extends PushImpl<A, E, R> {
 }
 
 export const filter: {
+  <A, B extends A>(f: (a: A) => a is B): <E, R>(push: Push<A, E, R>) => Push<B, E, R>
   <A>(f: (a: A) => boolean): <E, R>(push: Push<A, E, R>) => Push<A, E, R>
+
+  <A, E, R, B extends A>(push: Push<A, E, R>, f: (a: A) => a is B): Push<B, E, R>
   <A, E, R>(push: Push<A, E, R>, f: (a: A) => boolean): Push<A, E, R>
 } = dual(2, <A, E, R>(push: Push<A, E, R>, f: (a: A) => boolean): Push<A, E, R> => new Filter(push, f))
 
@@ -287,18 +296,17 @@ export const mapError: {
   <E, F>(f: (error: E) => F): <A, R>(push: Push<A, E, R>) => Push<A, F, R>
 } = dual(2, <A, E, R, F>(push: Push<A, E, R>, f: (error: E) => F): Push<A, F, R> => mapErrorCause(push, Cause.map(f)))
 
-export class Observe<A, E = never, R = never, E2 = never, R2 = never> {
-  constructor(readonly push: Push<A, E, R>, readonly onSuccess: (value: A) => Effect.Effect<unknown, E2, R2>) {
-  }
+export class Observe<A, E = never, R = never>
+  extends Effect.YieldableClass<unknown, E, R> {
 
-  [Symbol.iterator]() {
-    return this.asEffect()[Symbol.iterator]()
-  }
+  private _effect: Effect.Effect<unknown, E, R>
 
-  asEffect(): Effect.Effect<unknown, E | E2, R | R2> {
-    return Effect.gen(this, function* () {
-      const deferred = yield* Deferred.make<unknown, E | E2>()
-      const ctx = yield* Effect.context<R | R2>()
+  constructor(readonly push: Push<A, E, R>, readonly onSuccess: (value: A) => Effect.Effect<unknown, E, R>) {
+    super()
+
+    this._effect = Effect.gen(this, function* () {
+      const deferred = yield* Deferred.make<unknown, E>()
+      const ctx = yield* Effect.context<R>()
 
       return yield* Effect.raceAllFirst([
         this.push.run(PushSink.make({
@@ -317,23 +325,55 @@ export class Observe<A, E = never, R = never, E2 = never, R2 = never> {
     })
   }
 
-  fork(): Effect.Effect<Fiber<unknown, E | E2>, never, R | R2> {
-    return Effect.fork(this.asEffect())
+  asEffect(): Effect.Effect<unknown, E, R> {
+    return this._effect
   }
 
-  forkIn(scope: Scope.Scope): Effect.Effect<Fiber<unknown, E | E2>, never, R | R2> {
-    return Effect.forkIn(this.asEffect(), scope)
+  fork(): Effect.Effect<Fiber<unknown, E>, never, R> {
+    return Effect.fork(this._effect)
   }
 
-  forkScoped(): Effect.Effect<Fiber<unknown, E | E2>, never, R | R2 | Scope.Scope> {
-    return Effect.forkScoped(this.asEffect())
+  forkIn(scope: Scope.Scope): Effect.Effect<Fiber<unknown, E>, never, R> {
+    return Effect.forkIn(this._effect, scope)
+  }
+
+  forkScoped(): Effect.Effect<Fiber<unknown, E>, never, R | Scope.Scope> {
+    return Effect.forkScoped(this._effect)
   }
 }
 
 export const observe: {
-  <A, E2, R2>(onSuccess: (value: A) => Effect.Effect<unknown, E2, R2>): <E, R>(push: Push<A, E, R>) => Observe<A, E, R, E2, R2>
-  <A, E, R, E2, R2>(push: Push<A, E, R>, onSuccess: (value: A) => Effect.Effect<unknown, E2, R2>): Observe<A, E, R, E2, R2>
-} = dual(2, <A, E, R, E2, R2>(push: Push<A, E, R>, onSuccess: (value: A) => Effect.Effect<unknown, E2, R2>): Observe<A, E, R, E2, R2> =>
-  new Observe(push, onSuccess))
+  <A, E2, R2>(
+    onSuccess: (value: A) => Effect.Effect<unknown, E2, R2>
+  ): <E, R>(push: Push<A, E, R>) => Observe<A, E | E2, R | R2>
+  <A, E, R, E2, R2>(
+    push: Push<A, E, R>,
+    onSuccess: (value: A) => Effect.Effect<unknown, E2, R2>
+  ): Observe<A, E | E2, R | R2>
+} = dual(
+  2,
+  <A, E, R, E2, R2>(
+    push: Push<A, E, R>,
+    onSuccess: (value: A) => Effect.Effect<unknown, E2, R2>
+  ): Observe<A, E | E2, R | R2> => new Observe<A, E | E2, R | R2>(push, onSuccess)
+)
 
-export const drain = <A, E, R>(push: Push<A, E, R>): Observe<A, E, R> => observe(push, () => Effect.void)
+const constEffectVoid = constant(Effect.void)
+
+export const drain: <A, E, R>(push: Push<A, E, R>) => Observe<A, E, R> = observe(constEffectVoid)
+
+export const mergeAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
+  ...pushes: Pushes
+): Push<
+  Success<Pushes[number]>,
+  Error<Pushes[number]>,
+  Context<Pushes[number]>
+> => make((sink) => Effect.all(pushes.map(p => p.run(sink)), { concurrency: "unbounded" }))
+
+export const concatAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
+  ...pushes: Pushes
+): Push<
+  Success<Pushes[number]>,
+  Error<Pushes[number]>,
+  Context<Pushes[number]>
+> => make((sink) => Effect.all(pushes.map(p => p.run(sink))))
