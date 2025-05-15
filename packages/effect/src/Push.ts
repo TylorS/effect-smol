@@ -296,9 +296,7 @@ export const mapError: {
   <E, F>(f: (error: E) => F): <A, R>(push: Push<A, E, R>) => Push<A, F, R>
 } = dual(2, <A, E, R, F>(push: Push<A, E, R>, f: (error: E) => F): Push<A, F, R> => mapErrorCause(push, Cause.map(f)))
 
-export class Observe<A, E = never, R = never>
-  extends Effect.YieldableClass<unknown, E, R> {
-
+export class Observe<A, E = never, R = never> extends Effect.YieldableClass<unknown, E, R> {
   private _effect: Effect.Effect<unknown, E, R>
 
   constructor(readonly push: Push<A, E, R>, readonly onSuccess: (value: A) => Effect.Effect<unknown, E, R>) {
@@ -362,13 +360,20 @@ const constEffectVoid = constant(Effect.void)
 
 export const drain: <A, E, R>(push: Push<A, E, R>) => Observe<A, E, R> = observe(constEffectVoid)
 
+export const runCollect = <A, E, R>(push: Push<A, E, R>): Effect.Effect<ReadonlyArray<A>, E, R> =>
+  Effect.suspend(() => {
+    const values: A[] = []
+
+    return Effect.map(observe(push, (value) => Effect.sync(() => values.push(value))).asEffect(), () => values)
+  })
+
 export const mergeAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
   ...pushes: Pushes
 ): Push<
   Success<Pushes[number]>,
   Error<Pushes[number]>,
   Context<Pushes[number]>
-> => make((sink) => Effect.all(pushes.map(p => p.run(sink)), { concurrency: "unbounded" }))
+> => make((sink) => Effect.all(pushes.map((p) => p.run(sink)), { concurrency: "unbounded" }))
 
 export const concatAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
   ...pushes: Pushes
@@ -376,4 +381,4 @@ export const concatAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
   Success<Pushes[number]>,
   Error<Pushes[number]>,
   Context<Pushes[number]>
-> => make((sink) => Effect.all(pushes.map(p => p.run(sink))))
+> => make((sink) => Effect.all(pushes.map((p) => p.run(sink))))

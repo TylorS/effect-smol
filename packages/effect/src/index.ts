@@ -639,3 +639,28 @@ export * as Unify from "./Unify.js"
  * @since 2.0.0
  */
 export * as Utils from "./Utils.js"
+
+/**
+ * @since 4.0.0
+ */
+export * as FiberHandle from "./FiberHandle.js"
+
+/**
+ * @since 4.0.0
+ */
+export * as FiberSet from "./FiberSet.js"
+
+/**
+ * @since 4.0.0
+ */
+export * as SynchronizedRef from "./SynchronizedRef.js"
+
+/**
+ * @since 4.0.0
+ */
+export * as Push from "./Push.js"
+
+/**
+ * @since 4.0.0
+ */
+export * as PushSink from "./PushSink.js"
