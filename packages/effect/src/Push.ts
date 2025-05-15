@@ -1,3 +1,4 @@
+import * as Iterable from "./Iterable.js"
 import * as Cause from "./Cause.js"
 import * as Deferred from "./Deferred.js"
 import type * as Duration from "./Duration.js"
@@ -416,7 +417,7 @@ export const observe: {
 
 const constEffectVoid = constant(Effect.void)
 
-export const drain: <A, E, R>(push: Push<A, E, R>) => Observe<A, E, R> = observe(constEffectVoid)
+export const drain: <A, E, R>(push: Push<A, E, R>) => Effect.Effect<unknown, E, R> = flow(observe(constEffectVoid), _ => _.asEffect())
 
 export const runCollect = <A, E, R>(push: Push<A, E, R>): Effect.Effect<ReadonlyArray<A>, E, R> =>
   Effect.suspend(() => {
@@ -467,3 +468,21 @@ export const filterMap: {
   <A, B>(f: (a: A) => Option.Option<B>): <E, R>(push: Push<A, E, R>) => Push<B, E, R>
   <A, E, R, B>(push: Push<A, E, R>, f: (a: A) => Option.Option<B>): Push<B, E, R>
 } = dual(2, <A, E, R, B>(push: Push<A, E, R>, f: (a: A) => Option.Option<B>): Push<B, E, R> => FilterMap.make(push, f))
+
+class FromIterable<A> extends PushImpl<A> {
+  constructor(readonly iterable: Iterable<A>) {
+    super()
+  }
+
+  run(sink: PushSink.PushSink<A, never>): Effect.Effect<unknown> {
+    return Effect.gen(this, function* () {
+      for (const value of this.iterable) {
+        yield* sink.onSuccess(value)
+      }
+    })
+  }
+}
+
+export const fromIterable = <A>(iterable: Iterable<A>): Push<A> => new FromIterable(iterable)
+
+export const range = (start: number, end: number): Push<number> => fromIterable(Iterable.range(start, end))

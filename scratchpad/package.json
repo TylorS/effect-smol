@@ -4,7 +4,12 @@
   "type": "module",
   "version": "0.0.0",
   "dependencies": {
-    "effect": "workspace:*",
-    "@effect/platform-node": "workspace:*"
+    "@effect/platform-node": "workspace:*",
+    "effect": "workspace:*"
+  },
+  "devDependencies": {
+    "@most/core": "^1.6.1",
+    "@most/scheduler": "^1.3.0",
+    "rxjs": "^7.8.2"
   }
 }
