@@ -10,6 +10,7 @@ import { constant, constVoid, dual, flow, identity } from "./Function.js"
 import * as Option from "./Option.js"
 import type { Pipeable } from "./Pipeable.js"
 import { pipeArguments } from "./Pipeable.js"
+import { and } from "./Predicate.js"
 import * as PushSink from "./PushSink.js"
 import type * as Scope from "./Scope.js"
 import type { Covariant } from "./Types.js"
@@ -217,9 +218,38 @@ const withFiberHandle = (strategy: FiberHandle.FiberHandle.Strategy): {
       return yield* FiberHandle.await(handle)
     })))
 
-export const switchMap = withFiberHandle("drop")
-export const exhaustMap = withFiberHandle("slide")
-export const exhaustMapLatest = withFiberHandle("slide-buffer")
+export const switchMap: {
+  <A, E, R, B, E2, R2>(
+    push: Push<A, E, R>,
+    f: (a: A) => Push<B, E2, R2>
+  ): Push<B, E | E2, R | R2 | Scope.Scope>
+
+  <A, B, E2, R2>(
+    f: (a: A) => Push<B, E2, R2>
+  ): <E, R>(push: Push<A, E, R>) => Push<B, E | E2, R | R2 | Scope.Scope>
+} = withFiberHandle("drop")
+
+export const exhaustMap: {
+  <A, E, R, B, E2, R2>(
+    push: Push<A, E, R>,
+    f: (a: A) => Push<B, E2, R2>
+  ): Push<B, E | E2, R | R2 | Scope.Scope>
+
+  <A, B, E2, R2>(
+    f: (a: A) => Push<B, E2, R2>
+  ): <E, R>(push: Push<A, E, R>) => Push<B, E | E2, R | R2 | Scope.Scope>
+} = withFiberHandle("slide")
+
+export const exhaustMapLatest: {
+  <A, E, R, B, E2, R2>(
+    push: Push<A, E, R>,
+    f: (a: A) => Push<B, E2, R2>
+  ): Push<B, E | E2, R | R2 | Scope.Scope>
+
+  <A, B, E2, R2>(
+    f: (a: A) => Push<B, E2, R2>
+  ): <E, R>(push: Push<A, E, R>) => Push<B, E | E2, R | R2 | Scope.Scope>
+} = withFiberHandle("slide-buffer")
 
 export const debounce: {
   (duration: Duration.DurationInput): <A, E, R>(push: Push<A, E, R>) => Push<A, E, R | Scope.Scope>
@@ -247,6 +277,18 @@ class Filter<A, E, R> extends PushImpl<A, E, R> {
   run(sink: PushSink.PushSink<A, E>): Effect.Effect<unknown, never, R> {
     return this.push.run(PushSink.filter(sink, this.f))
   }
+
+  static make<A, E, R>(push: Push<A, E, R>, f: (a: A) => boolean): Push<A, E, R> {
+    if (push instanceof Filter) {
+      return new Filter(push.push, and(push.f, f))
+    } else if (push instanceof FilterMap) {
+      return new FilterMap(push.push, flow(push.f, Option.flatMap(Option.liftPredicate(f))))
+    } else if (push instanceof Map) {
+      return new FilterMap(push.push, flow(push.f, Option.liftPredicate(f)))
+    }
+
+    return new Filter(push, f)
+  }
 }
 
 export const filter: {
@@ -264,6 +306,18 @@ class Map<A, E, R, B> extends PushImpl<B, E, R> {
 
   run(sink: PushSink.PushSink<B, E>): Effect.Effect<unknown, never, R> {
     return this.push.run(PushSink.map(sink, this.f))
+  }
+
+  static make<A, E, R, B>(push: Push<A, E, R>, f: (a: A) => B): Push<B, E, R> {
+    if (push instanceof Map) {
+      return new Map(push.push, flow(push.f, f))
+    } else if (push instanceof Filter) {
+      return new FilterMap(push.push, flow(Option.liftPredicate(push.f), Option.map(f)))
+    } else if (push instanceof FilterMap) {
+      return new FilterMap(push.push, flow(push.f, Option.map(f)))
+    }
+
+    return new Map(push, f)
   }
 }
 
@@ -296,7 +350,7 @@ export const mapError: {
   <E, F>(f: (error: E) => F): <A, R>(push: Push<A, E, R>) => Push<A, F, R>
 } = dual(2, <A, E, R, F>(push: Push<A, E, R>, f: (error: E) => F): Push<A, F, R> => mapErrorCause(push, Cause.map(f)))
 
-export class Observe<A, E = never, R = never> extends Effect.YieldableClass<unknown, E, R> {
+export class Observe<A, E = never, R = never> extends Effect.YieldableClass<unknown, E, R> implements Pipeable {
   private _effect: Effect.Effect<unknown, E, R>
 
   constructor(readonly push: Push<A, E, R>, readonly onSuccess: (value: A) => Effect.Effect<unknown, E, R>) {
@@ -338,6 +392,10 @@ export class Observe<A, E = never, R = never> extends Effect.YieldableClass<unkn
   forkScoped(): Effect.Effect<Fiber<unknown, E>, never, R | Scope.Scope> {
     return Effect.forkScoped(this._effect)
   }
+
+  pipe() {
+    return pipeArguments(this, arguments)
+  }
 }
 
 export const observe: {
@@ -362,9 +420,9 @@ export const drain: <A, E, R>(push: Push<A, E, R>) => Observe<A, E, R> = observe
 
 export const runCollect = <A, E, R>(push: Push<A, E, R>): Effect.Effect<ReadonlyArray<A>, E, R> =>
   Effect.suspend(() => {
-    const values: A[] = []
-
-    return Effect.map(observe(push, (value) => Effect.sync(() => values.push(value))).asEffect(), () => values)
+    const values: Array<A> = []
+    const onValue = (value: A) => Effect.sync(() => values.push(value))
+    return Effect.map(observe(push, onValue).asEffect(), () => values)
   })
 
 export const mergeAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
@@ -382,3 +440,30 @@ export const concatAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
   Error<Pushes[number]>,
   Context<Pushes[number]>
 > => make((sink) => Effect.all(pushes.map((p) => p.run(sink))))
+
+class FilterMap<A, E, R, B> extends PushImpl<B, E, R> {
+  constructor(readonly push: Push<A, E, R>, readonly f: (a: A) => Option.Option<B>) {
+    super()
+  }
+
+  run(sink: PushSink.PushSink<B, E>): Effect.Effect<unknown, never, R> {
+    return this.push.run(PushSink.filterMap(sink, this.f))
+  }
+
+  static make<A, E, R, B>(push: Push<A, E, R>, f: (a: A) => Option.Option<B>): Push<B, E, R> {
+    if (push instanceof FilterMap) {
+      return new FilterMap(push.push, flow(push.f, Option.flatMap(f)))
+    } else if (push instanceof Filter) {
+      return new FilterMap(push.push, flow(Option.liftPredicate(push.f), Option.flatMap(f)))
+    } else if (push instanceof Map) {
+      return new FilterMap(push.push, flow(push.f, Option.flatMap(f)))
+    }
+
+    return new FilterMap(push, f)
+  }
+}
+
+export const filterMap: {
+  <A, B>(f: (a: A) => Option.Option<B>): <E, R>(push: Push<A, E, R>) => Push<B, E, R>
+  <A, E, R, B>(push: Push<A, E, R>, f: (a: A) => Option.Option<B>): Push<B, E, R>
+} = dual(2, <A, E, R, B>(push: Push<A, E, R>, f: (a: A) => Option.Option<B>): Push<B, E, R> => FilterMap.make(push, f))
