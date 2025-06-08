@@ -418,10 +418,7 @@ export const drain: <A, E, R>(push: Push<A, E, R>) => Observe<A, E, R> = observe
 export const collect = <A, E, R>(push: Push<A, E, R>): Effect.Effect<ReadonlyArray<A>, E, R> => Effect.suspend(() => {
   const values: A[] = []
 
-  return observe(push, (value) => {
-    values.push(value)
-    return Effect.void
-  }).asEffect().pipe(
+  return observe(push, (value) => Effect.sync(() => values.push(value))).asEffect().pipe(
     Effect.map(() => values)
   )
 })

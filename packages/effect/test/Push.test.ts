@@ -49,4 +49,10 @@ describe("Push", () => {
     const values = yield* Push.collect(push)
     assert.deepStrictEqual(values, [2])
   }, Effect.scoped))
+
+  it.live("exhaustMapLatest", Effect.fnUntraced(function* () {
+    const push = Push.fromArray([1, 2, 3]).pipe(Push.exhaustMapLatest((a) => Push.succeed(a + 1)))
+    const values = yield* Push.collect(push)
+    assert.deepStrictEqual(values, [2, 4])
+  }, Effect.scoped))
 })

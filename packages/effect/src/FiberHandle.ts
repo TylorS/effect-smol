@@ -133,51 +133,32 @@ const runSlide = <R>() =>
 const runSlideBuffer = <R>() => <A, E>(handle: FiberHandle<A, E>) =>
   Effect.gen(function* () {
     const ctx = yield* Effect.context<R>()
-    const next = yield* Ref.make<Option.Option<Effect.Effect<A, E, R>>>(Option.none())
+    const next = yield* Ref.make<Option.Option<Effect.Effect<A, E>>>(Option.none())
 
     return (effect: Effect.Effect<A, E, R>) =>
       SynchronizedRef.updateEffect(handle.ref, (current) =>
         Effect.gen(function* () {
           if (Option.isSome(current)) {
-            yield* Ref.set(next, Option.some(effect))
+            yield* Ref.set(next, Option.some(effect.pipe(Effect.provide(ctx))))
             return current
           }
 
           const cleanup = (fiber: Fiber.Fiber<A, E>): Effect.Effect<Option.Option<Fiber.Fiber<A, E>>> =>
-            SynchronizedRef.updateEffect(
+            SynchronizedRef.update(
               handle.ref,
-              (current) =>
-                Effect.gen(function* () {
-                  // First clear the current fiber from the handle
-                  const cleared = Option.flatMap(current, (f) => f === fiber ? Option.none() : Option.some(f))
-                  if (Option.isSome(cleared)) {
-                    return cleared
-                  }
-
-                  // Check if there's a next effect to run
-                  const nextEffect = yield* Ref.get(next)
-                  if (Option.isSome(nextEffect)) {
-                    // Clear the next effect
-                    yield* Ref.set(next, Option.none())
-
-                    // Fork the next effect
-                    const nextFiber: Fiber.Fiber<A, E> = yield* nextEffect.value.pipe(
-                      Effect.provide(ctx),
-                      Effect.onExit(() =>
-                        cleanup(nextFiber)
-                      ),
-                      Effect.forkIn(handle.scope)
-                    )
-
-                    // Return the new fiber
-                    return Option.some(nextFiber)
-                  }
-
-                  return Option.none()
-                })
+              Option.flatMap((f) => f === fiber ? Option.none() : Option.some(f))
             )
 
+          const runNext: (a1: A) => Effect.Effect<A, E> = Effect.fnUntraced(function* (a1: A) {
+            const nextEffect = yield* Ref.getAndSet(next, Option.none())
+            if (Option.isSome(nextEffect)) {
+              return yield* Effect.flatMap(nextEffect.value, runNext)
+            }
+            return a1
+          })
+
           const fiber: Fiber.Fiber<A, E> = yield* effect.pipe(
+            Effect.flatMap(runNext),
             Effect.interruptible,
             Effect.provide(ctx),
             Effect.onExit(() => cleanup(fiber)),
