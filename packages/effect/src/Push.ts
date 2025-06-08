@@ -10,6 +10,7 @@ import { constant, constVoid, dual, flow, identity } from "./Function.js"
 import * as Option from "./Option.js"
 import type { Pipeable } from "./Pipeable.js"
 import { pipeArguments } from "./Pipeable.js"
+import { hasProperty } from "./Predicate.js"
 import * as PushSink from "./PushSink.js"
 import type * as Scope from "./Scope.js"
 import type { Covariant } from "./Types.js"
@@ -30,6 +31,10 @@ export namespace Push {
     readonly _E: Covariant<E>
     readonly _R: Covariant<R>
   }
+}
+
+export function isPush<A = unknown, E = unknown, R = unknown>(push: unknown): push is Push<A, E, R> {
+  return hasProperty(push, TypeId)
 }
 
 export type Success<P extends Push.Any> = P extends Push<infer A, infer _E, infer _R> ? A : never
@@ -145,6 +150,18 @@ class PushFromEffect<A, E, R> extends PushImpl<A, E, R> {
 
 export const fromEffect = <A, E, R>(effect: Effect.Effect<A, E, R>): Push<A, E, R> => new PushFromEffect(effect)
 
+class PushFromArray<A> extends PushImpl<A> {
+  constructor(readonly array: ReadonlyArray<A>) {
+    super()
+  }
+
+  run<R2>(sink: PushSink.PushSink<A, never, R2>): Effect.Effect<unknown, never, R2> {
+    return Effect.forEach(this.array, (a) => sink.onSuccess(a))
+  }
+}
+
+export const fromArray = <A>(array: ReadonlyArray<A>): Push<A> => new PushFromArray(array)
+
 export const callback = flow(Effect.callback, fromEffect)
 export const promise = flow(Effect.promise, fromEffect)
 export const tryPromise = flow(Effect.tryPromise, fromEffect)
@@ -174,7 +191,14 @@ export function unwrapScoped<A, E, R, E2, R2>(
   )
 }
 
-export function flatMap<A, E, R, B, E2, R2>(
+const isPushDataFirst = function () {
+  return isPush(arguments[0])
+}
+
+export const flatMap: {
+  <A, B, E2, R2>(f: (a: A) => Push<B, E2, R2>): <E, R>(push: Push<A, E, R>) => Push<B, E | E2, R | R2 | Scope.Scope>
+  <A, E, R, B, E2, R2>(push: Push<A, E, R>, f: (a: A) => Push<B, E2, R2>): Push<B, E | E2, R | R2 | Scope.Scope>
+} = dual(2, function flatMap<A, E, R, B, E2, R2>(
   push: Push<A, E, R>,
   f: (a: A) => Push<B, E2, R2>
 ): Push<B, E | E2, R | R2 | Scope.Scope> {
@@ -189,7 +213,36 @@ export function flatMap<A, E, R, B, E2, R2>(
 
     return yield* FiberSet.joinAll(set)
   }))
-}
+})
+
+export const flatMapConcurrently: {
+  <A, E, R, B, E2, R2>(f: (a: A) => Push<B, E2, R2>, options?: {
+    concurrency?: number | "unbounded"
+  }): (push: Push<A, E, R>,) => Push<B, E | E2, R | R2 | Scope.Scope>
+
+  <A, E, R, B, E2, R2>(push: Push<A, E, R>, f: (a: A) => Push<B, E2, R2>, options?: {
+    concurrency?: number | "unbounded"
+  }): Push<B, E | E2, R | R2 | Scope.Scope>
+} = dual(isPushDataFirst, function flatMapConcurrently<A, E, R, B, E2, R2>(
+  push: Push<A, E, R>,
+  f: (a: A) => Push<B, E2, R2>,
+  options?: {
+    concurrency?: number | 'unbounded'
+  }
+): Push<B, E | E2, R | R2 | Scope.Scope> {
+  return make(Effect.fnUntraced(function* (sink) {
+    const set = yield* FiberSet.make<void, never>()
+    const run = yield* FiberSet.run<R | R2>()(set)
+    const lock = Effect.unsafeMakeSemaphore(typeof options?.concurrency === 'number' ? options.concurrency : Number.POSITIVE_INFINITY).withPermits(1)
+
+    yield* push.run(PushSink.make({
+      onFailure: sink.onFailure,
+      onSuccess: (a: A) => run(lock(Effect.suspend(() => f(a).run(sink))))
+    }))
+
+    return yield* FiberSet.joinAll(set)
+  }))
+})
 
 const withFiberHandle = (strategy: FiberHandle.FiberHandle.Strategy): {
   <A, E, R, B, E2, R2>(
@@ -206,7 +259,7 @@ const withFiberHandle = (strategy: FiberHandle.FiberHandle.Strategy): {
     f: (a: A) => Push<B, E2, R2>
   ): Push<B, E | E2, R | R2 | Scope.Scope> =>
     make(Effect.fnUntraced(function* (sink) {
-      const handle = yield* FiberHandle.make<void, never>()
+      const handle = yield* FiberHandle.make<unknown, never>()
       const run = yield* FiberHandle.run<R | R2>(strategy)(handle)
 
       yield* push.run(PushSink.make({
@@ -362,6 +415,16 @@ const constEffectVoid = constant(Effect.void)
 
 export const drain: <A, E, R>(push: Push<A, E, R>) => Observe<A, E, R> = observe(constEffectVoid)
 
+export const collect = <A, E, R>(push: Push<A, E, R>): Effect.Effect<ReadonlyArray<A>, E, R> => Effect.suspend(() => {
+  const values: A[] = []
+
+  return observe(push, (value) => {
+    values.push(value)
+    return Effect.void
+  }).asEffect().pipe(
+    Effect.map(() => values)
+  )
+})
 export const mergeAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
   ...pushes: Pushes
 ): Push<

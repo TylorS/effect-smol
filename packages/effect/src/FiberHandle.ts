@@ -42,7 +42,7 @@ class FiberHandleImpl<A, E> implements FiberHandle<A, E> {
   constructor(
     readonly ref: SynchronizedRef.SynchronizedRef<Option.Option<Fiber.Fiber<A, E>>>,
     readonly scope: Scope.Scope.Closeable
-  ) {}
+  ) { }
 
   pipe() {
     return pipeArguments(this, arguments)
@@ -52,20 +52,20 @@ class FiberHandleImpl<A, E> implements FiberHandle<A, E> {
 const withScopedFork = <A, E, R>(
   f: (scope: Scope.Scope.Closeable) => Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, R | Scope.Scope> =>
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     const scope = yield* Effect.scope
     const forked = yield* Scope.fork(scope, "sequential")
     return yield* f(forked)
   })
 
-export const make = <A, E>(): Effect.Effect<FiberHandle<A, E>, never, Scope.Scope> =>
+export const make = <A, E = never>(): Effect.Effect<FiberHandle<A, E>, never, Scope.Scope> =>
   withScopedFork((scope) =>
     SynchronizedRef.make(Option.none<Fiber.Fiber<A, E>>()).pipe(
       Effect.map((ref) => new FiberHandleImpl(ref, scope))
     )
   )
 
-export const run = <R>(strategy: FiberHandle.Strategy) => {
+export const run = <R = never>(strategy: FiberHandle.Strategy) => {
   switch (strategy) {
     case "drop":
       return runDrop<R>()
@@ -77,13 +77,13 @@ export const run = <R>(strategy: FiberHandle.Strategy) => {
 }
 
 const runDrop = <R>() => <A, E>(handle: FiberHandle<A, E>) =>
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     const ctx = yield* Effect.context<R>()
 
     return (effect: Effect.Effect<A, E, R>): Effect.Effect<void> =>
       handle.ref.pipe(
         SynchronizedRef.modifyEffect((current) =>
-          Effect.gen(function*() {
+          Effect.gen(function* () {
             if (Option.isSome(current)) {
               yield* Fiber.interrupt(current.value)
             }
@@ -94,9 +94,10 @@ const runDrop = <R>() => <A, E>(handle: FiberHandle<A, E>) =>
             )
 
             const fiber = yield* effect.pipe(
+              Effect.interruptible,
               Effect.provide(ctx),
               Effect.onExit(() => cleanupFiber),
-              Effect.forkIn(handle.scope)
+              Effect.forkIn(handle.scope),
             )
 
             return [void 0, Option.some(fiber)] as const
@@ -111,7 +112,7 @@ const runSlide = <R>() =>
 
     return (effect: Effect.Effect<A, E, R>) =>
       SynchronizedRef.updateEffect(handle.ref, (current) =>
-        Effect.gen(function*() {
+        Effect.gen(function* () {
           if (Option.isSome(current)) return current
 
           const cleanupFiber: Effect.Effect<Option.Option<Fiber.Fiber<A, E>>> = SynchronizedRef.update(
@@ -120,6 +121,7 @@ const runSlide = <R>() =>
           )
 
           const fiber = yield* effect.pipe(
+            Effect.interruptible,
             Effect.provide(ctx),
             Effect.onExit(() => cleanupFiber),
             Effect.forkIn(handle.scope)
@@ -129,15 +131,15 @@ const runSlide = <R>() =>
   })
 
 const runSlideBuffer = <R>() => <A, E>(handle: FiberHandle<A, E>) =>
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     const ctx = yield* Effect.context<R>()
-    const next = yield* Ref.make<Option.Option<Effect.Effect<A, E>>>(Option.none())
+    const next = yield* Ref.make<Option.Option<Effect.Effect<A, E, R>>>(Option.none())
 
     return (effect: Effect.Effect<A, E, R>) =>
       SynchronizedRef.updateEffect(handle.ref, (current) =>
-        Effect.gen(function*() {
+        Effect.gen(function* () {
           if (Option.isSome(current)) {
-            yield* Ref.set(next, Option.some(effect.pipe(Effect.provide(ctx))))
+            yield* Ref.set(next, Option.some(effect))
             return current
           }
 
@@ -145,10 +147,9 @@ const runSlideBuffer = <R>() => <A, E>(handle: FiberHandle<A, E>) =>
             SynchronizedRef.updateEffect(
               handle.ref,
               (current) =>
-                Effect.gen(function*() {
+                Effect.gen(function* () {
                   // First clear the current fiber from the handle
-                  const cleared = Option.flatMap(current, (f) =>
-                    typeof fiber !== "undefined" && f === fiber ? Option.none() : Option.some(f))
+                  const cleared = Option.flatMap(current, (f) => f === fiber ? Option.none() : Option.some(f))
                   if (Option.isSome(cleared)) {
                     return cleared
                   }
@@ -161,6 +162,7 @@ const runSlideBuffer = <R>() => <A, E>(handle: FiberHandle<A, E>) =>
 
                     // Fork the next effect
                     const nextFiber: Fiber.Fiber<A, E> = yield* nextEffect.value.pipe(
+                      Effect.provide(ctx),
                       Effect.onExit(() =>
                         cleanup(nextFiber)
                       ),
@@ -176,6 +178,7 @@ const runSlideBuffer = <R>() => <A, E>(handle: FiberHandle<A, E>) =>
             )
 
           const fiber: Fiber.Fiber<A, E> = yield* effect.pipe(
+            Effect.interruptible,
             Effect.provide(ctx),
             Effect.onExit(() => cleanup(fiber)),
             Effect.forkIn(handle.scope)
