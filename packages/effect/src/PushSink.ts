@@ -1,6 +1,7 @@
 import * as Cause from "./Cause.js"
 import * as Effect from "./Effect.js"
 import { dual } from "./Function.js"
+import * as Option from "./Option.js"
 
 export interface PushSink<A, E = never, R = never> {
   readonly onSuccess: (value: A) => Effect.Effect<unknown, never, R>
@@ -55,6 +56,22 @@ export const filter: {
 } = dual(2, function filter<A, E, R>(sink: PushSink<A, E, R>, f: (a: A) => boolean): PushSink<A, E, R> {
   return {
     onSuccess: (value) => f(value) ? sink.onSuccess(value) : Effect.void,
+    onFailure: sink.onFailure
+  }
+})
+
+export const filterMap: {
+  <A, B>(f: (value: B) => Option.Option<A>): <E, R>(sink: PushSink<A, E, R>) => PushSink<B, E, R>
+  <A, E, R, B>(sink: PushSink<A, E, R>, f: (value: B) => Option.Option<A>): PushSink<B, E, R>
+} = dual(2, function filterMap<A, E, R, B>(
+  sink: PushSink<A, E, R>,
+  f: (value: B) => Option.Option<A>
+): PushSink<B, E, R> {
+  return {
+    onSuccess: (value) => Option.match(f(value), {
+      onSome: sink.onSuccess,
+      onNone: () => Effect.void
+    }),
     onFailure: sink.onFailure
   }
 })

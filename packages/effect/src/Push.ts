@@ -10,7 +10,7 @@ import { constant, constVoid, dual, flow, identity } from "./Function.js"
 import * as Option from "./Option.js"
 import type { Pipeable } from "./Pipeable.js"
 import { pipeArguments } from "./Pipeable.js"
-import { hasProperty } from "./Predicate.js"
+import { and, hasProperty } from "./Predicate.js"
 import * as PushSink from "./PushSink.js"
 import type * as Scope from "./Scope.js"
 import type { Covariant } from "./Types.js"
@@ -300,6 +300,16 @@ class Filter<A, E, R> extends PushImpl<A, E, R> {
   run(sink: PushSink.PushSink<A, E>): Effect.Effect<unknown, never, R> {
     return this.push.run(PushSink.filter(sink, this.f))
   }
+
+  static make<A, E, R>(push: Push<A, E, R>, f: (a: A) => boolean): Push<A, E, R> {
+    if (push instanceof Filter) {
+      return new Filter(push.push, and(push.f, f))
+    } else if (push instanceof FilterMap) {
+      return new FilterMap(push.push, flow(push.f, Option.flatMap(Option.liftPredicate(f))))
+    } else {
+      return new Filter(push, f)
+    }
+  }
 }
 
 export const filter: {
@@ -308,7 +318,7 @@ export const filter: {
 
   <A, E, R, B extends A>(push: Push<A, E, R>, f: (a: A) => a is B): Push<B, E, R>
   <A, E, R>(push: Push<A, E, R>, f: (a: A) => boolean): Push<A, E, R>
-} = dual(2, <A, E, R>(push: Push<A, E, R>, f: (a: A) => boolean): Push<A, E, R> => new Filter(push, f))
+} = dual(2, <A, E, R>(push: Push<A, E, R>, f: (a: A) => boolean): Push<A, E, R> => Filter.make(push, f))
 
 class Map<A, E, R, B> extends PushImpl<B, E, R> {
   constructor(readonly push: Push<A, E, R>, readonly f: (a: A) => B) {
@@ -318,12 +328,46 @@ class Map<A, E, R, B> extends PushImpl<B, E, R> {
   run(sink: PushSink.PushSink<B, E>): Effect.Effect<unknown, never, R> {
     return this.push.run(PushSink.map(sink, this.f))
   }
+
+  static make<A, E, R, B>(push: Push<A, E, R>, f: (a: A) => B): Push<B, E, R> {
+    if (push instanceof Map) {
+      return new Map(push.push, flow(push.f, f))
+    } else if (push instanceof Filter) {
+      return new FilterMap(push.push, x => push.f(x) ? Option.some(f(x)) : Option.none())
+    } else if (push instanceof FilterMap) {
+      return new FilterMap(push.push, flow(push.f, Option.map(f)))
+    } else {
+      return new Map(push, f)
+    }
+  }
 }
 
 export const map: {
   <A, B>(f: (a: A) => B): <E, R>(push: Push<A, E, R>) => Push<B, E, R>
   <A, E, R, B>(push: Push<A, E, R>, f: (a: A) => B): Push<B, E, R>
-} = dual(2, <A, E, R, B>(push: Push<A, E, R>, f: (a: A) => B): Push<B, E, R> => new Map(push, f))
+} = dual(2, <A, E, R, B>(push: Push<A, E, R>, f: (a: A) => B): Push<B, E, R> => Map.make(push, f))
+
+export class FilterMap<A, E, R, B> extends PushImpl<B, E, R> {
+  constructor(readonly push: Push<A, E, R>, readonly f: (a: A) => Option.Option<B>) {
+    super()
+  }
+
+  run(sink: PushSink.PushSink<B, E>): Effect.Effect<unknown, never, R> {
+    return this.push.run(PushSink.filterMap(sink, this.f))
+  }
+
+  static make<A, E, R, B>(push: Push<A, E, R>, f: (a: A) => Option.Option<B>): Push<B, E, R> {
+    if (push instanceof FilterMap) {
+      return new FilterMap(push.push, flow(push.f, Option.flatMap(f)))
+    } else if (push instanceof Map) {
+      return new FilterMap(push.push, flow(push.f, f))
+    } else if (push instanceof Filter) {
+      return new FilterMap(push.push, flow(Option.liftPredicate(push.f), Option.flatMap(f)))
+    } else {
+      return new FilterMap(push, f)
+    }
+  }
+}
 
 class MapErrorCause<A, E, R, F> extends PushImpl<A, F, R> {
   constructor(readonly push: Push<A, E, R>, readonly f: (cause: Cause.Cause<E>) => Cause.Cause<F>) {
@@ -357,25 +401,24 @@ export class Observe<A, E = never, R = never>
   constructor(readonly push: Push<A, E, R>, readonly onSuccess: (value: A) => Effect.Effect<unknown, E, R>) {
     super()
 
-    this._effect = Effect.gen(this, function* () {
-      const deferred = yield* Deferred.make<unknown, E>()
-      const ctx = yield* Effect.context<R>()
-
-      return yield* Effect.raceAllFirst([
-        this.push.run(PushSink.make({
-          onFailure: (cause) => Deferred.failCause(deferred, cause),
-          onSuccess: (value) =>
-            this.onSuccess(value).pipe(
-              Effect.matchCauseEffect({
-                onFailure: (cause) => Deferred.failCause(deferred, cause),
-                onSuccess: () => Effect.void
-              }),
-              Effect.provide(ctx)
-            )
-        })),
-        Deferred.await(deferred)
-      ])
-    })
+    this._effect = Effect.zip(Deferred.make<unknown, E>(), Effect.context<R>()).pipe(
+      Effect.flatMap(([deferred, ctx]) =>
+        Effect.raceAllFirst([
+          this.push.run(PushSink.make({
+            onFailure: (cause) => Deferred.failCause(deferred, cause),
+            onSuccess: (value) =>
+              this.onSuccess(value).pipe(
+                Effect.matchCauseEffect({
+                  onFailure: (cause) => Deferred.failCause(deferred, cause),
+                  onSuccess: () => Effect.void
+                }),
+                Effect.provide(ctx)
+              )
+          })),
+          Deferred.await(deferred)
+        ])
+      )
+    )
   }
 
   asEffect(): Effect.Effect<unknown, E, R> {
@@ -392,6 +435,10 @@ export class Observe<A, E = never, R = never>
 
   forkScoped(): Effect.Effect<Fiber<unknown, E>, never, R | Scope.Scope> {
     return Effect.forkScoped(this._effect)
+  }
+
+  pipe() {
+    return pipeArguments(this, arguments)
   }
 }
 
@@ -415,13 +462,81 @@ const constEffectVoid = constant(Effect.void)
 
 export const drain: <A, E, R>(push: Push<A, E, R>) => Observe<A, E, R> = observe(constEffectVoid)
 
-export const collect = <A, E, R>(push: Push<A, E, R>): Effect.Effect<ReadonlyArray<A>, E, R> => Effect.suspend(() => {
-  const values: A[] = []
-
-  return observe(push, (value) => Effect.sync(() => values.push(value))).asEffect().pipe(
-    Effect.map(() => values)
+const reduce_ = <A, E, R, B>(push: Push<A, E, R>, seed: B, reducer: (b: B, a: A) => B): Effect.Effect<B, E, R> => Effect.suspend(() => {
+  let acc = seed
+  return observe(push, (value) => Effect.sync(() => acc = reducer(acc, value))).asEffect().pipe(
+    Effect.map(() => acc)
   )
 })
+
+const filterMapReduce_ = <A, E, R, B>(push: Push<A, E, R>, seed: B, reducer: (b: B, a: A) => Option.Option<B>): Effect.Effect<B, E, R> => Effect.suspend(() => {
+  if (push instanceof PushFromArray) {
+    return filterMapReduceFromArray_(push.array, seed, reducer)
+  }
+
+  let acc = seed
+  return observe(push, (value) => Effect.sync(() => {
+    const next = reducer(acc, value)
+    if (Option.isSome(next)) {
+      acc = next.value
+    }
+  })).asEffect().pipe(
+    Effect.map(() => acc)
+  )
+})
+
+const filterMapReduceFromArray_ = <A, E, R, B>(array: ReadonlyArray<A>, seed: B, reducer: (b: B, a: A) => Option.Option<B>): Effect.Effect<B, E, R> => Effect.sync<B>(() => {
+  let acc = seed
+  for (const a of array) {
+    const next = reducer(acc, a)
+    if (Option.isSome(next)) {
+      acc = next.value
+    }
+  }
+  return acc
+})
+
+class Reduce<A, E, R, B> extends Effect.YieldableClass<B, E, R> {
+  private _effect: Effect.Effect<B, E, R>
+
+  constructor(readonly push: Push<A, E, R>, readonly seed: B, readonly f: (b: B, a: A) => B) {
+    super()
+    this._effect = this.buildEffect()
+  }
+
+  asEffect(): Effect.Effect<B, E, R> {
+    return this._effect
+  }
+
+  buildEffect(): Effect.Effect<B, E, R> {
+    if (this.push instanceof PushFromArray) {
+      const array = this.push.array
+      return Effect.sync<B>(() => array.reduce<B>(this.f, this.seed))
+    } else if (this.push instanceof Map) {
+      const { push, f } = this.push
+      return filterMapReduce_<A, E, R, B>(push, this.seed, (b, a) => Option.some(this.f(b, f(a))))
+    } else if (this.push instanceof Filter) {
+      const { push, f } = this.push
+      return filterMapReduce_<A, E, R, B>(push, this.seed, (b, a) => f(a) ? Option.some(this.f(b, a)) : Option.none())
+    } else if (this.push instanceof FilterMap) {
+      const { push, f } = this.push
+      return filterMapReduce_<A, E, R, B>(push, this.seed, (b, _) => Option.map(f(_), a => this.f(b, a)))
+    } else {
+      return reduce_(this.push, this.seed, this.f)
+    }
+  }
+}
+
+export const reduce: {
+  <B, A>(seed: B, reducer: (b: B, a: A) => B): <E, R>(push: Push<A, E, R>) => Effect.Effect<B, E, R>
+  <A, E, R, B>(push: Push<A, E, R>, seed: B, reducer: (b: B, a: A) => B): Effect.Effect<B, E, R>
+} = dual(3, <A, E, R, B>(push: Push<A, E, R>, seed: B, reducer: (b: B, a: A) => B): Effect.Effect<B, E, R> => new Reduce(push, seed, reducer).asEffect())
+
+export const collect = <A, E, R>(push: Push<A, E, R>): Effect.Effect<ReadonlyArray<A>, E, R> => Effect.suspend(() => reduce(push, [] as A[], (acc, a) => {
+  acc.push(a)
+  return acc
+}))
+
 export const mergeAll = <Pushes extends ReadonlyArray<Push<any, any, any>>>(
   ...pushes: Pushes
 ): Push<
