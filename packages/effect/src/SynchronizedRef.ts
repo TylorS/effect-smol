@@ -58,14 +58,12 @@ export const modifyEffect: {
     self: SynchronizedRef<A>,
     f: (a: A) => Effect.Effect<readonly [B, A], E, R>
   ): Effect.Effect<B, E, R> {
-    return Effect.gen(function* () {
+    return self.lock(Effect.gen(function* () {
       const current = yield* Ref.get(self.ref)
       const [b, a] = yield* f(current)
       yield* Ref.set(self.ref, a)
       return b
-    }).pipe(
-      self.lock
-    )
+    }))
   }
 )
 
@@ -73,24 +71,20 @@ export const updateEffect: {
   <A, E, R>(f: (a: A) => Effect.Effect<A, E, R>): (self: SynchronizedRef<A>) => Effect.Effect<A, E, R>
   <A, E, R>(self: SynchronizedRef<A>, f: (a: A) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R>
 } = dual(2, function <A, E, R>(self: SynchronizedRef<A>, f: (a: A) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R> {
-  return Effect.gen(function* () {
+  return self.lock(Effect.gen(function* () {
     const current = yield* Ref.get(self.ref)
     const a = yield* f(current)
     return yield* Ref.setAndGet(self.ref, a)
-  }).pipe(
-    self.lock
-  )
+  }))
 })
 
 export const update: {
   <A>(f: (a: A) => A): (self: SynchronizedRef<A>) => Effect.Effect<A>
   <A>(self: SynchronizedRef<A>, f: (a: A) => A): Effect.Effect<A>
 } = dual(2, function <A>(self: SynchronizedRef<A>, f: (a: A) => A): Effect.Effect<A> {
-  return Effect.gen(function* () {
+  return self.lock(Effect.gen(function* () {
     const current = yield* Ref.get(self.ref)
     const b = f(current)
     return yield* Ref.setAndGet(self.ref, b)
-  }).pipe(
-    self.lock
-  )
+  }))
 })
