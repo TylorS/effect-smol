@@ -1,4 +1,4 @@
-import { flow, identity, MutableRef } from "effect"
+import { flow, identity, MutableRef, Ref } from "effect"
 import * as Cause from "effect/Cause"
 import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
@@ -9,6 +9,23 @@ export interface Sink<A, E = never, R = never> {
   readonly onSuccess: (value: A) => Effect.Effect<unknown, never, R>
   readonly onFailure: (cause: Cause.Cause<E>) => Effect.Effect<unknown, never, R>
 }
+
+export declare namespace Sink {
+  export type Any = Sink<any, any, any>
+
+  export type Success<T> = T extends Sink<infer _A, infer _E, infer _R> ? _A
+    : never
+
+  export type Error<T> = T extends Sink<infer _A, infer _E, infer _R> ? _E
+    : never
+
+  export type Context<T> = T extends Sink<infer _A, infer _E, infer _R> ? _R
+    : never
+}
+
+export type Success<T> = Sink.Success<T>
+export type Error<T> = Sink.Error<T>
+export type Context<T> = Sink.Context<T>
 
 export function make<A, E = never, R = never, R2 = never>(
   onFailure: (cause: Cause.Cause<E>) => Effect.Effect<unknown, never, R>,
@@ -117,7 +134,7 @@ export declare namespace Sink {
   }
 
   export interface WithState<A, E, R, B> extends WithEarlyExit<A, E, R> {
-    readonly state: MutableRef.MutableRef<B>
+    readonly state: Ref.Ref<B>
   }
 
   export interface WithStateSemaphore<A, E, R, B> extends WithEarlyExit<A, E, R> {
@@ -158,7 +175,7 @@ export function withState<A, E, R, B, R2>(
     params: { signal: AbortSignal; scheduler: Scheduler }
   ) => Effect.Effect<unknown, never, R2>
 ) {
-  return withEarlyExit(sink, (sink, params) => f({ ...sink, state: MutableRef.make(state) }, params))
+  return withEarlyExit(sink, (sink, params) => f({ ...sink, state: Ref.makeUnsafe(state) }, params))
 }
 
 export function withStateSemaphore<A, E, R, B, R2>(
@@ -171,7 +188,8 @@ export function withStateSemaphore<A, E, R, B, R2>(
 ) {
   return withEarlyExit(sink, (sink, params) => {
     const stateRef = MutableRef.make(state)
-    const lock = Effect.unsafeMakeSemaphore(1).withPermits(1)
+    const semaphore = Effect.makeSemaphoreUnsafe(1)
+    const lock = semaphore.withPermits(1)
     const modifyEffect = <C, E2, R2>(f: (state: B) => Effect.Effect<readonly [C, B], E2, R2>) =>
       Effect.suspend(() => f(MutableRef.get(stateRef))).pipe(
         Effect.flatMap(([c, b]) => {
@@ -555,8 +573,8 @@ class FilterMapLoopCauseEffectSink<A, E, R, B, E2, R2, C> implements Sink<A, E, 
 }
 
 export interface Bounds {
-  readonly min: number
-  readonly max: number
+  readonly skip: number
+  readonly take: number
 }
 
 export const slice: {
@@ -589,8 +607,8 @@ class SliceSink<A, E, R> implements Sink<A, E, R> {
   ) {
     this.sink = sink
     this.bounds = bounds
-    this.drop = this.bounds.min
-    this.take = this.bounds.max
+    this.drop = this.bounds.skip
+    this.take = this.bounds.take
 
     this.onFailure = this.onFailure.bind(this)
     this.onSuccess = this.onSuccess.bind(this)
