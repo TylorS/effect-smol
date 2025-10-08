@@ -1,19 +1,20 @@
-import type { Scope } from "effect"
-import { flow, Ref } from "effect"
+import { flow, Ref, Scope } from "effect"
 import * as Cause from "effect/Cause"
 import type * as Equivalence from "effect/data/Equivalence"
 import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import { dual } from "effect/Function"
 import { equals } from "effect/interfaces/Equal"
 import { type Pipeable, pipeArguments } from "effect/interfaces/Pipeable"
+import * as Layer from "effect/Layer"
 import * as Util from "./_util.js"
 import * as Sink from "./Sink.js"
 
 export abstract class Fx<A, E = never, R = never> implements Pipeable {
   abstract run<RSink>(sink: Sink.Sink<A, E, RSink>): Effect.Effect<unknown, never, R | RSink>
 
-  pipe: Pipeable["pipe"] = function() {
+  pipe: Pipeable["pipe"] = function(this: Fx<A, E, R>) {
     return pipeArguments(this, arguments)
   }
 }
@@ -626,3 +627,36 @@ export const skipRepeatsWith = <A>(Eq: Equivalence.Equivalence<A>) => <E, R>(fx:
 const skipRepeats_ = skipRepeatsWith(equals)
 
 export const skipRepeats: <A, E, R>(fx: Fx<A, E, R>) => Fx<A, E, R> = skipRepeats_
+
+export const provide: {
+  <R2, E2 = never, R3 = never>(
+    layer: Layer.Layer<R2, E2, R3>
+  ): <A, E, R>(fx: Fx<A, E, R>) => Fx<A, E | E2, Exclude<R, R2> | R3>
+
+  <A, E, R, R2, E2 = never, R3 = never>(
+    fx: Fx<A, E, R>,
+    layer: Layer.Layer<R2, E2, R3>
+  ): Fx<A, E | E2, Exclude<R, R2> | R3>
+} = dual(2, <A, E, R, R2, E2 = never, R3 = never>(
+  fx: Fx<A, E, R>,
+  layer: Layer.Layer<R2, E2, R3>
+): Fx<A, E | E2, Exclude<R, R2> | R3> =>
+  make<A, E | E2, Exclude<R, R2> | R3>(
+    Effect.fnUntraced(function*(sink) {
+      const scope = yield* Scope.make()
+      const servicesExit = yield* layer.pipe(
+        Layer.buildWithScope(scope),
+        Effect.exit
+      )
+
+      if (Exit.isFailure(servicesExit)) {
+        yield* Scope.close(scope, servicesExit)
+        return yield* sink.onFailure(servicesExit.cause)
+      }
+
+      return yield* fx.run(sink).pipe(
+        Effect.provideServices(servicesExit.value),
+        Effect.onExit((exit) => Scope.close(scope, exit))
+      )
+    })
+  ))

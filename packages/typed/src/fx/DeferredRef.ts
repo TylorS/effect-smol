@@ -10,12 +10,19 @@ export class DeferredRef<E, A> extends Effect.YieldableClass<A, E, never> {
   public version!: number
   public deferred!: Deferred.Deferred<A, E>
 
+  readonly fiberId: number | undefined
+  readonly eq: Equivalence.Equivalence<Exit.Exit<A, E>>
+  readonly current: MutableRef.MutableRef<Option.Option<Exit.Exit<A, E>>>
+
   constructor(
-    private id: number | undefined,
-    private eq: Equivalence.Equivalence<Exit.Exit<A, E>>,
-    readonly current: MutableRef.MutableRef<Option.Option<Exit.Exit<A, E>>>
+    fiberId: number | undefined,
+    eq: Equivalence.Equivalence<Exit.Exit<A, E>>,
+    current: MutableRef.MutableRef<Option.Option<Exit.Exit<A, E>>>
   ) {
     super()
+    this.fiberId = fiberId
+    this.eq = eq
+    this.current = current
     this.reset()
   }
 
@@ -50,7 +57,7 @@ export class DeferredRef<E, A> extends Effect.YieldableClass<A, E, never> {
     this.version = -1
 
     if (this.deferred) {
-      Deferred.doneUnsafe(this.deferred, Exit.interrupt(this.id))
+      Deferred.doneUnsafe(this.deferred, Exit.interrupt(this.fiberId))
     }
 
     this.deferred = Deferred.makeUnsafe()

@@ -9,8 +9,8 @@ import { pipeArguments } from "effect/interfaces/Pipeable"
 import * as Scope from "effect/Scope"
 import * as SynchronizedRef from "effect/SynchronizedRef"
 import type * as Duration from "effect/time/Duration"
-import type { Fx } from "./Fx"
-import type { Sink } from "./Sink"
+import type { Fx } from "./Fx.js"
+import type { Sink } from "./Sink.js"
 
 export type ExecutionStrategy = "sequential" | "parallel"
 
@@ -63,15 +63,14 @@ function runSwitchFork<A, E, R>(
       (effect) =>
         SynchronizedRef.updateEffect(
           ref,
-          (fiber) =>
-            Option.match(fiber, {
-              onNone: () => Effect.asSome(fork(effect)),
-              onSome: (fiber) =>
-                Effect.flatMap(
-                  Fiber.interrupt(fiber),
-                  () => Effect.asSome(fork(effect))
-                )
-            })
+          Option.match({
+            onNone: () => Effect.asSome(fork(effect)),
+            onSome: (fiber) =>
+              Effect.flatMap(
+                Fiber.interrupt(fiber),
+                () => Effect.asSome(fork(effect))
+              )
+          })
         ),
       scope
     ),
@@ -105,14 +104,20 @@ export function withExhaustLatestFork<A, E, R>(
   return withScopedFork((fork, scope) =>
     Effect.flatMap(
       Effect.zip(
-        Ref.make<Fiber.Fiber<void> | void>(undefined),
+        Ref.make<Option.Option<Fiber.Fiber<void>>>(Option.none()),
         Ref.make<Option.Option<Effect.Effect<void, never, any>>>(Option.none())
       ),
       ([ref, nextEffect]) => {
-        const reset = Ref.set(ref, undefined)
+        const reset = Ref.set(ref, Option.none())
 
         // Wait for the current fiber to finish
-        const awaitNext = Effect.flatMap(Ref.get(ref), (fiber) => fiber ? Fiber.join(fiber) : Effect.void)
+        const awaitNext = Effect.flatMap(
+          Ref.get(ref),
+          Option.match({
+            onNone: () => Effect.void,
+            onSome: Fiber.join
+          })
+        )
 
         // Run the next value that's been saved for replay, if it exists
         const runNext: Effect.Effect<void, never, any> = Effect.flatMap(
@@ -143,7 +148,7 @@ export function withExhaustLatestFork<A, E, R>(
                     Effect.zip(reset, runNext)
                   )
                 ),
-                (fiber) => Ref.set(ref, fiber)
+                (fiber) => Ref.set(ref, Option.some(fiber))
               ) :
               Ref.set(nextEffect, Option.some(eff)))
 
@@ -230,9 +235,12 @@ export function awaitScopeClose(scope: Scope.Scope) {
 }
 
 export class RingBuffer<A> {
+  readonly capacity: number
+
   constructor(
-    readonly capacity: number
+    capacity: number
   ) {
+    this.capacity = capacity
     this._buffer = Array(this.capacity)
   }
 
@@ -287,10 +295,13 @@ export class RingBuffer<A> {
 export class MulticastEffect<A, E, R> extends Effect.YieldableClass<A, E, R> {
   private _fiber: Fiber.Fiber<A, E> | null = null
 
+  readonly effect: Effect.Effect<A, E, R>
+
   constructor(
-    readonly effect: Effect.Effect<A, E, R>
+    effect: Effect.Effect<A, E, R>
   ) {
     super()
+    this.effect = effect
   }
 
   asEffect() {
@@ -320,11 +331,25 @@ export class MulticastEffect<A, E, R> extends Effect.YieldableClass<A, E, R> {
   }
 }
 
+export const makeMulticastEffect = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.acquireRelease(
+    Effect.sync(() => new MulticastEffect(effect)),
+    (multicastEffect) => multicastEffect.interrupt()
+  )
+
 export abstract class YieldableFx<A, E, R, B, E2, R2> extends Effect.YieldableClass<B, E2, R2> implements Fx<A, E, R> {
-  abstract run<R3>(sink: Sink<A, E, R3>): Effect.Effect<unknown, never, R | R3>
+  abstract run<RSink>(sink: Sink<A, E, RSink>): Effect.Effect<unknown, never, R | RSink>
+
+  abstract toEffect(): Effect.Effect<B, E2, R2>
 
   pipe() {
     return pipeArguments(this, arguments)
+  }
+
+  // Memoize the effect
+  private _effect: Effect.Effect<B, E2, R2> | null = null
+  asEffect(): Effect.Effect<B, E2, R2> {
+    return (this._effect ??= this.toEffect())
   }
 }
 

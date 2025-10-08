@@ -19,42 +19,23 @@ import * as Subject from "./Subject.js"
 // TODO: context abstraction
 // TODO: More operators
 
-/**
- * @since 1.0.0
- */
 export interface Versioned<out R1, out E1, out A2, out E2, out R2, out A3, out E3, out R3>
-  extends Fx.Fx<A2, E2, R2>, Effect.Yieldable<any, A3, E3, R3>
+  extends Fx.Fx<A2, E2, R2>, Effect.Yieldable<Versioned<R1, E1, A2, E2, R2, A3, E3, R3>, A3, E3, R3>
 {
   readonly version: Effect.Effect<number, E1, R1>
 }
 
-/**
- * @since 1.0.0
- */
 export namespace Versioned {
-  /**
-   * @category models
-   * @since 1.0.0
-   */
   export type Unify<T> = T extends
     Versioned<infer R1, infer E1, infer R2, infer E2, infer A2, infer R3, infer E3, infer A3> | infer _
     ? Versioned<R1, E1, A2, E2, R2, A3, E3, R3>
     : never
 
-  /**
-   * @since 1.0.0
-   */
   export type VersionContext<T> = T extends Versioned<infer R, any, any, any, any, any, any, any> ? R : never
 
-  /**
-   * @since 1.0.0
-   */
   export type VersionError<T> = T extends Versioned<any, infer E, any, any, any, any, any, any> ? E : never
 }
 
-/**
- * @since 1.0.0
- */
 export function make<R1, E1, A2, E2, R2, A3, E3, R3>(
   version: Effect.Effect<number, E1, R1>,
   fx: Fx.Fx<A2, E2, R2>,
@@ -66,26 +47,32 @@ export function make<R1, E1, A2, E2, R2, A3, E3, R3>(
 class VersionedImpl<R1, E1, A2, E2, R2, A3, E3, R3> extends YieldableFx<A2, E2, R2, A3, E3, R3>
   implements Versioned<R1, E1, A2, E2, R2, A3, E3, R3>
 {
+  readonly version: Effect.Effect<number, E1, R1>
+  readonly fx: Fx.Fx<A2, E2, R2>
+  readonly effect: MulticastEffect<A3, E3, R3>
+
   constructor(
-    readonly version: Effect.Effect<number, E1, R1>,
-    readonly fx: Fx.Fx<A2, E2, R2>,
-    readonly effect: Effect.Effect<A3, E3, R3>
+    version: Effect.Effect<number, E1, R1>,
+    fx: Fx.Fx<A2, E2, R2>,
+    effect: Effect.Effect<A3, E3, R3>
   ) {
     super()
+    this.version = version
+    this.fx = fx
+    this.effect = new MulticastEffect(effect)
   }
 
   run<R3>(sink: Sink<A2, E2, R3>): Effect.Effect<unknown, never, R2 | R3> {
     return this.fx.run(sink)
   }
 
-  asEffect(): Effect.Effect<A3, E3, R3> {
-    return this.effect
+  toEffect(): Effect.Effect<A3, E3, R3> {
+    return this.effect.asEffect()
   }
+
+  interrupt = Effect.suspend(() => this.effect.interrupt())
 }
 
-/**
- * @since 1.0.0
- */
 export function transform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4>(
   input: Versioned<R0, E0, A, E, R, B, E2, R2>,
   transformFx: (fx: Fx.Fx<A, E, R>) => Fx.Fx<C, E3, R3>,
@@ -113,13 +100,20 @@ export class VersionedTransform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4
   public _currentValue: Option.Option<Exit.Exit<D, E0 | E4>> = Option.none()
   public _fx: Fx.Fx<C, E3, R3>
 
+  readonly input: Versioned<R0, E0, A, E, R, B, E2, R2>
+  readonly _transformFx: (fx: Fx.Fx<A, E, R>) => Fx.Fx<C, E3, R3>
+  readonly _transformEffect: (effect: Effect.Effect<B, E2, R2>) => Effect.Effect<D, E4, R4>
+
   constructor(
-    readonly input: Versioned<R0, E0, A, E, R, B, E2, R2>,
-    readonly _transformFx: (fx: Fx.Fx<A, E, R>) => Fx.Fx<C, E3, R3>,
-    readonly _transformEffect: (effect: Effect.Effect<B, E2, R2>) => Effect.Effect<D, E4, R4>
+    input: Versioned<R0, E0, A, E, R, B, E2, R2>,
+    _transformFx: (fx: Fx.Fx<A, E, R>) => Fx.Fx<C, E3, R3>,
+    _transformEffect: (effect: Effect.Effect<B, E2, R2>) => Effect.Effect<D, E4, R4>
   ) {
     super()
 
+    this.input = input
+    this._transformFx = _transformFx
+    this._transformEffect = _transformEffect
     this._fx = _transformFx(this.input)
   }
 
@@ -129,7 +123,7 @@ export class VersionedTransform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4
     return this._fx.run(sink)
   }
 
-  asEffect(): Effect.Effect<D, E0 | E4, R0 | R4> {
+  toEffect(): Effect.Effect<D, E0 | E4, R0 | R4> {
     const transformed = this._transformEffect(this.input as any as Effect.Effect<B, E2, R2>)
     const update = (v: number) =>
       Effect.tapCause(
@@ -148,13 +142,16 @@ export class VersionedTransform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4
           })
       )
 
-    return new MulticastEffect(Effect.flatMap(this.input.version, (version) => {
+    // TODO: How to make this interruptible?
+    const multicastEffect = new MulticastEffect(Effect.flatMap(this.input.version, (version) => {
       if (version === this._version && Option.isSome(this._currentValue)) {
         return this._currentValue.value
       }
 
       return update(version)
-    })).asEffect()
+    }))
+
+    return multicastEffect.asEffect()
   }
 }
 
@@ -303,16 +300,10 @@ export const mapEffect: {
 //   )
 // })
 
-/**
- * @since 1.0.0
- */
 export function of<A>(value: A): Versioned<never, never, A, never, never, A, never, never> {
   return make(Effect.succeed(1), Fx.succeed(value), Effect.succeed(value))
 }
 
-/**
- * @since 1.0.0
- */
 export function hold<R0, E0, A, E, R, B, E2, R2>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>
 ): Versioned<R0, E0, A, E, R | Scope.Scope, B, E2, R2> {
@@ -323,9 +314,6 @@ export function hold<R0, E0, A, E, R, B, E2, R2>(
   )
 }
 
-/**
- * @since 1.0.0
- */
 export function multicast<R0, E0, A, E, R, B, E2, R2>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>
 ): Versioned<R0, E0, A, E, R | Scope.Scope, B, E2, R2> {
@@ -336,9 +324,6 @@ export function multicast<R0, E0, A, E, R, B, E2, R2>(
   )
 }
 
-/**
- * @since 1.0.0
- */
 export function replay<R0, E0, A, E, R, B, E2, R2>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
   bufferSize: number

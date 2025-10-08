@@ -1,5 +1,5 @@
 import { Fiber, MutableRef } from "effect"
-import * as Cause from "effect/Cause"
+import type * as Cause from "effect/Cause"
 import type { Equivalence } from "effect/data/Equivalence"
 import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
@@ -8,12 +8,12 @@ import { dual } from "effect/Function"
 import { equals } from "effect/interfaces/Equal"
 import * as Scope from "effect/Scope"
 import * as ServiceMap from "effect/ServiceMap"
-import { getExitEquivalence, YieldableFx } from "./_util"
-import * as DeferredRef from "./DeferredRef"
-import * as Fx from "./Fx"
-import type * as Sink from "./Sink"
-import * as Subject from "./Subject"
-import * as Versioned from "./Versioned"
+import { getExitEquivalence, YieldableFx } from "./_util.js"
+import * as DeferredRef from "./DeferredRef.js"
+import * as Fx from "./Fx.js"
+import type * as Sink from "./Sink.js"
+import * as Subject from "./Subject.js"
+import * as Versioned from "./Versioned.js"
 
 export const RefSubjectTypeId = Symbol.for("@typed/fx/RefSubject")
 export type RefSubjectTypeId = typeof RefSubjectTypeId
@@ -79,15 +79,21 @@ class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   private _computed: Fx.Fx<C, E0 | E | E2 | E3, R0 | R | Scope.Scope | R2 | R3>
 
+  override input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>
+  readonly f: (a: A) => Effect.Effect<C, E3, R3>
+
   constructor(
-    readonly input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
-    readonly f: (a: A) => Effect.Effect<C, E3, R3>
+    input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+    f: (a: A) => Effect.Effect<C, E3, R3>
   ) {
     super(
       input,
       (fx) => Fx.mapEffect(fx, f),
       Effect.flatMap(f)
     )
+
+    this.input = input
+    this.f = f
 
     this._computed = Subject.hold(Fx.unwrap(
       Effect.map(Effect.services(), (ctx) => {
@@ -105,7 +111,7 @@ class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
     ))
   }
 
-  run<RSink>(sink: Sink.Sink<C, E0 | E | E2 | E3, RSink>) {
+  override run<RSink>(sink: Sink.Sink<C, E0 | E | E2 | E3, RSink>) {
     return this._computed.run(sink) as any
   }
 }
@@ -143,9 +149,12 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   readonly [FilteredTypeId]: FilteredTypeId = FilteredTypeId
   private _computed: Fx.Fx<C, E0 | E | E2 | E3, R0 | R | Scope.Scope | R2 | R3>
 
+  override input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>
+  readonly f: (a: A) => Effect.Effect<Option.Option<C>, E3, R3>
+
   constructor(
-    readonly input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
-    readonly f: (a: A) => Effect.Effect<Option.Option<C>, E3, R3>
+    input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+    f: (a: A) => Effect.Effect<Option.Option<C>, E3, R3>
   ) {
     super(
       input,
@@ -159,6 +168,9 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
           (option) => option.asEffect()
         )
     )
+
+    this.input = input
+    this.f = f
 
     this._computed = Subject.hold(Fx.unwrap(
       Effect.map(Effect.services(), (ctx) => {
@@ -176,7 +188,7 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
     ))
   }
 
-  run<RSink>(sink: Sink.Sink<C, E0 | E | E2 | E3, RSink>) {
+  override run<RSink>(sink: Sink.Sink<C, E0 | E | E2 | E3, RSink>) {
     return this._computed.run(sink) as any
   }
 
@@ -186,14 +198,26 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
 }
 
 class RefSubjectCore<A, E, R, R2> {
+  readonly initial: Effect.Effect<A, E, R>
+  readonly subject: Subject.HoldSubjectImpl<A, E>
+  readonly services: ServiceMap.ServiceMap<R2>
+  readonly scope: Scope.Closeable
+  readonly deferredRef: DeferredRef.DeferredRef<E, A>
+  readonly semaphore: Effect.Semaphore
   constructor(
-    readonly initial: Effect.Effect<A, E, R>,
-    readonly subject: Subject.HoldSubjectImpl<A, E>,
-    readonly services: ServiceMap.ServiceMap<R2>,
-    readonly scope: Scope.Closeable,
-    readonly deferredRef: DeferredRef.DeferredRef<E, A>,
-    readonly semaphore: Effect.Semaphore
+    initial: Effect.Effect<A, E, R>,
+    subject: Subject.HoldSubjectImpl<A, E>,
+    services: ServiceMap.ServiceMap<R2>,
+    scope: Scope.Closeable,
+    deferredRef: DeferredRef.DeferredRef<E, A>,
+    semaphore: Effect.Semaphore
   ) {
+    this.initial = initial
+    this.subject = subject
+    this.services = services
+    this.scope = scope
+    this.deferredRef = deferredRef
+    this.semaphore = semaphore
   }
 
   public _fiber: Fiber.Fiber<A, E> | undefined = undefined
@@ -225,11 +249,14 @@ class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Sco
 
   readonly getSetDelete: GetSetDelete<A, E, Exclude<R, R2>>
 
+  readonly core: RefSubjectCore<A, E, R, R2>
+
   constructor(
-    readonly core: RefSubjectCore<A, E, R, R2>
+    core: RefSubjectCore<A, E, R, R2>
   ) {
     super()
 
+    this.core = core
     this.version = Effect.sync(() => core.deferredRef.version)
     this.interrupt = Effect.provide(interruptCore(core), core.services)
     this.subscriberCount = Effect.provide(core.subject.subscriberCount, core.services)
@@ -261,7 +288,7 @@ class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Sco
     return onFailureCore(this.core, cause)
   }
 
-  asEffect(): Effect.Effect<A, E, Exclude<R, R2>> {
+  toEffect(): Effect.Effect<A, E, Exclude<R, R2>> {
     return getOrInitializeCore(this.core, true)
   }
 }
@@ -541,36 +568,22 @@ export const runUpdates: {
       readonly value?: "initial" | "current"
     }
   ) {
-    if (!options) {
+    if (options === undefined) {
       return ref.updates(f)
     } else if (options.value === "initial") {
       return ref.updates((ref) =>
-        Effect.uninterruptibleMask((restore) =>
-          Effect.flatMap(
-            ref.get,
-            (initial) =>
-              f(ref).pipe(
-                restore,
-                Effect.tapCause((cause): Effect.Effect<unknown, E3, R3> =>
-                  Cause.isInterruptedOnly(cause)
-                    ? options.onInterrupt(initial).asEffect()
-                    : Effect.void
-                )
-              )
-          )
+        Effect.flatMap(
+          ref.get,
+          (initial) =>
+            f(ref).pipe(
+              Effect.onInterrupt(() => options.onInterrupt(initial))
+            )
         )
       )
     } else {
       return ref.updates((ref) =>
-        Effect.uninterruptibleMask((restore) =>
-          f(ref).pipe(
-            restore,
-            Effect.tapCause((cause): Effect.Effect<unknown, E | E3, R | R3> =>
-              Cause.isInterruptedOnly(cause)
-                ? Effect.flatMap(ref.get, options.onInterrupt)
-                : Effect.void
-            )
-          )
+        f(ref).pipe(
+          Effect.onInterrupt(() => Effect.flatMap(ref.get, options.onInterrupt))
         )
       )
     }

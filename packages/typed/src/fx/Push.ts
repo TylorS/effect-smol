@@ -43,8 +43,14 @@ export const make: {
 })
 
 class PushImpl<A, E, R, B, E2, R2> extends Fx.Fx<B, E2, R2> implements Push<A, E, R, B, E2, R2> {
-  constructor(readonly sink: Sink.Sink<A, E, R>, readonly fx: Fx.Fx<B, E2, R2>) {
+  readonly sink: Sink.Sink<A, E, R>
+  readonly fx: Fx.Fx<B, E2, R2>
+
+  constructor(sink: Sink.Sink<A, E, R>, fx: Fx.Fx<B, E2, R2>) {
     super()
+
+    this.sink = sink
+    this.fx = fx
 
     this.onFailure = this.onFailure.bind(this)
     this.onSuccess = this.onSuccess.bind(this)
