@@ -5,8 +5,9 @@ import * as Fiber from "effect/Fiber"
 import { dual } from "effect/Function"
 import * as MutableRef from "effect/MutableRef"
 import * as Scope from "effect/Scope"
-import { awaitScopeClose, RingBuffer, withScope } from "./_util.js"
 import { Fx } from "./Fx.js"
+import { RingBuffer } from "./internal/ring-buffer.js"
+import { awaitScopeClose, withExtendedScope } from "./internal/scope.ts"
 import type { Sink } from "./Sink.js"
 
 export interface Subject<A, E = never, R = never> extends Fx<A, E, R | Scope.Scope>, Sink<A, E, R> {
@@ -67,7 +68,7 @@ export class Share<A, E, R, R2> extends Fx<A, E, R | R2 | Scope.Scope> {
             })
           ),
           Effect.interruptible,
-          Effect.forkDaemon,
+          Effect.forkDetach,
           Effect.tap((fiber) => Effect.sync(() => MutableRef.set(this._FxFiber, Option.some(fiber))))
         )
       } else {
@@ -124,12 +125,10 @@ export class SubjectImpl<A, E> extends Fx<A, E, Scope.Scope> implements Subject<
     return this.addSink(sink, awaitScopeClose)
   }
 
-  // Emit a failure to all sinks
   onFailure(cause: Cause.Cause<E>) {
     return this.onCause(cause)
   }
 
-  // Emit an event to all sinks
   onSuccess(a: A) {
     return this.onEvent(a)
   }
@@ -144,7 +143,7 @@ export class SubjectImpl<A, E> extends Fx<A, E, Scope.Scope> implements Subject<
     sink: Sink<A, E, R>,
     f: (scope: Scope.Scope) => Effect.Effect<B, never, R2>
   ): Effect.Effect<B, never, R2 | Scope.Scope> {
-    return withScope(
+    return withExtendedScope(
       (innerScope) =>
         Effect.servicesWith((ctx) => {
           const entry = [sink, ctx, innerScope] as const
@@ -217,9 +216,9 @@ function runSinkCause<A, E>(
 export class HoldSubjectImpl<A, E> extends SubjectImpl<A, E> implements Subject<A, E> {
   readonly lastValue: MutableRef.MutableRef<Option.Option<Exit.Exit<A, E>>> = MutableRef.make(Option.none())
 
-  // Emit an event to all sinks
   override onSuccess = (a: A): Effect.Effect<void, never, never> =>
     Effect.suspend(() => {
+      // Keep track of the last value emitted by the subject
       MutableRef.set(this.lastValue, Option.some(Exit.succeed(a)))
 
       return this.onEvent(a)
@@ -227,6 +226,7 @@ export class HoldSubjectImpl<A, E> extends SubjectImpl<A, E> implements Subject<
 
   override onFailure = (cause: Cause.Cause<E>): Effect.Effect<void, never, never> => {
     return Effect.suspend(() => {
+      // Keep track of the last value emitted by the subject
       MutableRef.set(this.lastValue, Option.some(Exit.failCause(cause)))
 
       return this.onCause(cause)
@@ -237,6 +237,7 @@ export class HoldSubjectImpl<A, E> extends SubjectImpl<A, E> implements Subject<
     return this.addSink(sink, (scope) =>
       Option.match(MutableRef.get(this.lastValue), {
         onNone: () => awaitScopeClose(scope),
+        // If we have a previous value, emit it first
         onSome: (exit) => Effect.flatMap(Exit.match(exit, sink), () => awaitScopeClose(scope))
       }))
   }
@@ -251,25 +252,30 @@ export class HoldSubjectImpl<A, E> extends SubjectImpl<A, E> implements Subject<
  * @internal
  */
 export class ReplaySubjectImpl<A, E> extends SubjectImpl<A, E> {
-  readonly buffer: RingBuffer<A>
+  readonly buffer: RingBuffer<Exit.Exit<A, E>>
 
-  constructor(buffer: RingBuffer<A>) {
+  constructor(buffer: RingBuffer<Exit.Exit<A, E>>) {
     super()
     this.buffer = buffer
   }
 
-  // Emit an event to all sinks
   override onSuccess = (a: A): Effect.Effect<void, never, never> =>
     Effect.suspend(() => {
-      this.buffer.push(a)
-
+      // Keep track of the last value emitted by the subject
+      this.buffer.push(Exit.succeed(a))
       return this.onEvent(a)
+    })
+
+  override onFailure = (cause: Cause.Cause<E>): Effect.Effect<void, never, never> =>
+    Effect.suspend(() => {
+      this.buffer.push(Exit.failCause(cause))
+      return this.onCause(cause)
     })
 
   override run<R2>(sink: Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {
     return this.addSink(
       sink,
-      (scope) => Effect.flatMap(this.buffer.forEach((a) => sink.onSuccess(a)), () => awaitScopeClose(scope))
+      (scope) => Effect.flatMap(this.buffer.forEach(Exit.match(sink)), () => awaitScopeClose(scope))
     )
   }
 
@@ -291,6 +297,6 @@ export function unsafeMake<A, E = never>(replay: number = 0): Subject<A, E> {
   }
 }
 
-export function make<A, E>(replay?: number): Effect.Effect<Subject<A, E>, never, Scope.Scope> {
+export function make<A, E = never>(replay?: number): Effect.Effect<Subject<A, E>, never, Scope.Scope> {
   return Effect.acquireRelease(Effect.sync(() => unsafeMake(replay)), (subject) => subject.interrupt)
 }

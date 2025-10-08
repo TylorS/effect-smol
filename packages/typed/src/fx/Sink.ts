@@ -2,6 +2,7 @@ import { flow, identity, MutableRef, Ref } from "effect"
 import * as Cause from "effect/Cause"
 import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import { dual } from "effect/Function"
 import type { Scheduler } from "effect/Scheduler"
 
@@ -156,15 +157,21 @@ export function withEarlyExit<A, E, R, R2>(
     sink: Sink.WithEarlyExit<A, E, R>,
     params: { signal: AbortSignal; scheduler: Scheduler }
   ) => Effect.Effect<unknown, never, R2>
-) {
-  return Effect.callback<unknown, never, R2>(function(this: Scheduler, resume, signal) {
-    const earlyExit = Effect.callback<never>(() => resume(Effect.void))
-    const sinkWithEarlyExit: Sink.WithEarlyExit<A, E, R> = {
-      ...sink,
-      earlyExit
-    }
-    return Effect.flatMap(f(sinkWithEarlyExit, { signal, scheduler: this }), () => earlyExit)
-  })
+): Effect.Effect<void, never, R | R2> {
+  return Effect.servicesWith((services) =>
+    Effect.callback<unknown, never, R2>(function(this: Scheduler, resume, signal) {
+      const earlyExit = Effect.callback<never>(() => resume(Effect.void))
+      const sinkWithEarlyExit: Sink.WithEarlyExit<A, E, R> = {
+        ...sink,
+        earlyExit
+      }
+
+      f(sinkWithEarlyExit, { signal, scheduler: this }).pipe(
+        Effect.flatMap(() => earlyExit),
+        (_) => Effect.runForkWith(services)(_, { scheduler: this, signal })
+      )
+    })
+  )
 }
 
 export function withState<A, E, R, B, R2>(
@@ -783,5 +790,44 @@ class TapEffectSink<A, E, R, E2, R2> implements Sink<A, E, R | R2> {
       onFailure: (cause) => this.sink.onFailure(cause),
       onSuccess: () => this.sink.onSuccess(value)
     })
+  }
+}
+
+export const flip = <A, E, R>(sink: Sink<A, E, R>): Sink<E, A, R> => new FlipSink(sink)
+
+class FlipSink<A, E, R> implements Sink<E, A, R> {
+  readonly sink: Sink<A, E, R>
+  constructor(sink: Sink<A, E, R>) {
+    this.sink = sink
+  }
+
+  onSuccess(value: E) {
+    return this.sink.onFailure(Cause.fail(value))
+  }
+
+  onFailure(cause: Cause.Cause<A>) {
+    const fail = Cause.filterFail(cause)
+    if (Cause.isFailure(fail)) {
+      return this.sink.onSuccess(fail.error)
+    }
+
+    return this.sink.onFailure(fail.fail)
+  }
+}
+
+export const exit = <A, E, R>(sink: Sink<Exit.Exit<A, E>, never, R>) => new ExitSink(sink)
+
+class ExitSink<A, E, R> implements Sink<A, E, R> {
+  readonly sink: Sink<Exit.Exit<A, E>, never, R>
+  constructor(sink: Sink<Exit.Exit<A, E>, never, R>) {
+    this.sink = sink
+  }
+
+  onSuccess(value: A) {
+    return this.sink.onSuccess(Exit.succeed(value))
+  }
+
+  onFailure(cause: Cause.Cause<E>) {
+    return this.sink.onSuccess(Exit.failCause(cause))
   }
 }

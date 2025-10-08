@@ -10,8 +10,9 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import { dual, flow } from "effect/Function"
 import type * as Scope from "effect/Scope"
-import { MulticastEffect, YieldableFx } from "./_util.js"
 import * as Fx from "./Fx.js"
+import { MulticastEffect } from "./internal/multicast.js"
+import { YieldableFx } from "./internal/yieldable.ts"
 import type { Sink } from "./Sink.js"
 import * as Subject from "./Subject.js"
 
@@ -23,6 +24,7 @@ export interface Versioned<out R1, out E1, out A2, out E2, out R2, out A3, out E
   extends Fx.Fx<A2, E2, R2>, Effect.Yieldable<Versioned<R1, E1, A2, E2, R2, A3, E3, R3>, A3, E3, R3>
 {
   readonly version: Effect.Effect<number, E1, R1>
+  readonly interrupt: Effect.Effect<void, never, R2>
 }
 
 export namespace Versioned {
@@ -142,7 +144,6 @@ export class VersionedTransform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4
           })
       )
 
-    // TODO: How to make this interruptible?
     const multicastEffect = new MulticastEffect(Effect.flatMap(this.input.version, (version) => {
       if (version === this._version && Option.isSome(this._currentValue)) {
         return this._currentValue.value
@@ -153,6 +154,12 @@ export class VersionedTransform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4
 
     return multicastEffect.asEffect()
   }
+
+  interrupt: Effect.Effect<void, never, never> = Effect.suspend(() => {
+    if (!this._effect) return Effect.void
+    const me = this._effect as unknown as MulticastEffect<D, E0 | E4, R0 | R4>
+    return me.interrupt()
+  })
 }
 
 function isVersionedTransform(

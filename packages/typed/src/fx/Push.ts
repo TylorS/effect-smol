@@ -1,6 +1,5 @@
 /**
  * Push is a type of Fx that can be used to push values to a sink.
- * @since 1.20.0
  */
 
 import type { Cause } from "effect/Cause"
@@ -15,23 +14,13 @@ import * as Sink from "./Sink.js"
  * Push is an abstract type which represents a Type which is both an Fx and a Sink. The type parameters
  * are decoupled from one another and allow mapping over the input and output of the Push separately for
  * more complex use cases.
- * @since 1.20.0
  */
 export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sink<A, E, R>, Fx.Fx<B, E2, R2> {}
 
-/**
- * @since 1.20.0
- */
 export namespace Push {
-  /**
-   * @since 1.20.0
-   */
   export interface Any extends Push<any, any, any, any, any, any> {}
 }
 
-/**
- * @since 1.20.0
- */
 export const make: {
   <B, E2, R2>(fx: Fx.Fx<B, E2, R2>): <A, E, R>(sink: Sink.Sink<A, E, R>) => Push<A, E, R, B, E2, R2>
   <A, E, R, B, E2, R2>(sink: Sink.Sink<A, E, R>, fx: Fx.Fx<B, E2, R2>): Push<A, E, R, B, E2, R2>
@@ -69,9 +58,6 @@ class PushImpl<A, E, R, B, E2, R2> extends Fx.Fx<B, E2, R2> implements Push<A, E
   }
 }
 
-/**
- * @since 1.20.0
- */
 export const mapInput: {
   <P extends Push.Any, C>(
     f: (c: C) => Sink.Success<P>
@@ -93,9 +79,6 @@ export const mapInput: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const mapInputEffect: {
   <C, R3, E, A>(
     f: (c: C) => Effect.Effect<A, E, R3>
@@ -115,9 +98,6 @@ export const mapInputEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filterInput: {
   <A>(f: (a: A) => boolean): <P extends Push.Any>(
     push: P
@@ -133,9 +113,6 @@ export const filterInput: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filterInputEffect: {
   <A, R3, E>(f: (a: A) => Effect.Effect<boolean, E, R3>): <R, B, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -155,9 +132,6 @@ export const filterInputEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filterMapInput: {
   <C, A>(f: (c: C) => Option.Option<A>): <P extends Push.Any>(
     push: P
@@ -173,9 +147,6 @@ export const filterMapInput: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filterMapInputEffect: {
   <C, R3, E, A>(f: (c: C) => Effect.Effect<Option.Option<A>, E, R3>): <R, B, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -194,9 +165,6 @@ export const filterMapInputEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const map: {
   <B, C>(f: (b: B) => C): <A, E, R, E2, R2>(push: Push<A, E, R, B, E2, R2>) => Push<A, E, R, C, E2, R2>
   <A, E, R, B, E2, R2, C>(push: Push<A, E, R, B, E2, R2>, f: (b: B) => C): Push<A, E, R, C, E2, R2>
@@ -210,9 +178,6 @@ export const map: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const mapEffect: {
   <B, C, E3, R3>(f: (b: B) => Effect.Effect<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -231,9 +196,6 @@ export const mapEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filter: {
   <B>(f: (b: B) => boolean): <A, E, R, E2, R2>(push: Push<A, E, R, B, E2, R2>) => Push<A, E, R, B, E2, R2>
   <A, E, R, B, E2, R2>(push: Push<A, E, R, B, E2, R2>, f: (b: B) => boolean): Push<A, E, R, B, E2, R2>
@@ -247,9 +209,6 @@ export const filter: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filterEffect: {
   <B, R3, E3>(f: (b: B) => Effect.Effect<boolean, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -268,9 +227,6 @@ export const filterEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filterMap: {
   <B, C>(f: (b: B) => Option.Option<C>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -286,9 +242,6 @@ export const filterMap: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const filterMapEffect: {
   <B, C, E3, R3>(f: (b: B) => Effect.Effect<Option.Option<C>, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -307,9 +260,6 @@ export const filterMapEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const switchMap: {
   <B, C, E3, R3>(f: (b: B) => Fx.Fx<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -328,9 +278,6 @@ export const switchMap: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const switchMapEffect: {
   <B, C, E3, R3>(f: (b: B) => Effect.Effect<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -349,9 +296,6 @@ export const switchMapEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const flatMap: {
   <B, C, E3, R3>(f: (b: B) => Fx.Fx<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -370,9 +314,6 @@ export const flatMap: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const flatMapEffect: {
   <B, C, E3, R3>(f: (b: B) => Effect.Effect<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -391,9 +332,6 @@ export const flatMapEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const exhaustMap: {
   <B, C, E3, R3>(f: (b: B) => Fx.Fx<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -412,9 +350,6 @@ export const exhaustMap: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const exhaustMapEffect: {
   <B, C, E3, R3>(f: (b: B) => Effect.Effect<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -433,10 +368,7 @@ export const exhaustMapEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
-export const exhaustMapLatest: {
+export const exhaustLatestMap: {
   <B, C, E3, R3>(f: (b: B) => Fx.Fx<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
   ) => Push<A, E, R, C, E2 | E3, R2 | R3 | Scope.Scope>
@@ -444,20 +376,17 @@ export const exhaustMapLatest: {
     push: Push<A, E, R, B, E2, R2>,
     f: (b: B) => Fx.Fx<C, E3, R3>
   ): Push<A, E, R, C, E2 | E3, R2 | R3 | Scope.Scope>
-} = dual(2, function exhaustMapLatest<A, E, R, B, E2, R2, C, E3, R3>(
+} = dual(2, function exhaustLatestMap<A, E, R, B, E2, R2, C, E3, R3>(
   push: Push<A, E, R, B, E2, R2>,
   f: (b: B) => Fx.Fx<C, E3, R3>
 ): Push<A, E, R, C, E2 | E3, R2 | R3 | Scope.Scope> {
   return make(
     push,
-    Fx.exhaustMapLatest(push, f)
+    Fx.exhaustLatestMap(push, f)
   )
 })
 
-/**
- * @since 1.20.0
- */
-export const exhaustMapLatestEffect: {
+export const exhaustLatestMapEffect: {
   <B, C, E3, R3>(f: (b: B) => Effect.Effect<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
   ) => Push<A, E, R, C, E2 | E3, R2 | R3 | Scope.Scope>
@@ -465,12 +394,12 @@ export const exhaustMapLatestEffect: {
     push: Push<A, E, R, B, E2, R2>,
     f: (b: B) => Effect.Effect<C, E3, R3>
   ): Push<A, E, R, Scope.Scope | C, E2 | E3, R2 | R3>
-} = dual(2, function exhaustMapLatestEffect<A, E, R, B, E2, R2, C, E3, R3>(
+} = dual(2, function exhaustLatestMapEffect<A, E, R, B, E2, R2, C, E3, R3>(
   push: Push<A, E, R, B, E2, R2>,
   f: (b: B) => Effect.Effect<C, E3, R3>
 ): Push<A, E, R, C, E2 | E3, R2 | R3 | Scope.Scope> {
   return make(
     push,
-    Fx.exhaustMapLatestEffect(push, f)
+    Fx.exhaustLatestMapEffect(push, f)
   )
 })

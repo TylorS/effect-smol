@@ -8,10 +8,11 @@ import { dual } from "effect/Function"
 import { equals } from "effect/interfaces/Equal"
 import * as Scope from "effect/Scope"
 import * as ServiceMap from "effect/ServiceMap"
-import { getExitEquivalence, YieldableFx } from "./_util.js"
-import * as DeferredRef from "./DeferredRef.js"
 import * as Fx from "./Fx.js"
-import type * as Sink from "./Sink.js"
+import * as DeferredRef from "./internal/DeferredRef.ts"
+import { getExitEquivalence } from "./internal/equivalence.ts"
+import { YieldableFx } from "./internal/yieldable.ts"
+import * as Sink from "./Sink.js"
 import * as Subject from "./Subject.js"
 import * as Versioned from "./Versioned.js"
 
@@ -50,15 +51,16 @@ export interface RefSubject<A, E = never, R = never> extends Computed<A, E, R>, 
   readonly updates: <B, E2, R2>(
     f: (ref: GetSetDelete<A, E, R>) => Effect.Effect<B, E2, R2>
   ) => Effect.Effect<B, E | E2, R | R2>
+
+  readonly interrupt: Effect.Effect<void, never, R>
 }
 
 export const CurrentComputedBehavior = ServiceMap.Reference("@typed/fx/CurrentComputedBehavior", {
   defaultValue: (): "one" | "multiple" => "multiple"
 })
 
-const checkIsMultiple = (ctx: ServiceMap.ServiceMap<any>): ctx is ServiceMap.ServiceMap<"multiple"> => {
-  return ServiceMap.getReferenceUnsafe(ctx, CurrentComputedBehavior) === "multiple"
-}
+const checkIsMultiple = (ctx: ServiceMap.ServiceMap<any>): ctx is ServiceMap.ServiceMap<"multiple"> =>
+  ServiceMap.getReferenceUnsafe(ctx, CurrentComputedBehavior) === "multiple"
 
 class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.VersionedTransform<
   R0,
@@ -293,16 +295,49 @@ class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Sco
   }
 }
 
-export function make<A, E, R>(
+export function make<A, E = never, R = never>(
+  effect: A | Effect.Effect<A, E, R> | Fx.Fx<A, E, R>,
+  options?: RefSubjectOptions<A>
+): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
+  if (Fx.isFx(effect)) {
+    return fromFx(effect, options)
+  } else if (Effect.isEffect(effect)) {
+    return fromEffect(effect, options)
+  } else {
+    return fromEffect<A, E, R>(Effect.succeed(effect), options)
+  }
+}
+
+export function fromEffect<A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options?: RefSubjectOptions<A>
 ): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
   return Effect.map(makeCore(effect, options), (core) => new RefSubjectImpl(core))
 }
 
+export function fromFx<A, E, R>(
+  fx: Fx.Fx<A, E, R>,
+  options?: RefSubjectOptions<A>
+): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
+  return Effect.gen(function*() {
+    const core = yield* makeDeferredCore<A, E, R>(options)
+    const ref = new RefSubjectImpl(core)
+    yield* Effect.forkIn(
+      fx.run(Sink.make(
+        (cause) => onFailureCore(core, cause),
+        (value) => setCore(core, value)
+      )),
+      core.scope,
+      { startImmediately: true }
+    )
+    return ref
+  })
+}
+
 function makeCore<A, E, R>(
   initial: Effect.Effect<A, E, R>,
-  options?: RefSubjectOptions<A>
+  options?: RefSubjectOptions<A>,
+  deferredRef?: DeferredRef.DeferredRef<E, A>
 ) {
   return Effect.gen(function*() {
     const services = yield* Effect.services<R | Scope.Scope>()
@@ -314,11 +349,20 @@ function makeCore<A, E, R>(
       subject,
       services,
       scope,
-      DeferredRef.unsafeMake(id, getExitEquivalence(options?.eq ?? equals), subject.lastValue),
+      deferredRef ?? DeferredRef.unsafeMake(id, getExitEquivalence(options?.eq ?? equals), subject.lastValue),
       Effect.makeSemaphoreUnsafe(1)
     )
     yield* Scope.addFinalizer(scope, core.subject.interrupt)
     return core
+  })
+}
+
+function makeDeferredCore<A, E = never, R = never>(
+  options?: RefSubjectOptions<A>
+) {
+  return Effect.gen(function*() {
+    const deferredRef = yield* DeferredRef.make<E, A>(getExitEquivalence(options?.eq ?? equals))
+    return yield* makeCore<A, E, R>(deferredRef.asEffect(), options, deferredRef)
   })
 }
 

@@ -5,8 +5,16 @@ import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 
+/**
+ * This is the core piece of state for {@link RefSubject}. It presents an Yieldable/Effect interface
+ * which supports retrieving the latest Exit<A, E> or waiting for an initial Exit<A, E> to be set otherwise.
+ *
+ * It utilizes a Equivalence to determine if the latest Exit<A, E> is the same as the current Exit<A, E> through the
+ * done method.
+ *
+ * @internal
+ */
 export class DeferredRef<E, A> extends Effect.YieldableClass<A, E, never> {
-  // Keep track of the latest value emitted by the stream
   public version!: number
   public deferred!: Deferred.Deferred<A, E>
 
