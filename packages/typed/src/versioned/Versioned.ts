@@ -10,11 +10,11 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import { dual, flow } from "effect/Function"
 import type * as Scope from "effect/Scope"
-import * as Fx from "./Fx.js"
-import { MulticastEffect } from "./internal/multicast.js"
-import { YieldableFx } from "./internal/yieldable.ts"
-import type { Sink } from "./Sink.js"
-import * as Subject from "./Subject.js"
+import * as Fx from "../fx/index.ts"
+import { MulticastEffect } from "../internal/multicast.ts"
+import { YieldableFx } from "../internal/yieldable.ts"
+import type { Sink } from "../sink/Sink.ts"
+import * as Subject from "../subject/Subject.ts"
 
 // TODO: dualize
 // TODO: context abstraction

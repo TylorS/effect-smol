@@ -18,19 +18,9 @@
     "rootDir": "src",
     "baseUrl": ".",
     "paths": {
-      "@typed/fx": [
-        "src/fx/index.ts"
-      ],
-      "@typed/fx/*": [
-        "src/fx/*/index.ts",
-        "src/fx/*.ts"
-      ],
-      "@typed/vitest": [
-        "src/vitest/index.ts"
-      ],
-      "@typed/vitest/*": [
-        "src/vitest/*/index.ts",
-        "src/vitest/*.ts"
+      "@typed/*": [
+        "src/*.ts",
+        "src/*/index.ts"
       ]
     },
     "lib": [

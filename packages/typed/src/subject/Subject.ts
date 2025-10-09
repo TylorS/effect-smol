@@ -3,12 +3,14 @@ import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import { dual } from "effect/Function"
+import { pipeArguments } from "effect/interfaces/Pipeable"
 import * as MutableRef from "effect/MutableRef"
 import * as Scope from "effect/Scope"
-import { Fx } from "./Fx.js"
-import { RingBuffer } from "./internal/ring-buffer.js"
-import { awaitScopeClose, withExtendedScope } from "./internal/scope.ts"
-import type { Sink } from "./Sink.js"
+import type { Fx } from "../fx/Fx.ts"
+import { FxTypeId } from "../fx/TypeId.ts"
+import { RingBuffer } from "../internal/ring-buffer.ts"
+import { awaitScopeClose, withExtendedScope } from "../internal/scope.ts"
+import type { Sink } from "../sink/Sink.ts"
 
 export interface Subject<A, E = never, R = never> extends Fx<A, E, R | Scope.Scope>, Sink<A, E, R> {
   readonly subscriberCount: Effect.Effect<number, never, R>
@@ -34,7 +36,9 @@ class RefCounter {
   }
 }
 
-export class Share<A, E, R, R2> extends Fx<A, E, R | R2 | Scope.Scope> {
+export class Share<A, E, R, R2> implements Fx<A, E, R | R2 | Scope.Scope> {
+  readonly [FxTypeId]: FxTypeId = FxTypeId
+
   _FxFiber: MutableRef.MutableRef<Option.Option<Fiber.Fiber<unknown>>> = MutableRef.make(Option.none())
   _RefCount = new RefCounter()
 
@@ -45,9 +49,12 @@ export class Share<A, E, R, R2> extends Fx<A, E, R | R2 | Scope.Scope> {
     i0: Fx<A, E, R>,
     i1: Subject<A, E, R2>
   ) {
-    super()
     this.i0 = i0
     this.i1 = i1
+  }
+
+  pipe() {
+    return pipeArguments(this, arguments)
   }
 
   run<R3>(sink: Sink<A, E, R3>): Effect.Effect<unknown, never, R | R2 | R3 | Scope.Scope> {
@@ -112,13 +119,17 @@ const DISCARD = { discard: true } as const
 /**
  * @internal
  */
-export class SubjectImpl<A, E> extends Fx<A, E, Scope.Scope> implements Subject<A, E> {
+export class SubjectImpl<A, E> implements Subject<A, E> {
+  readonly [FxTypeId]: FxTypeId = FxTypeId
   protected sinks: Set<readonly [Sink<A, E, any>, ServiceMap.ServiceMap<any>, Scope.Closeable]> = new Set()
 
   constructor() {
-    super()
     this.onFailure = this.onFailure.bind(this)
     this.onSuccess = this.onSuccess.bind(this)
+  }
+
+  pipe() {
+    return pipeArguments(this, arguments)
   }
 
   run<R2>(sink: Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {

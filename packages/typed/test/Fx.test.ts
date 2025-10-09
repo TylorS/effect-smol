@@ -1,4 +1,4 @@
-import * as Fx from "@typed/fx/Fx"
+import * as Fx from "@typed/fx"
 import { describe, it } from "@typed/vitest"
 import { Cause, Effect } from "effect"
 

@@ -3,7 +3,7 @@ import { type Cause } from "effect"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type * as Scope from "effect/Scope"
-import * as Fx from "../fx/Fx.js"
+import * as Fx from "../fx/index.ts"
 
 export type FxTestParams<A, E, R = never, E2 = never> = IsProvided<R> extends true ? {
     readonly actual: Fx.Fx<A, E, R | Scope.Scope>

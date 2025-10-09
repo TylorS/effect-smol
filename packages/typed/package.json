@@ -28,10 +28,10 @@
   "sideEffects": [],
   "exports": {
     "./package.json": "./package.json",
-    ".": "./src/index.ts",
+    "./fx": "./src/fx/index.ts",
+    "./sink": "./src/sink/index.ts",
     "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./*/index": null
+    "./internal/*": null
   },
   "files": [
     "src/**/*.ts",
@@ -44,10 +44,10 @@
     "provenance": true,
     "exports": {
       "./package.json": "./package.json",
-      ".": "./dist/index.js",
+      "./fx": "./dist/fx/index.js",
+      "./sink": "./dist/sink/index.js",
       "./*": "./dist/*.js",
-      "./internal/*": null,
-      "./*/index": null
+      "./internal/*": null
     }
   },
   "scripts": {

@@ -1,11 +1,12 @@
-import { Fx, RefSubject } from "@typed/fx"
+import * as Fx from "@typed/fx"
+import * as RefSubject from "@typed/ref-subject"
 import { describe, expect, it } from "@typed/vitest"
 import { Effect, Fiber } from "effect"
 import { TestClock } from "effect/testing"
 
 describe("RefSubject", () => {
-  it.effect("tracks an initial value", () =>
-    Effect.gen(function*() {
+  it.effect("tracks an initial value", () => {
+    return Effect.gen(function*() {
       const ref = yield* RefSubject.make(0)
       expect(yield* ref).toEqual(0)
 
@@ -16,7 +17,8 @@ describe("RefSubject", () => {
       // Can be reset
       yield* RefSubject.reset(ref)
       expect(yield* ref).toEqual(0)
-    }))
+    })
+  })
 
   it.effect("tracks an initial effect", () =>
     Effect.gen(function*() {

@@ -1,5 +1,5 @@
-import * as Fx from "@typed/fx/Fx"
-import * as Subject from "@typed/fx/Subject"
+import * as Fx from "@typed/fx"
+import * as Subject from "@typed/subject"
 import { describe, expect, it } from "@typed/vitest"
 import { Effect, Fiber } from "effect"
 

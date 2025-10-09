@@ -6,9 +6,11 @@ import type { Cause } from "effect/Cause"
 import type * as Option from "effect/data/Option"
 import type * as Effect from "effect/Effect"
 import { dual } from "effect/Function"
+import { pipeArguments } from "effect/interfaces/Pipeable"
 import type * as Scope from "effect/Scope"
-import * as Fx from "./Fx.js"
-import * as Sink from "./Sink.js"
+import * as Fx from "../fx/index.ts"
+import { FxTypeId } from "../fx/TypeId.ts"
+import * as Sink from "../sink/index.ts"
 
 /**
  * Push is an abstract type which represents a Type which is both an Fx and a Sink. The type parameters
@@ -31,13 +33,12 @@ export const make: {
   return new PushImpl(sink, fx)
 })
 
-class PushImpl<A, E, R, B, E2, R2> extends Fx.Fx<B, E2, R2> implements Push<A, E, R, B, E2, R2> {
+class PushImpl<A, E, R, B, E2, R2> implements Push<A, E, R, B, E2, R2> {
+  readonly [FxTypeId]: FxTypeId = FxTypeId
   readonly sink: Sink.Sink<A, E, R>
   readonly fx: Fx.Fx<B, E2, R2>
 
   constructor(sink: Sink.Sink<A, E, R>, fx: Fx.Fx<B, E2, R2>) {
-    super()
-
     this.sink = sink
     this.fx = fx
 
@@ -55,6 +56,10 @@ class PushImpl<A, E, R, B, E2, R2> extends Fx.Fx<B, E2, R2> implements Push<A, E
 
   onSuccess(value: A): Effect.Effect<unknown, never, R> {
     return this.sink.onSuccess(value)
+  }
+
+  pipe() {
+    return pipeArguments(this, arguments)
   }
 }
 

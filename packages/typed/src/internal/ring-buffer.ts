@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect"
+import { type Effect, flatMap, forEach, void as void_ } from "effect/Effect"
 
 export class RingBuffer<A> {
   readonly capacity: number
@@ -27,22 +27,22 @@ export class RingBuffer<A> {
   }
 
   forEach<B, E2, R2>(
-    f: (a: A, i: number) => Effect.Effect<B, E2, R2>
+    f: (a: A, i: number) => Effect<B, E2, R2>
   ) {
     switch (this._size) {
       case 0:
-        return Effect.void
+        return void_
       case 1:
         return f(this._buffer[0], 0)
       case 2:
-        return Effect.flatMap(f(this._buffer[0], 0), () => f(this._buffer[1], 1))
+        return flatMap(f(this._buffer[0], 0), () => f(this._buffer[1], 1))
       case 3:
-        return Effect.flatMap(
+        return flatMap(
           f(this._buffer[0], 0),
-          () => Effect.flatMap(f(this._buffer[1], 1), () => f(this._buffer[2], 2))
+          () => flatMap(f(this._buffer[1], 1), () => f(this._buffer[2], 2))
         )
       default:
-        return Effect.forEach(
+        return forEach(
           Array.from({ length: this._size }, (_, i) => this._buffer[i]),
           f,
           {
