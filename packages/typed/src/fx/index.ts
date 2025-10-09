@@ -68,4 +68,5 @@ export {
   runPromise,
   runPromiseExit
 } from "./run/index.ts"
+export { fromStream, toStream } from "./stream.ts"
 export { FxTypeId, isFx } from "./TypeId.ts"
