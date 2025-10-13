@@ -27,6 +27,10 @@ patchedDependencies:
 importers:
 
   .:
+    dependencies:
+      html5parser:
+        specifier: ^2.0.2
+        version: 2.0.2
     devDependencies:
       '@babel/cli':
         specifier: ^7.28.3
@@ -247,8 +251,8 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       '@types/node':
-        specifier: ^24.6.2
-        version: 24.6.2
+        specifier: ^24.8.1
+        version: 24.8.1
       ajv:
         specifier: ^8.17.1
         version: 8.17.1
@@ -498,6 +502,22 @@ importers:
         specifier: ^8.5.0
         version: 8.5.0(postcss@8.5.6)(tsx@4.20.6)(typescript@5.9.3)(yaml@2.8.1)
 
+  packages/typed:
+    dependencies:
+      effect:
+        specifier: workspace:^
+        version: link:../effect
+      html5parser:
+        specifier: ^2.0.2
+        version: 2.0.2
+    devDependencies:
+      '@effect/vitest':
+        specifier: workspace:^
+        version: link:../vitest
+      '@types/node':
+        specifier: ^24.5.2
+        version: 24.8.1
+
   packages/vitest:
     devDependencies:
       '@types/node':
@@ -509,51 +529,6 @@ importers:
       vitest:
         specifier: 4.0.0-beta.10
         version: 4.0.0-beta.10(@edge-runtime/vm@5.0.0)(@types/node@24.8.1)(@vitest/browser@4.0.0-beta.10)(happy-dom@20.0.4)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
-
-  scratchpad:
-    dependencies:
-      '@effect/platform-bun':
-        specifier: workspace:*
-        version: link:../packages/platform-bun
-      '@effect/platform-node':
-        specifier: workspace:*
-        version: link:../packages/platform-node
-      '@effect/sql-clickhouse':
-        specifier: workspace:*
-        version: link:../packages/sql/clickhouse
-      '@effect/sql-d1':
-        specifier: workspace:*
-        version: link:../packages/sql/d1
-      '@effect/sql-libsql':
-        specifier: workspace:*
-        version: link:../packages/sql/libsql
-      '@effect/sql-mssql':
-        specifier: workspace:*
-        version: link:../packages/sql/mssql
-      '@effect/sql-mysql2':
-        specifier: workspace:*
-        version: link:../packages/sql/mysql2
-      '@effect/sql-pg':
-        specifier: workspace:*
-        version: link:../packages/sql/pg
-      '@effect/sql-sqlite-bun':
-        specifier: workspace:*
-        version: link:../packages/sql/sqlite-bun
-      '@effect/sql-sqlite-do':
-        specifier: workspace:*
-        version: link:../packages/sql/sqlite-do
-      '@effect/sql-sqlite-node':
-        specifier: workspace:*
-        version: link:../packages/sql/sqlite-node
-      '@effect/sql-sqlite-react-native':
-        specifier: workspace:*
-        version: link:../packages/sql/sqlite-react-native
-      '@effect/sql-sqlite-wasm':
-        specifier: workspace:*
-        version: link:../packages/sql/sqlite-wasm
-      effect:
-        specifier: workspace:*
-        version: link:../packages/effect
 
   scripts:
     dependencies:
@@ -3733,7 +3708,6 @@ packages:
 
   glob@7.2.3:
     resolution: {integrity: sha512-nFR0zLpU2YCaRxwoCJvL6UvCH2JFyFVIvwTLsIf21AuHlMskA1hhTdk+LlYJtOlYt9v6dvszD2BGRqBL+iQK9Q==}
-    deprecated: Glob versions prior to v9 are no longer supported
 
   global-prefix@4.0.0:
     resolution: {integrity: sha512-w0Uf9Y9/nyHinEk5vMJKRie+wa4kR5hmDbEhGGds/kG1PwGLLHKRoNMeJOyCQjjBkANlnScqgzcFwGHgmgLkVA==}
@@ -3767,7 +3741,6 @@ packages:
 
   gulp-header@1.8.12:
     resolution: {integrity: sha512-lh9HLdb53sC7XIZOYzTXM4lFuXElv3EVkSDhsd7DoJBj7hm+Ni7D3qYbb+Rr8DuM8nRanBvkVO9d7askreXGnQ==}
-    deprecated: Removed event-stream from gulp-header
 
   happy-dom@20.0.4:
     resolution: {integrity: sha512-WxFtvnij6G64/MtMimnZhF0nKx3LUQKc20zjATD6tKiqOykUwQkd+2FW/DZBAFNjk4oWh0xdv/HBleGJmSY/Iw==}
@@ -3799,6 +3772,9 @@ packages:
 
   html-escaper@2.0.2:
     resolution: {integrity: sha512-H2iMtd0I4Mt5eYiapRdIDjp+XzelXQ0tFE4JS7YFwFevXXMmOp9myNrUvCg0D6ws8iqkRPBfKHgbwig1SmlLfg==}
+
+  html5parser@2.0.2:
+    resolution: {integrity: sha512-L0y+IdTVxHsovmye8MBtFgBvWZnq1C9WnI/SmJszxoQjmUH1psX2uzDk21O5k5et6udxdGjwxkbmT9eVRoG05w==}
 
   http-errors@2.0.0:
     resolution: {integrity: sha512-FtwrG/euBzaEjYeRqOgly7G0qviiXoJWnvEH2Z1plBdXgbyjv34pHTSb9zoeHMyDy33+DWy5Wt9Wo+TURtOYSQ==}
@@ -3868,7 +3844,6 @@ packages:
 
   inflight@1.0.6:
     resolution: {integrity: sha512-k92I/b08q4wvFscXCLvqfsHCrjrF7yiXsQuIVvVE7N82W3+aqpzuUdBbfhWcy/FZR3/4IgflMgKLOsvPDrGCJA==}
-    deprecated: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
 
   inherits@2.0.4:
     resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
@@ -4288,7 +4263,6 @@ packages:
 
   lodash.template@4.5.0:
     resolution: {integrity: sha512-84vYFxIkmidUiFxidA/KjjH9pAycqW+h980j7Fuz5qxRtO9pgB7MDFTdys1N7A5mcucRiDyEq4fusljItR1T/A==}
-    deprecated: This package is deprecated. Use https://socket.dev/npm/package/eta instead.
 
   lodash.templatesettings@4.2.0:
     resolution: {integrity: sha512-stgLz+i3Aa9mZgnjr/O+v9ruKZsPsndy7qPZOchbqk2cnTU1ZaldKK+v7m54WoKIyxiuMZTKT2H81F8BeAc3ZQ==}
@@ -4608,7 +4582,6 @@ packages:
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
-    deprecated: Use your platform's native DOMException instead
 
   node-fetch-h2@2.3.0:
     resolution: {integrity: sha512-ofRW94Ab0T4AOh5Fk8t0h8OBWrmjb0SSB20xh1H8YnPV9EJ+f5AMoYSUQ2zgJ4Iq2HAK0I2l5/Nequ8YzFS3Hg==}
@@ -9585,6 +9558,10 @@ snapshots:
       hermes-estree: 0.32.0
 
   html-escaper@2.0.2: {}
+
+  html5parser@2.0.2:
+    dependencies:
+      tslib: 2.8.1
 
   http-errors@2.0.0:
     dependencies:

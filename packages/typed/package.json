@@ -62,6 +62,7 @@
     "@types/node": "^24.5.2"
   },
   "dependencies": {
-    "effect": "workspace:^"
+    "effect": "workspace:^",
+    "html5parser": "^2.0.2"
   }
 }
