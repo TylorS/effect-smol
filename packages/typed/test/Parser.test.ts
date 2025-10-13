@@ -6,7 +6,6 @@ import { templateHash } from "@typed/template/internal/templateHash"
 import * as Parser from "@typed/template/Parser"
 
 import * as Template from "@typed/template/Template"
-import * as Chunk from "effect/collections/Chunk"
 
 describe("Parser2", () => {
   it("parses a simple template", () => {
@@ -44,8 +43,8 @@ describe("Parser2", () => {
     div.attributes.push(id, className)
 
     const expected = new Template.Template([div], templateHash(template), [
-      [id, Chunk.of(0)],
-      [className, Chunk.of(0)]
+      [id, [0]],
+      [className, [0]]
     ])
 
     const actual = Parser.parse(template)
@@ -65,7 +64,7 @@ describe("Parser2", () => {
 
     div.attributes.push(sparse)
 
-    const expected = new Template.Template([div], templateHash(template), [[sparse, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[sparse, [0]]])
     const actual = Parser.parse(template)
 
     expect(actual).toEqual(expected)
@@ -83,7 +82,7 @@ describe("Parser2", () => {
 
     div.attributes.push(sparse)
 
-    const expected = new Template.Template([div], templateHash(template), [[sparse, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[sparse, [0]]])
     const actual = Parser.parse(template)
 
     deepStrictEqual(actual, expected)
@@ -108,7 +107,7 @@ describe("Parser2", () => {
 
     div.attributes.push(hidden)
 
-    const expected = new Template.Template([div], templateHash(template), [[hidden, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[hidden, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -132,7 +131,7 @@ describe("Parser2", () => {
 
     div.attributes.push(className)
 
-    const expected = new Template.Template([div], templateHash(template), [[className, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[className, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -154,7 +153,7 @@ describe("Parser2", () => {
 
     div.attributes.push(sparse)
 
-    const expected = new Template.Template([div], templateHash(template), [[sparse, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[sparse, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -182,7 +181,7 @@ describe("Parser2", () => {
 
     div.children.push(span)
 
-    const expected = new Template.Template([div], templateHash(template), [[part, Chunk.make(0, 0)]])
+    const expected = new Template.Template([div], templateHash(template), [[part, [0, 0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -200,11 +199,13 @@ describe("Parser2", () => {
     div.children.push(span)
 
     const expected = new Template.Template([div], templateHash(template), [
-      [id, Chunk.of(0)],
-      [part, Chunk.make(0, 0)]
+      [id, [0]],
+      [part, [0, 0]]
     ])
 
-    expect(Parser.parse(template)).toEqual(expected)
+    const actual = Parser.parse(template)
+
+    expect(actual).toEqual(expected)
   })
 
   it("parses a template with children with holes and attributes and class names", () => {
@@ -222,9 +223,9 @@ describe("Parser2", () => {
     div.children.push(span)
 
     const expected = new Template.Template([div], templateHash(template), [
-      [id, Chunk.of(0)],
-      [className, Chunk.of(0)],
-      [part, Chunk.make(0, 0)]
+      [id, [0]],
+      [className, [0]],
+      [part, [0, 0]]
     ])
 
     expect(Parser.parse(template)).toEqual(expected)
@@ -245,10 +246,10 @@ describe("Parser2", () => {
     div.children.push(span)
 
     const expected = new Template.Template([div], templateHash(template), [
-      [id, Chunk.of(0)],
-      [className, Chunk.of(0)],
-      [hidden, Chunk.of(0)],
-      [part, Chunk.make(0, 0)]
+      [id, [0]],
+      [className, [0]],
+      [hidden, [0]],
+      [part, [0, 0]]
     ])
 
     expect(Parser.parse(template)).toEqual(expected)
@@ -261,7 +262,7 @@ describe("Parser2", () => {
 
     div.attributes.push(data)
 
-    const expected = new Template.Template([div], templateHash(template), [[data, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[data, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -274,7 +275,7 @@ describe("Parser2", () => {
 
     div.attributes.push(data)
 
-    const expected = new Template.Template([div], templateHash(template), [[data, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[data, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -286,7 +287,7 @@ describe("Parser2", () => {
 
     div.attributes.push(event)
 
-    const expected = new Template.Template([div], templateHash(template), [[event, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[event, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -298,7 +299,7 @@ describe("Parser2", () => {
 
     div.attributes.push(event)
 
-    const expected = new Template.Template([div], templateHash(template), [[event, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[event, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -310,7 +311,7 @@ describe("Parser2", () => {
 
     div.children.push(part)
 
-    const expected = new Template.Template([div], templateHash(template), [[part, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[part, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -322,7 +323,7 @@ describe("Parser2", () => {
 
     div.attributes.push(property)
 
-    const expected = new Template.Template([div], templateHash(template), [[property, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[property, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -334,7 +335,7 @@ describe("Parser2", () => {
 
     div.attributes.push(ref)
 
-    const expected = new Template.Template([div], templateHash(template), [[ref, Chunk.of(0)]])
+    const expected = new Template.Template([div], templateHash(template), [[ref, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -358,7 +359,7 @@ describe("Parser2", () => {
 
     textarea.children.push(part)
 
-    const expected = new Template.Template([textarea], templateHash(template), [[part, Chunk.of(0)]])
+    const expected = new Template.Template([textarea], templateHash(template), [[part, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -381,7 +382,7 @@ describe("Parser2", () => {
 
     input.attributes.push(type)
 
-    const expected = new Template.Template([input], templateHash(template), [[type, Chunk.of(0)]])
+    const expected = new Template.Template([input], templateHash(template), [[type, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -396,8 +397,8 @@ describe("Parser2", () => {
     input.attributes.push(className)
 
     const expected = new Template.Template([input], templateHash(template), [
-      [type, Chunk.of(0)],
-      [className, Chunk.of(0)]
+      [type, [0]],
+      [className, [0]]
     ])
 
     expect(Parser.parse(template)).toEqual(expected)
@@ -448,9 +449,9 @@ describe("Parser2", () => {
       ],
       templateHash(template),
       [
-        [part1, Chunk.make(0, 0)],
-        [part2, Chunk.make(1, 0)],
-        [part3, Chunk.make(2, 1, 0)]
+        [part1, [0, 0]],
+        [part2, [1, 0]],
+        [part3, [2, 1, 0]]
       ]
     )
 
@@ -469,7 +470,7 @@ describe("Parser2", () => {
   it("parses comments with hole", () => {
     const template = h`<!-- ${"test"} -->`
     const part = new Template.CommentPartNode(0)
-    const expected = new Template.Template([part], templateHash(template), [[part, Chunk.of(0)]])
+    const expected = new Template.Template([part], templateHash(template), [[part, [0]]])
 
     expect(Parser.parse(template)).toEqual(expected)
   })
@@ -482,8 +483,8 @@ describe("Parser2", () => {
       [part1, new Template.TextNode(" "), part2],
       templateHash(template),
       [
-        [part1, Chunk.empty()],
-        [part2, Chunk.empty()]
+        [part1, []],
+        [part2, []]
       ]
     )
 
@@ -531,7 +532,7 @@ describe("Parser2", () => {
     const expected = new Template.Template(
       [new Template.ElementNode("div", [props], [])],
       templateHash(template),
-      [[props, Chunk.of(0)]]
+      [[props, [0]]]
     )
 
     deepStrictEqual(Parser.parse(template), expected)
@@ -830,6 +831,18 @@ c192 -183 322 -427 380 -715 22 -107 22 -146 -10 -621 -11 -164 0 -383 25
     )
 
     deepEqual(actual, expected)
+  })
+
+  it("parses any element as self-closing", () => {
+    const template = h`<div /><p>Hello</p>`
+    const expected = new Template.Template(
+      [new Template.ElementNode("div", [], []), new Template.ElementNode("p", [], [new Template.TextNode("Hello")])],
+      templateHash(template),
+      []
+    )
+    const actual = Parser.parse(template)
+
+    expect(actual).toEqual(expected)
   })
 })
 

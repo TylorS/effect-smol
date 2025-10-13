@@ -1,8 +1,7 @@
-import type * as Chunk from "effect/collections/Chunk"
 import type { IToken } from "html5parser"
 import { tokenize } from "html5parser"
 import { keyToPartType } from "./internal/keyToPartType.ts"
-import { PART_REGEX, PART_STRING, STRICT_PART_REGEX } from "./internal/meta.ts"
+import { PART_REGEX, PART_STRING } from "./internal/meta.ts"
 import { PathStack } from "./internal/PathStack.ts"
 import { templateHash } from "./internal/templateHash.ts"
 import * as Template from "./Template.ts"
@@ -13,11 +12,13 @@ export function parse(template: ReadonlyArray<string>): Template.Template {
   return parser.parse(template)
 }
 
+const EMPTY_ATTRIBUTES = { attributes: [] as Array<Template.Attribute>, wasSelfClosed: false }
+
 class Parser {
   protected html!: string
   protected tokens!: Array<IToken>
-  protected index: number = 0
-  protected parts!: Array<readonly [part: Template.PartNode | Template.SparsePartNode, path: Chunk.Chunk<number>]>
+  protected index!: number
+  protected parts!: Array<readonly [part: Template.PartNode | Template.SparsePartNode, path: Array<number>]>
   protected path!: PathStack
 
   parse(templateStrings: ReadonlyArray<string>): Template.Template {
@@ -67,10 +68,7 @@ class Parser {
     const nodes: Array<Template.Node> = []
 
     while (this.index < this.tokens.length) {
-      const token = this.peek()
-      if (token === undefined) {
-        break
-      }
+      const token = this.peek()!
 
       if (token.type === TokenKind.Literal) {
         // eslint-disable-next-line no-restricted-syntax
@@ -103,14 +101,15 @@ class Parser {
       (index) => new Template.NodePart(index)
     )
 
-    return parts.map((p) => {
-      if (p._tag === "text") {
+    for (const part of parts) {
+      if (part._tag === "text") {
         this.path.inc()
-        return p
       } else {
-        return this.addPartWithPrevious(p)
+        this.addPartWithPrevious(part)
       }
-    })
+    }
+
+    return parts
   }
 
   private parseOpenTag(): Template.Node {
@@ -120,7 +119,6 @@ class Parser {
     if (name === "!--") {
       const node = this.parseCommentNode()
       this.path.inc()
-
       return node
     }
 
@@ -138,12 +136,12 @@ class Parser {
       return new Template.DocType("html")
     }
 
-    // Self-closing tags
+    // Tags which MUST be self-closing
     if (SELF_CLOSING_TAGS.has(name)) {
       return this.parseSelfClosingElementNode(name)
     }
 
-    // Text-only nodes, e.g. <script>, <style>, <textarea>
+    // Tags which MUST only have text as children
     if (TEXT_ONLY_NODES_REGEX.has(name)) {
       return this.parseTextOnlyElementNode(name)
     }
@@ -161,48 +159,55 @@ class Parser {
     }
 
     this.consumeWhitespace()
-    const attributes = hasNoAttributes ? [] : this.parseAttributes()
+
+    const { attributes, wasSelfClosed } = hasNoAttributes ? EMPTY_ATTRIBUTES : this.parseAttributes()
+    const children = wasSelfClosed ? [] : this.parseChildren()
+    return new Template.ElementNode(name, attributes, children)
+  }
+
+  private parseChildren() {
     this.path.push()
     const children = this.parseNodes()
     this.path.pop()
-
-    return new Template.ElementNode(name, attributes, children)
+    return children
   }
 
   private parseCommentNode(): Template.Node {
     const { value } = this.consumeNextTokenOfKind(TokenKind.Literal)
     this.consumeNextTokenOfKind(TokenKind.OpenTagEnd)
 
-    const parts = parseTextAndParts(
+    return this.parseMultipleParts(
       value,
-      (index) => new Template.CommentPartNode(index)
+      (index) => new Template.CommentPartNode(index),
+      (text) => new Template.CommentNode(text),
+      (parts) => new Template.SparseCommentNode(parts)
     )
-
-    if (parts.length === 1) {
-      if (parts[0]._tag === "text") {
-        return new Template.CommentNode(parts[0].value)
-      } else {
-        return this.addPart(parts[0])
-      }
-    }
-
-    return this.addPart(new Template.SparseCommentNode(parts))
   }
 
   private parseSelfClosingElementNode(name: string): Template.Node {
-    return new Template.SelfClosingElementNode(name, this.parseAttributes())
+    const { attributes, wasSelfClosed } = this.parseAttributes()
+
+    if (wasSelfClosed) {
+      return new Template.SelfClosingElementNode(name, attributes)
+    }
+
+    throw new Error(`Self-closing element ${name} must be self-closed`)
   }
 
   private parseTextOnlyElementNode(name: string): Template.Node {
-    const attributes = this.parseAttributes()
+    const { attributes, wasSelfClosed } = this.parseAttributes()
     this.path.push()
-    const children = this.parseTextOnlyChildren()
+    const children = wasSelfClosed ? [] : this.parseTextOnlyChildren()
     this.path.pop()
 
     return new Template.TextOnlyElement(name, attributes, children)
   }
 
-  private parseAttributes(): Array<Template.Attribute> {
+  private parseAttributes(): {
+    attributes: Array<Template.Attribute>
+    wasSelfClosed: boolean
+  } {
+    let wasSelfClosed = false
     const attributes: Array<Template.Attribute> = []
 
     this.consumeWhitespace()
@@ -225,6 +230,7 @@ class Parser {
         token.type === TokenKind.OpenTagEnd
       ) {
         this.index++
+        wasSelfClosed = token.value === "/"
         break
       }
 
@@ -243,93 +249,134 @@ class Parser {
       }
     }
 
-    return attributes
+    return {
+      attributes,
+      wasSelfClosed
+    }
   }
 
   private parseAttribute(): [boolean, Template.Attribute] {
     const { value: rawName } = this.consumeNextTokenOfKind(TokenKind.AttrValueNq)
 
-    if (rawName.startsWith("...")) {
-      return [true, this.addPart(new Template.PropertiesPartNode(unsafeParsePartIndex(rawName.slice(3))))]
+    if (isSpreadAttribute(rawName)) {
+      return [true, this.parsePropertiesAttribute(rawName.slice(3))]
     }
 
-    const [match, name] = keyToPartType(rawName)
     const next = this.peek()
 
-    if (next?.type === TokenKind.AttrValueEq) {
+    if (next === undefined) {
+      throw new Error(`Unexpected end of template at attribute ${name}`)
+    }
+
+    if (next.type === TokenKind.AttrValueEq) {
       this.consumeNextTokenOfKind(TokenKind.AttrValueEq)
-      const { type, value: rawValue } = this.consumeNextTokenOfKinds(
+      const { type, value } = this.consumeNextTokenOfKinds(
         TokenKind.AttrValueDq,
         TokenKind.AttrValueSq,
         TokenKind.AttrValueNq
       )
-
-      const value = type === TokenKind.AttrValueNq ? rawValue : rawValue.slice(1, -1)
-
-      switch (match) {
-        case "attr": {
-          const parts = parseTextAndParts(value, (index) => new Template.AttrPartNode(name, index))
-
-          if (parts.length === 0) return [true, new Template.AttributeNode(name, "")]
-
-          if (parts.length === 1) {
-            if (parts[0]._tag === "text") {
-              return [true, new Template.AttributeNode(name, parts[0].value)]
-            } else {
-              return [true, this.addPart(new Template.AttrPartNode(name, parts[0].index))]
-            }
-          }
-
-          return [true, this.addPart(new Template.SparseAttrNode(name, parts))]
-        }
-        case "boolean": {
-          const parts = parseTextAndParts(value, (index) => new Template.BooleanPartNode(name, index))
-          if (parts.length === 1) {
-            if (parts[0]._tag === "text") {
-              return [true, new Template.BooleanNode(name)]
-            } else {
-              return [true, this.addPart(parts[0])]
-            }
-          }
-
-          throw new Error("Boolean attributes cannot have multiple parts")
-        }
-        case "class": {
-          const parts = parseTextAndParts(value, (index) => new Template.ClassNamePartNode(index))
-          if (parts.length === 1) {
-            if (parts[0]._tag === "text") {
-              return [true, new Template.AttributeNode("class", parts[0].value.trim())]
-            } else {
-              return [true, this.addPart(parts[0])]
-            }
-          }
-
-          return [true, this.addPart(new Template.SparseClassNameNode(parts))]
-        }
-        case "data":
-          return [true, this.addPart(new Template.DataPartNode(unsafeParsePartIndex(value)))]
-        case "event":
-          return [true, this.addPart(new Template.EventPartNode(name, unsafeParsePartIndex(value)))]
-        case "properties":
-          return [true, this.addPart(new Template.PropertiesPartNode(unsafeParsePartIndex(value)))]
-        case "property":
-          return [true, this.addPart(new Template.PropertyPartNode(name, unsafeParsePartIndex(value)))]
-        case "ref":
-          return [true, this.addPart(new Template.RefPartNode(unsafeParsePartIndex(value)))]
-      }
-    } else if (next?.type === TokenKind.Whitespace) {
+      return [true, this.parseAttributeWithValue(rawName, type === TokenKind.AttrValueNq ? value : value.slice(1, -1))]
+    } else if (next.type === TokenKind.Whitespace) {
       this.index++
-      return [true, new Template.BooleanNode(name!)]
-    } else if (next?.type === TokenKind.OpenTagEnd) {
+      return [true, new Template.BooleanNode(rawName)]
+    } else if (next.type === TokenKind.OpenTagEnd) {
       this.index++
       this.consumeWhitespace()
-      return [false, new Template.BooleanNode(name!)]
+      return [false, new Template.BooleanNode(rawName)]
     } else {
-      if (next === undefined) {
-        throw new Error(`Unexpected end of template at attribute ${name}`)
-      }
-      throw new Error(`Unexpected token ${next ? TokenKindToName[next.type] : "undefined"} in place of attribute`)
+      throw new Error(`Unexpected token ${TokenKindToName[next.type]} in place of attribute`)
     }
+  }
+
+  private parseAttributeWithValue(rawName: string, value: string): Template.Attribute | Template.SparseAttrNode {
+    const [match, name] = keyToPartType(rawName)
+    switch (match) {
+      case "attr":
+        return this.parseAttributePart(value, name)
+      case "boolean":
+        return this.parseBooleanAttribute(value, name)
+      case "class":
+        return this.parseClassNameAttribute(value)
+      case "data":
+        return this.parseDataAttribute(value)
+      case "event":
+        return this.parseEventAttribute(value, name)
+      case "properties":
+        return this.parsePropertiesAttribute(value)
+      case "property":
+        return this.parsePropertyAttribute(value, name)
+      case "ref":
+        return this.parseRefAttribute(value)
+    }
+  }
+
+  private parseAttributePart(value: string, name: string): Template.Attribute | Template.SparseAttrNode {
+    return this.parseMultipleParts(
+      value,
+      (index) => new Template.AttrPartNode(name, index),
+      (text) => new Template.AttributeNode(name, text),
+      (parts) => new Template.SparseAttrNode(name, parts)
+    )
+  }
+
+  private parseBooleanAttribute(value: string, name: string): Template.BooleanNode | Template.BooleanPartNode {
+    return this.parseMultipleParts(
+      value,
+      (index) => new Template.BooleanPartNode(name, index),
+      () => new Template.BooleanNode(name),
+      () => {
+        throw new Error("Boolean attributes cannot have multiple parts")
+      }
+    )
+  }
+
+  private parseClassNameAttribute(
+    value: string
+  ): Template.AttributeNode | Template.ClassNameNode | Template.SparseClassNameNode {
+    return this.parseMultipleParts(
+      value,
+      (index) => new Template.ClassNamePartNode(index),
+      (text) => new Template.AttributeNode("class", text.trim()),
+      (parts) => new Template.SparseClassNameNode(parts)
+    )
+  }
+
+  private parseMultipleParts<
+    T extends Template.PartNode,
+    T2 extends Template.Attribute | Template.Node,
+    U extends Template.SparsePartNode
+  >(
+    value: string,
+    f: (index: number) => T,
+    singleText: (text: string) => T2,
+    multipleParts: (parts: Array<T | Template.TextNode>) => U
+  ): T | T2 | U {
+    const parts = parseTextAndParts(value, f)
+    if (parts.length === 1) {
+      if (parts[0]._tag === "text") return singleText(parts[0].value)
+      return this.addPart(parts[0])
+    }
+    return this.addPart(multipleParts(parts))
+  }
+
+  private parseDataAttribute(value: string): Template.AttributeNode | Template.DataPartNode {
+    return this.addPart(new Template.DataPartNode(unsafeParsePartIndex(value)))
+  }
+
+  private parseEventAttribute(value: string, name: string): Template.AttributeNode | Template.EventPartNode {
+    return this.addPart(new Template.EventPartNode(name, unsafeParsePartIndex(value)))
+  }
+
+  private parsePropertyAttribute(value: string, name: string): Template.AttributeNode | Template.PropertyPartNode {
+    return this.addPart(new Template.PropertyPartNode(name, unsafeParsePartIndex(value)))
+  }
+
+  private parsePropertiesAttribute(value: string): Template.AttributeNode | Template.PropertiesPartNode {
+    return this.addPart(new Template.PropertiesPartNode(unsafeParsePartIndex(value)))
+  }
+
+  private parseRefAttribute(value: string): Template.AttributeNode | Template.RefPartNode {
+    return this.addPart(new Template.RefPartNode(unsafeParsePartIndex(value)))
   }
 
   private parseTextOnlyChildren(): Array<Template.Text> {
@@ -411,40 +458,45 @@ const TokenKindToName = {
 
 function templateWithParts(template: ReadonlyArray<string>): string {
   const length = template.length
-  const lastIndex = length - 1
+  if (length === 0) return ""
 
-  let output = ""
+  const parts: Array<string> = new Array(length + length - 1)
 
+  let j = 0
   for (let i = 0; i < length; i++) {
-    const str = template[i]
-
-    if (i === lastIndex) {
-      output += str
-    } else {
-      output += str + PART_STRING(i)
+    parts[j++] = template[i]
+    if (i !== length - 1) {
+      parts[j++] = PART_STRING(i)
     }
   }
 
-  return output
+  return parts.join("")
 }
 
 function parseTextAndParts<T>(
   s: string,
   f: (index: number) => T
 ): Array<Template.TextNode | T> {
-  let skipWhitespace = false
+  let skipWhitespace = true
   const out: Array<Template.TextNode | T> = []
   const parts = s.split(PART_REGEX)
+
+  if (parts.length === 1) {
+    if (s.trimStart() === "") return []
+    return [new Template.TextNode(s)]
+  }
+
+  // Each part takes 2 indices, so we need to subtract 2 to get the last part
   const last = parts.length - 2
 
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
 
-    if (part[0] === "{" && part[1] === "{") {
+    if (isPlaceholder(part)) {
       out.push(f(parseInt(parts[++i], 10)))
-      // If we encounter a part, we should not skip whitespace
+      // If we encounter a part, we should not skip whitespace, unless we are at the last part
       skipWhitespace = i === last
-    } else if (((skipWhitespace || i === 0) ? part.trim() : part) === "") {
+    } else if ((skipWhitespace ? part.trimStart() : part) === "") {
       continue
     } else {
       out.push(new Template.TextNode(part))
@@ -454,10 +506,17 @@ function parseTextAndParts<T>(
   return out
 }
 
+function isPlaceholder(part: string): boolean {
+  return part[0] === "{" &&
+    part[1] === "{" &&
+    part[part.length - 1] === "}" &&
+    part[part.length - 2] === "}"
+}
+
 function unsafeParsePartIndex(text: string): number {
-  const match = STRICT_PART_REGEX.exec(text)
-  if (!match) {
-    throw new SyntaxError(`Could not parse part index from ${text}`)
-  }
-  return parseInt(match[2], 10)
+  return parseInt(text.slice(2, -2), 10)
+}
+
+function isSpreadAttribute(rawName: string): boolean {
+  return rawName[0] === "." && rawName[1] === "." && rawName[2] === "."
 }

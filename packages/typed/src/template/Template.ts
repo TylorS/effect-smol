@@ -1,4 +1,3 @@
-import type { Chunk, NonEmptyChunk } from "effect/collections/Chunk"
 import { type Inspectable, NodeInspectSymbol } from "effect/interfaces/Inspectable"
 
 export class Template implements Inspectable {
@@ -7,14 +6,14 @@ export class Template implements Inspectable {
   readonly nodes: ReadonlyArray<Node>
   readonly hash: string
   readonly parts: ReadonlyArray<
-    readonly [part: PartNode | SparsePartNode, path: Chunk<number> | NonEmptyChunk<number>]
+    readonly [part: PartNode | SparsePartNode, path: Array<number>]
   >
 
   constructor(
     nodes: ReadonlyArray<Node>,
     hash: string,
     parts: ReadonlyArray<
-      readonly [part: PartNode | SparsePartNode, path: Chunk<number> | NonEmptyChunk<number>]
+      readonly [part: PartNode | SparsePartNode, path: Array<number>]
     >
   ) {
     this.nodes = nodes
@@ -27,7 +26,7 @@ export class Template implements Inspectable {
       _tag: "template",
       nodes: this.nodes,
       hash: this.hash,
-      parts: this.parts.map(([part, path]) => [part, path.toJSON()])
+      parts: this.parts
     }
   }
 

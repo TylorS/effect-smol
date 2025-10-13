@@ -1,32 +1,23 @@
-import * as Chunk from "effect/collections/Chunk"
-
 export class PathStack {
-  chunk: Chunk.Chunk<number> = Chunk.empty()
-  count = 0
+  path: Array<number> = [0]
 
-  inc() {
-    this.count++
+  inc(): void {
+    this.path[this.path.length - 1] += 1
   }
 
   push(): void {
-    this.chunk = this.toChunk()
-    this.count = 0
+    this.path.push(0)
   }
 
   pop(): void {
-    this.count = Chunk.lastUnsafe(this.chunk)
-    this.chunk = Chunk.dropRight(this.chunk, 1)
+    this.path.pop()
   }
 
-  toChunk(): Chunk.Chunk<number> {
-    if (Chunk.isEmpty(this.chunk)) {
-      return Chunk.of(this.count)
-    }
-
-    return Chunk.append(this.chunk, this.count)
+  toChunk(): Array<number> {
+    return this.path.slice(0)
   }
 
-  previousChunk() {
-    return this.chunk
+  previousChunk(): Array<number> {
+    return this.path.slice(0, -1)
   }
 }
