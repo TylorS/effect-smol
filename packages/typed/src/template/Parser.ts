@@ -92,20 +92,11 @@ class Parser {
   }
 
   private parseNodeParts(literal: IToken): Array<Template.Node> {
-    const parts = parseTextAndParts(
+    return parseTextAndParts(
       literal.value,
-      (index) => new Template.NodePart(index)
+      (index) => this.addPartWithPrevious(new Template.NodePart(index)),
+      () => this.path.inc()
     )
-
-    for (const part of parts) {
-      if (part._tag === "text") {
-        this.path.inc()
-      } else {
-        this.addPartWithPrevious(part)
-      }
-    }
-
-    return parts
   }
 
   private parseOpenTag({ value }: IToken): Template.Node {
@@ -445,7 +436,8 @@ function templateWithParts(template: ReadonlyArray<string>): string {
 
 function parseTextAndParts<T>(
   s: string,
-  f: (index: number) => T
+  createPartFromIndex: (index: number) => T,
+  onTextNodeInserted?: () => void
 ): Array<Template.TextNode | T> {
   let skipWhitespace = true
   const out: Array<Template.TextNode | T> = []
@@ -463,13 +455,14 @@ function parseTextAndParts<T>(
     const part = parts[i]
 
     if (isPlaceholder(part)) {
-      out.push(f(parseInt(parts[++i], 10)))
+      out.push(createPartFromIndex(parseInt(parts[++i], 10)))
       // If we encounter a part, we should not skip whitespace, unless we are at the last part
       skipWhitespace = i === last
     } else if ((skipWhitespace ? part.trimStart() : part) === "") {
       continue
     } else {
       out.push(new Template.TextNode(part))
+      onTextNodeInserted?.()
     }
   }
 
