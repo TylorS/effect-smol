@@ -59,7 +59,7 @@ export type PartNode =
   | TextPartNode
   | CommentPartNode
 
-export type SparsePartNode = SparseAttrNode | SparseClassNameNode | SparseCommentNode
+export type SparsePartNode = SparseAttrNode | SparseClassNameNode | SparseCommentNode | SparseTextNode
 
 export class ElementNode {
   readonly _tag = "element"
@@ -103,15 +103,15 @@ export class TextOnlyElement {
 
   readonly tagName: string
   readonly attributes: Array<Attribute>
-  readonly children: Array<Text>
+  readonly textContent: Text | null
   constructor(
     tagName: string,
     attributes: Array<Attribute>,
-    children: Array<Text>
+    textContent: Text | null
   ) {
     this.tagName = tagName
     this.attributes = attributes
-    this.children = children
+    this.textContent = textContent
   }
 }
 
@@ -278,7 +278,7 @@ export class RefPartNode {
   }
 }
 
-export type Text = TextNode | TextPartNode
+export type Text = TextNode | TextPartNode | SparseTextNode
 
 export class TextNode {
   readonly _tag = "text" as const
@@ -295,6 +295,14 @@ export class TextPartNode {
   readonly index: number
   constructor(index: number) {
     this.index = index
+  }
+}
+
+export class SparseTextNode {
+  readonly _tag = "sparse-text" as const
+  readonly nodes: Array<TextNode | TextPartNode>
+  constructor(nodes: Array<TextNode | TextPartNode>) {
+    this.nodes = nodes
   }
 }
 

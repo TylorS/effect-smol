@@ -342,11 +342,7 @@ describe("Parser2", () => {
 
   it("parses text-only nodes", () => {
     const template = h`<textarea>foo</textarea>`
-    const textarea = new Template.TextOnlyElement("textarea", [], [])
-    const text = new Template.TextNode("foo")
-
-    textarea.children.push(text)
-
+    const textarea = new Template.TextOnlyElement("textarea", [], new Template.TextNode("foo"))
     const expected = new Template.Template([textarea], templateHash(template), [])
 
     expect(Parser.parse(template)).toEqual(expected)
@@ -354,10 +350,8 @@ describe("Parser2", () => {
 
   it("parses text-only nodes with holes", () => {
     const template = h`<textarea>${"foo"}</textarea>`
-    const textarea = new Template.TextOnlyElement("textarea", [], [])
     const part = new Template.TextPartNode(0)
-
-    textarea.children.push(part)
+    const textarea = new Template.TextOnlyElement("textarea", [], part)
 
     const expected = new Template.Template([textarea], templateHash(template), [[part, [0]]])
 
@@ -511,7 +505,7 @@ describe("Parser2", () => {
             new Template.ElementNode(
               "head",
               [],
-              [new Template.TextOnlyElement("title", [], [new Template.TextNode("Test")])]
+              [new Template.TextOnlyElement("title", [], new Template.TextNode("Test"))]
             ),
             new Template.ElementNode("body", [], [
               new Template.ElementNode("div", [new Template.AttributeNode("id", "root")], [])
@@ -840,6 +834,22 @@ c192 -183 322 -427 380 -715 22 -107 22 -146 -10 -621 -11 -164 0 -383 25
       templateHash(template),
       []
     )
+    const actual = Parser.parse(template)
+
+    expect(actual).toEqual(expected)
+  })
+
+  it("parses text-only elements with sparse text", () => {
+    const template = h`<textarea>${"foo"} ${"bar"}</textarea>`
+    const fooPart = new Template.TextPartNode(0)
+    const barPart = new Template.TextPartNode(1)
+    const sparseText = new Template.SparseTextNode([fooPart, new Template.TextNode(" "), barPart])
+    const textarea = new Template.TextOnlyElement(
+      "textarea",
+      [],
+      sparseText
+    )
+    const expected = new Template.Template([textarea], templateHash(template), [[sparseText, [0]]])
     const actual = Parser.parse(template)
 
     expect(actual).toEqual(expected)
