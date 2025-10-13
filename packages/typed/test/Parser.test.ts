@@ -7,7 +7,7 @@ import * as Parser from "@typed/template/Parser"
 
 import * as Template from "@typed/template/Template"
 
-describe("Parser2", () => {
+describe("Parser", () => {
   it("parses a simple template", () => {
     const template = h`<div></div>`
     const expected = new Template.Template(
