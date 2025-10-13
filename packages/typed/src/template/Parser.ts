@@ -12,8 +12,6 @@ export function parse(template: ReadonlyArray<string>): Template.Template {
   return parser.parse(template)
 }
 
-const EMPTY_ATTRIBUTES = { attributes: [] as Array<Template.Attribute>, wasSelfClosed: false }
-
 class Parser {
   protected html!: string
   protected tokens!: Array<IToken>
@@ -68,36 +66,34 @@ class Parser {
     const nodes: Array<Template.Node> = []
 
     while (this.index < this.tokens.length) {
-      const token = this.peek()!
+      const token = this.consumeNextTokenOfKinds(
+        TokenKind.Literal,
+        TokenKind.OpenTag,
+        TokenKind.CloseTag,
+        TokenKind.Whitespace
+      )
 
       if (token.type === TokenKind.Literal) {
         // eslint-disable-next-line no-restricted-syntax
-        nodes.push(...this.parseNodeParts())
+        nodes.push(...this.parseNodeParts(token))
       } else if (token.type === TokenKind.OpenTag) {
-        nodes.push(this.parseOpenTag())
+        nodes.push(this.parseOpenTag(token))
         this.path.inc()
       } else if (token.type === TokenKind.CloseTag) {
-        this.index++
         this.consumeWhitespace()
         break
-      } else if (token.type === TokenKind.Whitespace) {
-        if (nodes.length > 0) {
-          this.path.inc()
-          nodes.push(new Template.TextNode(token.value))
-        }
-        this.index++
-      } else {
-        throw new Error(`Unexpected token ${token.type}`)
+      } else if (nodes.length > 0) {
+        this.path.inc()
+        nodes.push(new Template.TextNode(token.value))
       }
     }
 
     return nodes
   }
 
-  private parseNodeParts(): Array<Template.Node> {
-    const token = this.consumeNextTokenOfKind(TokenKind.Literal)
+  private parseNodeParts(literal: IToken): Array<Template.Node> {
     const parts = parseTextAndParts(
-      token.value,
+      literal.value,
       (index) => new Template.NodePart(index)
     )
 
@@ -112,57 +108,31 @@ class Parser {
     return parts
   }
 
-  private parseOpenTag(): Template.Node {
-    const { value: name } = this.consumeNextTokenOfKind(TokenKind.OpenTag)
-
+  private parseOpenTag({ value }: IToken): Template.Node {
     // Comments
-    if (name === "!--") {
-      const node = this.parseCommentNode()
-      this.path.inc()
-      return node
+    if (value === "!--") {
+      return this.parseCommentNode()
     }
 
     // Doctype
-    if (name === "!doctype") {
-      this.consumeWhitespace()
-      const next = this.peek()
-      if (next && next.type === TokenKind.AttrValueNq) {
-        this.index++
-        this.consumeWhitespace()
-        this.consumeNextTokenOfKind(TokenKind.OpenTagEnd)
-        return new Template.DocType(next.value)
-      }
-      this.consumeNextTokenOfKind(TokenKind.OpenTagEnd)
-      return new Template.DocType("html")
+    if (value === "!doctype") {
+      return this.parseDocTypeNode()
     }
 
     // Tags which MUST be self-closing
-    if (SELF_CLOSING_TAGS.has(name)) {
-      return this.parseSelfClosingElementNode(name)
+    if (SELF_CLOSING_TAGS.has(value)) {
+      return this.parseSelfClosingElementNode(value)
     }
 
     // Tags which MUST only have text as children
-    if (TEXT_ONLY_NODES_REGEX.has(name)) {
-      return this.parseTextOnlyElementNode(name)
+    if (TEXT_ONLY_NODES_REGEX.has(value)) {
+      return this.parseTextOnlyElementNode(value)
     }
 
-    const next = this.peek()
-
-    if (next === undefined) {
-      throw new Error(`Unexpected end of template at element node ${name}`)
-    }
-
-    const hasNoAttributes = next.type === TokenKind.OpenTagEnd
-
-    if (hasNoAttributes) {
-      this.index++
-    }
-
-    this.consumeWhitespace()
-
-    const { attributes, wasSelfClosed } = hasNoAttributes ? EMPTY_ATTRIBUTES : this.parseAttributes()
+    // Normal elements
+    const { attributes, wasSelfClosed } = this.parseAttributes()
     const children = wasSelfClosed ? [] : this.parseChildren()
-    return new Template.ElementNode(name, attributes, children)
+    return new Template.ElementNode(value, attributes, children)
   }
 
   private parseChildren() {
@@ -182,6 +152,17 @@ class Parser {
       (text) => new Template.CommentNode(text),
       (parts) => new Template.SparseCommentNode(parts)
     )
+  }
+
+  private parseDocTypeNode(): Template.Node {
+    this.consumeWhitespace()
+    const next = this.consumeNextTokenOfKinds(TokenKind.AttrValueNq, TokenKind.OpenTagEnd)
+    if (next.type === TokenKind.AttrValueNq) {
+      this.consumeWhitespace()
+      this.consumeNextTokenOfKind(TokenKind.OpenTagEnd)
+      return new Template.DocType(next.value)
+    }
+    return new Template.DocType("html")
   }
 
   private parseSelfClosingElementNode(name: string): Template.Node {
@@ -220,24 +201,20 @@ class Parser {
       }
 
       if (
+        token.type === TokenKind.OpenTagEnd ||
+        token.type === TokenKind.CloseTag
+      ) {
+        this.index++
+        wasSelfClosed = token.value === "/"
+        this.consumeWhitespace()
+        break
+      }
+
+      if (
         token.type === TokenKind.Whitespace
       ) {
         this.index++
         continue
-      }
-
-      if (
-        token.type === TokenKind.OpenTagEnd
-      ) {
-        this.index++
-        wasSelfClosed = token.value === "/"
-        break
-      }
-
-      if (
-        token.type === TokenKind.CloseTag
-      ) {
-        break
       }
 
       const [shouldContinue, attr] = this.parseAttribute()
@@ -262,14 +239,9 @@ class Parser {
       return [true, this.parsePropertiesAttribute(rawName.slice(3))]
     }
 
-    const next = this.peek()
-
-    if (next === undefined) {
-      throw new Error(`Unexpected end of template at attribute ${name}`)
-    }
+    const next = this.consumeNextTokenOfKinds(TokenKind.AttrValueEq, TokenKind.Whitespace, TokenKind.OpenTagEnd)
 
     if (next.type === TokenKind.AttrValueEq) {
-      this.consumeNextTokenOfKind(TokenKind.AttrValueEq)
       const { type, value } = this.consumeNextTokenOfKinds(
         TokenKind.AttrValueDq,
         TokenKind.AttrValueSq,
@@ -277,10 +249,8 @@ class Parser {
       )
       return [true, this.parseAttributeWithValue(rawName, type === TokenKind.AttrValueNq ? value : value.slice(1, -1))]
     } else if (next.type === TokenKind.Whitespace) {
-      this.index++
       return [true, new Template.BooleanNode(rawName)]
     } else if (next.type === TokenKind.OpenTagEnd) {
-      this.index++
       this.consumeWhitespace()
       return [false, new Template.BooleanNode(rawName)]
     } else {
