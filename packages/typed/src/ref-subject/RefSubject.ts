@@ -102,9 +102,8 @@ class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
         if (checkIsMultiple(ctx)) {
           return Fx.fromYieldable(input).pipe(
             Fx.continueWith(() => input),
-            // Fx.skipRepeats,
+            Fx.skipRepeats,
             Fx.mapEffect(f)
-            // Fx.skipRepeats
           )
         }
 
@@ -115,6 +114,10 @@ class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
 
   override run<RSink>(sink: Sink.Sink<C, E0 | E | E2 | E3, RSink>) {
     return this._computed.run(sink) as any
+  }
+
+  toPull() {
+    return this.asEffect()
   }
 }
 
@@ -180,8 +183,7 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
           return Fx.fromYieldable(input).pipe(
             Fx.continueWith(() => input),
             Fx.skipRepeats,
-            Fx.filterMapEffect(f),
-            Fx.skipRepeats
+            Fx.filterMapEffect(f)
           )
         }
 
@@ -292,6 +294,10 @@ class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Sco
 
   toEffect(): Effect.Effect<A, E, Exclude<R, R2>> {
     return getOrInitializeCore(this.core, true)
+  }
+
+  toPull() {
+    return this.asEffect()
   }
 }
 

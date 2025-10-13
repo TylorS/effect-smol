@@ -29,6 +29,7 @@ export {
   map,
   mapEffect,
   mergeAll,
+  mergeOrdered,
   provide,
   skip,
   skipRepeats,
@@ -44,6 +45,7 @@ export {
 export {
   at,
   die,
+  empty,
   fail,
   failCause,
   fromEffect,
@@ -53,6 +55,7 @@ export {
   fromYieldable,
   interrupt,
   make,
+  never,
   periodic,
   succeed
 } from "./constructors/index.ts"
