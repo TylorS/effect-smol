@@ -215,13 +215,8 @@ class Parser {
   }
 
   private parseSelfClosingElementNode(name: string): Template.Node {
-    const { attributes, wasSelfClosed } = this.parseAttributes()
-
-    if (wasSelfClosed) {
-      return new Template.SelfClosingElementNode(name, attributes)
-    }
-
-    throw new Error(`Self-closing element ${name} must be self-closed`)
+    const { attributes } = this.parseAttributes()
+    return new Template.SelfClosingElementNode(name, attributes)
   }
 
   private parseTextOnlyElementNode(name: string): Template.Node {
