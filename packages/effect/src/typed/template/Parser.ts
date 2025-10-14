@@ -42,7 +42,7 @@ class Parser {
   private consumeNextTokenOfKind(kind: import("html5parser").TokenKind) {
     const token = this.tokens[this.index]
     if (token.type !== kind) {
-      throw new Error(`Expected ${kind} but got ${token.type}`)
+      throw new Error(`Expected ${TokenKindToName[kind]} but got ${TokenKindToName[token.type]}`)
     }
     this.index++
     return token
@@ -58,7 +58,9 @@ class Parser {
   private consumeNextTokenOfKinds(...kinds: Array<import("html5parser").TokenKind>) {
     const token = this.tokens[this.index]
     if (!kinds.includes(token.type as any)) {
-      throw new Error(`Expected ${kinds.join(" or ")} but got ${token.type}`)
+      throw new Error(
+        `Expected ${kinds.map((kind) => TokenKindToName[kind]).join(" or ")} but got ${TokenKindToName[token.type]}`
+      )
     }
     this.index++
     return token
@@ -101,27 +103,11 @@ class Parser {
   }
 
   private parseOpenTag({ value }: IToken): Template.Node {
-    // Comments
-    if (value === "!--") {
-      return this.parseCommentNode()
-    }
-
-    // Doctype
-    if (value === "!doctype") {
-      return this.parseDocTypeNode()
-    }
-
-    // Tags which MUST be self-closing
-    if (SELF_CLOSING_TAGS.has(value)) {
-      return this.parseSelfClosingElementNode(value)
-    }
-
-    // Tags which MUST only have text as children
-    if (TEXT_ONLY_NODES_REGEX.has(value)) {
-      return this.parseTextOnlyElementNode(value)
-    }
-
-    // Normal elements
+    if (value === "!--") return this.parseCommentNode()
+    if (value === "!doctype") return this.parseDocTypeNode()
+    if (SELF_CLOSING_TAGS.has(value)) return this.parseSelfClosingElementNode(value)
+    if (TEXT_ONLY_NODES_REGEX.has(value)) return this.parseTextOnlyElementNode(value)
+    // All other elements
     const { attributes, wasSelfClosed } = this.parseAttributes()
     const children = wasSelfClosed ? [] : this.parseChildren()
     return new Template.ElementNode(value, attributes, children)
@@ -148,13 +134,84 @@ class Parser {
 
   private parseDocTypeNode(): Template.Node {
     this.consumeWhitespace()
-    const next = this.consumeNextTokenOfKinds(TokenKind.AttrValueNq, TokenKind.OpenTagEnd)
-    if (next.type === TokenKind.AttrValueNq) {
+
+    // Try to parse the name
+    const parsedName = this.parseLiteralLike()
+    if (parsedName.closed) return new Template.DocType("html")
+    const name = parsedName.value ?? "html"
+
+    const { closed, publicId, systemId } = this.parseDocTypeIds()
+
+    if (!closed) {
       this.consumeWhitespace()
       this.consumeNextTokenOfKind(TokenKind.OpenTagEnd)
-      return new Template.DocType(next.value)
     }
-    return new Template.DocType("html")
+
+    return new Template.DocType(name, publicId, systemId)
+  }
+
+  private parseDocTypeIds(): {
+    closed: boolean
+    publicId: string | undefined
+    systemId: string | undefined
+  } {
+    const firstIdType = this.parseDocTypeId()
+    if (firstIdType.closed) return firstIdType
+    const secondIdType = this.parseDocTypeId()
+    return {
+      closed: secondIdType.closed,
+      publicId: secondIdType.publicId ?? firstIdType.publicId,
+      systemId: secondIdType.systemId ?? firstIdType.systemId
+    }
+  }
+
+  private parseDocTypeId(): {
+    closed: boolean
+    publicId: string | undefined
+    systemId: string | undefined
+  } {
+    const parsedIdType = this.parseLiteralLike()
+
+    if (parsedIdType.closed || parsedIdType.value === null) {
+      return { closed: parsedIdType.closed, publicId: undefined, systemId: undefined }
+    }
+
+    const value = parsedIdType.value.toLowerCase()
+    if (value === "public" || value === "system") {
+      const parsedLiteral = this.parseLiteralLike()
+      if (parsedLiteral.closed || parsedLiteral.value === null) {
+        return { closed: parsedLiteral.closed, publicId: undefined, systemId: undefined }
+      }
+      return {
+        closed: false,
+        publicId: value === "public" ? parsedLiteral.value : undefined,
+        systemId: value === "system" ? parsedLiteral.value : undefined
+      }
+    }
+
+    return { closed: false, publicId: undefined, systemId: undefined }
+  }
+
+  private parseLiteralLike(): {
+    closed: boolean
+    value: string | null
+  } {
+    this.consumeWhitespace()
+
+    const { type, value } = this.consumeNextTokenOfKinds(
+      TokenKind.Literal,
+      TokenKind.AttrValueNq,
+      TokenKind.AttrValueDq,
+      TokenKind.AttrValueSq,
+      TokenKind.OpenTagEnd
+    )
+
+    if (type === TokenKind.OpenTagEnd) return { closed: true, value: null }
+    if (type === TokenKind.Literal || type === TokenKind.AttrValueNq) return { closed: false, value }
+    if (type === TokenKind.AttrValueDq || type === TokenKind.AttrValueSq) {
+      return { closed: false, value: value.slice(1, -1) }
+    }
+    throw new Error(`Unexpected token ${TokenKindToName[type]} in place of literal`)
   }
 
   private parseSelfClosingElementNode(name: string): Template.Node {
@@ -206,12 +263,11 @@ class Parser {
         continue
       }
 
-      const [shouldContinue, attr, isSelfClosed] = this.parseAttribute()
-
-      attributes.push(attr)
-
-      if (shouldContinue === false) {
-        wasSelfClosed = isSelfClosed
+      const { attribute, isSelfClosed, shouldContinue } = this.parseAttribute()
+      attributes.push(attribute)
+      wasSelfClosed ||= isSelfClosed
+      if (!shouldContinue) {
+        this.consumeWhitespace()
         break
       }
     }
@@ -222,11 +278,15 @@ class Parser {
     }
   }
 
-  private parseAttribute(): [boolean, Template.Attribute, boolean] {
-    const { value: rawName } = this.consumeNextTokenOfKind(TokenKind.AttrValueNq)
+  private parseAttribute(): {
+    shouldContinue: boolean
+    isSelfClosed: boolean
+    attribute: Template.Attribute
+  } {
+    const { value: name } = this.consumeNextTokenOfKind(TokenKind.AttrValueNq)
 
-    if (isSpreadAttribute(rawName)) {
-      return [true, this.parsePropertiesAttribute(rawName.slice(3)), false]
+    if (isSpreadAttribute(name)) {
+      return { shouldContinue: true, isSelfClosed: false, attribute: this.parsePropertiesAttribute(name.slice(3)) }
     }
 
     const next = this.consumeNextTokenOfKinds(TokenKind.AttrValueEq, TokenKind.Whitespace, TokenKind.OpenTagEnd)
@@ -237,16 +297,24 @@ class Parser {
         TokenKind.AttrValueSq,
         TokenKind.AttrValueNq
       )
-      return [
-        true,
-        this.parseAttributeWithValue(rawName, type === TokenKind.AttrValueNq ? value : value.slice(1, -1)),
-        false
-      ]
+      return {
+        shouldContinue: true,
+        isSelfClosed: false,
+        attribute: this.parseAttributeWithValue(name, type === TokenKind.AttrValueNq ? value : value.slice(1, -1))
+      }
     } else if (next.type === TokenKind.Whitespace) {
-      return [true, new Template.BooleanNode(rawName), false]
+      return {
+        shouldContinue: true,
+        isSelfClosed: false,
+        attribute: new Template.BooleanNode(name)
+      }
     } else if (next.type === TokenKind.OpenTagEnd) {
       this.consumeWhitespace()
-      return [false, new Template.BooleanNode(rawName), true]
+      return {
+        shouldContinue: false,
+        isSelfClosed: next.value === "/",
+        attribute: new Template.BooleanNode(name)
+      }
     } else {
       throw new Error(`Unexpected token ${TokenKindToName[next.type]} in place of attribute`)
     }

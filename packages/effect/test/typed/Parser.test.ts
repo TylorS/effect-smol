@@ -656,10 +656,10 @@ c192 -183 322 -427 380 -715 22 -107 22 -146 -10 -621 -11 -164 0 -383 25
 </g>
 </svg>`
     // eslint-disable-next-line no-console
-    console.time("parse large svg")
+    console.time("parse large svg (cold start)")
     const actual = Parser.parse(template)
     // eslint-disable-next-line no-console
-    console.timeEnd("parse large svg")
+    console.timeEnd("parse large svg (cold start)")
 
     const expected = new Template.Template(
       [
@@ -822,6 +822,17 @@ c192 -183 322 -427 380 -715 22 -107 22 -146 -10 -621 -11 -164 0 -383 25
     )
 
     deepEqual(actual, expected)
+
+    const iterations = 1000
+    let totalTime = 0
+    for (let i = 0; i < iterations; i++) {
+      const start = performance.now()
+      Parser.parse(template)
+      const end = performance.now()
+      totalTime += end - start
+    }
+    // eslint-disable-next-line no-console
+    console.log(`parse large svg (${iterations} iterations): ${totalTime / iterations}ms`)
   })
 
   it("parses any element as self-closing", () => {
@@ -847,6 +858,43 @@ c192 -183 322 -427 380 -715 22 -107 22 -146 -10 -621 -11 -164 0 -383 25
       sparseText
     )
     const expected = new Template.Template([textarea], templateHash(template), [[sparseText, [0]]])
+    const actual = Parser.parse(template)
+
+    expect(actual).toEqual(expected)
+  })
+
+  it("parses public doctype", () => {
+    const template = h`<!DOCTYPE html PUBLIC "http://www.w3.org/TR/html5/strict.dtd">`
+    const expected = new Template.Template(
+      [new Template.DocType("html", "http://www.w3.org/TR/html5/strict.dtd")],
+      templateHash(template),
+      []
+    )
+    const actual = Parser.parse(template)
+
+    expect(actual).toEqual(expected)
+  })
+
+  it("parses system doctype", () => {
+    const template = h`<!DOCTYPE html SYSTEM "http://www.w3.org/TR/html5/strict.dtd">`
+    const expected = new Template.Template(
+      [new Template.DocType("html", undefined, "http://www.w3.org/TR/html5/strict.dtd")],
+      templateHash(template),
+      []
+    )
+    const actual = Parser.parse(template)
+
+    expect(actual).toEqual(expected)
+  })
+
+  it("parses public and system doctype", () => {
+    const template =
+      h`<!DOCTYPE html PUBLIC "http://www.w3.org/TR/html5/strict.dtd" SYSTEM "http://www.w3.org/TR/html5/strict.dtd">`
+    const expected = new Template.Template(
+      [new Template.DocType("html", "http://www.w3.org/TR/html5/strict.dtd", "http://www.w3.org/TR/html5/strict.dtd")],
+      templateHash(template),
+      []
+    )
     const actual = Parser.parse(template)
 
     expect(actual).toEqual(expected)
