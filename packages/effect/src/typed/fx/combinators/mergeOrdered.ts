@@ -2,9 +2,10 @@ import * as Cause from "../../../Cause.ts"
 import * as Deferred from "../../../Deferred.ts"
 import * as Effect from "../../../Effect.ts"
 import * as Exit from "../../../Exit.ts"
+import { FiberSet } from "../../../index.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
-import * as Sink from "../sink/Sink.ts"
+import * as Sink from "../sink/Sink.js"
 
 /**
  * While it runs all the Fx instances concurrently, it guarantees that the values are emitted in the order provided
@@ -14,19 +15,19 @@ export function mergeOrdered<FX extends ReadonlyArray<Fx<any, any, any>>>(
   ...fx: FX
 ): Fx<Fx.Success<FX[number]>, Fx.Error<FX[number]>, Fx.Services<FX[number]>> {
   return make<Fx.Success<FX[number]>, Fx.Error<FX[number]>, Fx.Services<FX[number]>>((sink) => {
-    const { onEnd, onSuccess } = withBuffers(fx.length, sink)
+    const { makeSink, onEnd } = withBuffers(fx.length, sink)
 
-    return Effect.forEach(
-      fx,
-      (fx, i) =>
-        fx.run(
-          Sink.make(
-            (cause) => Cause.isInterruptedOnly(cause) ? onEnd(i) : sink.onFailure(cause),
-            (a) => onSuccess(i, a)
-          )
-        ),
-      { concurrency: "unbounded", discard: true }
-    )
+    return Effect.gen(function*() {
+      const set = yield* FiberSet.make<void, Fx.Error<FX[number]>>()
+      for (const [i, self] of fx.entries()) {
+        yield* FiberSet.run(
+          set,
+          Effect.onExit(self.run(makeSink(i)), () => onEnd(i)),
+          { startImmediately: true }
+        )
+      }
+      yield* FiberSet.awaitEmpty(set)
+    })
   })
 }
 
@@ -38,9 +39,16 @@ function withBuffers<A, E, R>(
   const onSuccess = (index: number, value: A) => buffers.get(index)!.onSuccess(value)
   const onEnd = (index: number) => buffers.get(index)!.onEnd
 
+  const makeSink = (index: number) =>
+    Sink.make<A, E, R>(
+      (cause) => Cause.isInterruptedOnly(cause) ? onEnd(index) : sink.onFailure(cause),
+      (value) => onSuccess(index, value)
+    )
+
   return {
     onSuccess,
-    onEnd
+    onEnd,
+    makeSink
   } as const
 }
 

@@ -74,4 +74,22 @@ describe("Fx", () => {
     actual: Fx.at(1, 100),
     expected: [1]
   })
+
+  it.fx.live("Fx.tuple", {
+    actual: Fx.tuple(
+      Fx.at(1, 0),
+      Fx.at(2, 100),
+      Fx.at(3, 50)
+    ),
+    expected: [[1, 2, 3]]
+  })
+
+  it.fx.live("Fx.mergeOrdered", {
+    actual: Fx.mergeOrdered(
+      Fx.succeed(1),
+      Fx.at(2, 100), // Maintains order regardless of asynchrony
+      Fx.succeed(3)
+    ),
+    expected: [1, 2, 3]
+  })
 })

@@ -1,5 +1,6 @@
 import * as Cause from "../../../Cause.ts"
 import * as Option from "../../../data/Option.ts"
+import type { Predicate } from "../../../data/Predicate.ts"
 import * as Effect from "../../../Effect.ts"
 import * as Exit from "../../../Exit.ts"
 import { dual, flow, identity } from "../../../Function.ts"
@@ -108,9 +109,22 @@ export function withEarlyExit<A, E, R, R2>(
 ): Effect.Effect<void, never, R | R2> {
   return Effect.servicesWith((services) =>
     Effect.callback<unknown, never, R2>(function(this: Scheduler, resume, signal) {
-      const earlyExit = Effect.callback<never>(() => resume(Effect.void))
+      let exited = false
+      const earlyExit = Effect.callback<never>(() => {
+        exited = true
+        return resume(Effect.void)
+      })
+      const onSuccess = (a: A) => {
+        if (exited) return Effect.void
+        return sink.onSuccess(a)
+      }
+      const onFailure = (cause: Cause.Cause<E>) => {
+        if (exited) return Effect.void
+        return sink.onFailure(cause)
+      }
       const sinkWithEarlyExit: Sink.WithEarlyExit<A, E, R> = {
-        ...sink,
+        onSuccess,
+        onFailure,
         earlyExit
       }
 
@@ -774,5 +788,44 @@ class ExitSink<A, E, R> implements Sink<A, E, R> {
 
   onFailure(cause: Cause.Cause<E>) {
     return this.sink.onSuccess(Exit.failCause(cause))
+  }
+}
+
+export const dropAfter: {
+  <A, E, R, R2>(
+    sink: Sink<A, E, R>,
+    predicate: Predicate<A>,
+    f: (sink: Sink<A, E, R>) => Effect.Effect<unknown, E, R2>
+  ): Effect.Effect<void, never, R | R2>
+} = dual(3, function dropAfter<A, E, R, R2>(
+  sink: Sink<A, E, R>,
+  predicate: Predicate<A>,
+  f: (sink: Sink<A, E, R>) => Effect.Effect<unknown, E, R2>
+): Effect.Effect<void, never, R | R2> {
+  return withEarlyExit(sink, (s) => f(new DropAfterSink(s, predicate)).pipe(Effect.catchCause(sink.onFailure)))
+})
+
+class DropAfterSink<A, E, R> implements Sink<A, E, R> {
+  readonly sink: Sink.WithEarlyExit<A, E, R>
+  readonly predicate: Predicate<A>
+  constructor(
+    sink: Sink.WithEarlyExit<A, E, R>,
+    predicate: Predicate<A>
+  ) {
+    this.sink = sink
+    this.predicate = predicate
+    this.onFailure = this.onFailure.bind(this)
+    this.onSuccess = this.onSuccess.bind(this)
+  }
+
+  onFailure(cause: Cause.Cause<E>): Effect.Effect<unknown, never, R> {
+    return this.sink.onFailure(cause)
+  }
+
+  onSuccess(value: A) {
+    if (this.predicate(value)) {
+      return Effect.flatMap(this.sink.onSuccess(value), () => this.sink.earlyExit)
+    }
+    return this.sink.onSuccess(value)
   }
 }

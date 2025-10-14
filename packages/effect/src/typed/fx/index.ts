@@ -2,6 +2,7 @@ export {
   causes,
   compact,
   continueWith,
+  dropAfter,
   exhaustLatestMap,
   exhaustLatestMapEffect,
   exhaustMap,
@@ -38,7 +39,9 @@ export {
   switchMap,
   switchMapEffect,
   take,
+  takeUntil,
   tapEffect,
+  tuple,
   unwrap,
   unwrapScoped
 } from "./combinators/index.ts"
