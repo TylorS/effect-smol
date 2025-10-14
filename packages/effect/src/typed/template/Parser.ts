@@ -235,25 +235,16 @@ class Parser {
     this.consumeWhitespace()
 
     while (this.index < this.tokens.length) {
-      const token = this.peek()
+      const token = this.peek()!
 
-      if (token === undefined) {
-        throw new Error("Unexpected end of template in attributes")
-      }
-
-      if (
-        token.type === TokenKind.OpenTagEnd ||
-        token.type === TokenKind.CloseTag
-      ) {
+      if (token.type === TokenKind.OpenTagEnd) {
         this.index++
         wasSelfClosed = token.value === "/"
         this.consumeWhitespace()
         break
       }
 
-      if (
-        token.type === TokenKind.Whitespace
-      ) {
+      if (token.type === TokenKind.Whitespace) {
         this.index++
         continue
       }
