@@ -50,9 +50,8 @@ export const HtmlRenderTemplate = Layer.effect(
     const getEntry = (templateStrings: TemplateStringsArray) => {
       let entry = entries.get(templateStrings)
       if (entry === undefined) {
-        const template = parse(templateStrings)
-        const chunks = templateToHtmlChunks(template, isStatic)
-        entry = chunks
+        entry = templateToHtmlChunks(parse(templateStrings), isStatic)
+        entries.set(templateStrings, entry)
       }
       return entry
     }
@@ -127,7 +126,7 @@ function renderPart<E, R>(
       ...Object.entries(renderable).map(
         ([key, renderable]) => {
           return filterMap(
-            take(unwrapRenderableForHtml<E, R>(renderable, isStatic), 1),
+            take(liftRenderableToFx<E, R>(renderable, isStatic), 1),
             (value) => {
               const s = render({ [key]: value })
               return s ? some(HtmlRenderEvent(s, last)) : none()
@@ -143,7 +142,7 @@ function renderPart<E, R>(
   }
 
   const html = filterMap(
-    unwrapRenderableForHtml<E, R>(renderable, isStatic),
+    liftRenderableToFx<E, R>(renderable, isStatic),
     (value) => {
       const s = render(value)
       return s ? some(HtmlRenderEvent(s, last)) : none()
@@ -230,17 +229,17 @@ function renderObject<E, R>(
   }
 }
 
-function renderSparsePart(
+function renderSparsePart<E, R>(
   chunk: HtmlSparsePartChunk,
   values: ReadonlyArray<Renderable.Any>,
   isStatic: boolean,
   last: boolean
-): Fx<HtmlRenderEvent, never, never> {
+): Fx<HtmlRenderEvent, E, R> {
   const { node, render } = chunk
   return tuple(
     ...node.nodes.map((node) => {
       if (node._tag === "text") return succeed(node.value)
-      return unwrapRenderableForHtml<never, never>(values[node.index], isStatic)
+      return liftRenderableToFx<E, R>(values[node.index], isStatic)
     })
   ).pipe(
     take(1),
@@ -248,7 +247,7 @@ function renderSparsePart(
   )
 }
 
-function unwrapRenderableForHtml<E, R>(
+function liftRenderableToFx<E, R>(
   renderable: Renderable<any, E, R>,
   isStatic: boolean
 ): Fx<any, E, R> {
@@ -261,14 +260,14 @@ function unwrapRenderableForHtml<E, R>(
         return mergeOrdered(
           ...renderable.map((r) =>
             takeOneIfNotRenderEvent(
-              unwrapRenderableForHtml<E, R>(r, isStatic),
+              liftRenderableToFx<E, R>(r, isStatic),
               isStatic
             )
           )
         )
       } else if (Effect.isEffect(renderable)) {
         return unwrap(
-          Effect.map(renderable, (_) => unwrapRenderableForHtml<E, R>(_, isStatic))
+          Effect.map(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic))
         )
       } else if (isFx(renderable)) {
         return takeOneIfNotRenderEvent(renderable, isStatic)
