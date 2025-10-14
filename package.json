@@ -19,7 +19,8 @@
     "test-types": "tstyche",
     "visualize": "VISUALIZE=true rollup -c rollup.config.js -d tmp",
     "changeset-version": "changeset version",
-    "changeset-publish": "pnpm codemod && pnpm build && changeset publish"
+    "changeset-publish": "pnpm codemod && pnpm build && changeset publish",
+    "size": "./size.sh"
   },
   "resolutions": {
     "dependency-tree": "^10.0.9",
@@ -38,8 +39,7 @@
     "#dist/effect/*": "./packages/effect/dist/*.js",
     "#dist/effect-platform-node": "./packages/platform-node/dist/index.js",
     "#dist/effect-platform-node/*": "./packages/platform-node/dist/*.js",
-    "#dist/@typed/fx/*": "./packages/typed/dist/fx/*.js",
-    "#dist/@typed/sink/*": "./packages/typed/dist/sink/*.js"
+    "#dist/@typed/*": "./packages/effect/dist/typed/*.js"
   },
   "devDependencies": {
     "@babel/cli": "^7.28.3",

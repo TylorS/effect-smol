@@ -56,9 +56,6 @@
     },
     {
       "path": "packages/vitest"
-    },
-    {
-      "path": "packages/typed"
     }
   ]
 }

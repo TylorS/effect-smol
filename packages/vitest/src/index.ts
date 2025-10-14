@@ -8,6 +8,14 @@ import type * as Schema from "effect/schema/Schema"
 import type * as Scope from "effect/Scope"
 import type * as FC from "effect/testing/FastCheck"
 import * as V from "vitest"
+import {
+  fx,
+  fxCause,
+  type FxCauseTestParams,
+  fxError,
+  type FxErrorTestParams,
+  type FxTestParams
+} from "./internal/fx.ts"
 import * as internal from "./internal/internal.ts"
 
 /**
@@ -49,6 +57,57 @@ export namespace Vitest {
     | Array<Schema.Schema<any> | FC.Arbitrary<any>>
     | { [K in string]: Schema.Schema<any> | FC.Arbitrary<any> }
 
+  export type FxTest = <A, E, R = never, E2 = never>(
+    name: string,
+    params: FxTestParams<A, E, R, E2>,
+    timeout?: number | V.TestOptions
+  ) => void
+
+  export type FxTesterNoLive = FxTest & {
+    only: FxTest
+    skip: FxTest
+    skipIf: (condition: () => boolean) => FxTest
+    runIf: (condition: () => boolean) => FxTest
+  }
+
+  export type FxTester = FxTesterNoLive & {
+    live: FxTesterNoLive
+  }
+
+  export type FxCauseTest = <A, E, R = never, E2 = never>(
+    name: string,
+    params: FxCauseTestParams<A, E, R, E2>,
+    timeout?: number | V.TestOptions
+  ) => void
+
+  export type FxCauseTesterNoLive = FxCauseTest & {
+    only: FxCauseTest
+    skip: FxCauseTest
+    skipIf: (condition: () => boolean) => FxCauseTest
+    runIf: (condition: () => boolean) => FxCauseTest
+  }
+
+  export type FxCauseTester = FxCauseTesterNoLive & {
+    live: FxCauseTesterNoLive
+  }
+
+  export type FxErrorTest = <A, E, R = never, E2 = never>(
+    name: string,
+    params: FxErrorTestParams<A, E, R, E2>,
+    timeout?: number | V.TestOptions
+  ) => void
+
+  export type FxErrorTesterNoLive = FxErrorTest & {
+    only: FxErrorTest
+    skip: FxErrorTest
+    skipIf: (condition: () => boolean) => FxErrorTest
+    runIf: (condition: () => boolean) => FxErrorTest
+  }
+
+  export type FxErrorTester = FxErrorTesterNoLive & {
+    live: FxErrorTesterNoLive
+  }
+
   /**
    * @since 1.0.0
    */
@@ -59,7 +118,7 @@ export namespace Vitest {
     only: Vitest.Test<R>
     each: <T>(
       cases: ReadonlyArray<T>
-    ) => <A, E>(name: string, self: TestFunction<A, E, R, Array<T>>, timeout?: number | V.TestOptions) => void
+    ) => <A, E>(name: string, self: TestFunction<A, E, R, [T, V.TestContext]>, timeout?: number | V.TestOptions) => void
     fails: Vitest.Test<R>
 
     /**
@@ -137,6 +196,10 @@ export namespace Vitest {
           >
         }
     ) => void
+
+    readonly fx: FxTester
+    readonly fxCause: FxCauseTester
+    readonly fxError: FxErrorTester
   }
 
   /**
@@ -235,7 +298,7 @@ export const prop: Vitest.Methods["prop"] = internal.prop
  */
 
 /** @ignored */
-const methods = { effect, live, flakyTest, layer, prop } as const
+const methods = { effect, live, flakyTest, layer, prop, fx, fxCause, fxError } as const
 
 /**
  * @since 1.0.0

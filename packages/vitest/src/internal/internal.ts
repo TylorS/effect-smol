@@ -17,6 +17,7 @@ import * as TestClock from "effect/testing/TestClock"
 import * as TestConsole from "effect/testing/TestConsole"
 import * as V from "vitest"
 import type * as Vitest from "../index.ts"
+import { fx, fxCause, fxError } from "./fx.ts"
 
 const runPromise: <E, A>(
   _: Effect.Effect<A, E, never>,
@@ -78,7 +79,7 @@ const makeTester = <R>(
     it.for(cases)(
       name,
       testOptions(timeout),
-      (args, ctx) => run(ctx, [args], self) as any
+      (arg, ctx) => run(ctx, [arg, ctx], self) as any
     )
 
   const fails: Vitest.Vitest.Tester<R>["fails"] = (name, self, timeout) =>
@@ -219,6 +220,9 @@ export const layer = <R, E>(
       ),
       prop,
       flakyTest,
+      fx,
+      fxCause,
+      fxError,
       layer<R2, E2>(nestedLayer: Layer.Layer<R2, E2, R>, options?: {
         readonly timeout?: Duration.DurationInput
       }) {
@@ -281,7 +285,10 @@ export const makeMethods = (it: V.TestAPI): Vitest.Vitest.Methods =>
     live: makeTester<Scope.Scope>(Effect.scoped, it),
     flakyTest,
     layer,
-    prop
+    prop,
+    fx,
+    fxCause,
+    fxError
   })
 
 /** @internal */

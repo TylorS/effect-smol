@@ -56,9 +56,6 @@
     },
     {
       "path": "packages/vitest/tsconfig.build.json"
-    },
-    {
-      "path": "packages/typed/tsconfig.build.json"
     }
   ]
 }
