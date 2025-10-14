@@ -11,7 +11,7 @@ import type {
 } from "./Template.ts"
 
 import { sortBy } from "../../collections/Array.ts"
-import * as Order from "../../data/Order.ts"
+import { mapInput, number } from "../../data/Order.ts"
 import { isObject } from "../../data/Predicate.ts"
 import { constVoid } from "../../Function.ts"
 import { renderToEscapedString } from "./internal/encoding.ts"
@@ -207,8 +207,8 @@ function recordWithPrefix(prefix: string, r: {}) {
   return s.length === 0 ? "" : " " + s
 }
 
-const AttributeOrder = Order.mapInput(
-  Order.number,
+const AttributeOrder = mapInput(
+  number,
   (attr: Attribute) => isStaticAttribute(attr) ? -1 : isSparseAttribute(attr) ? 1 : 0
 )
 

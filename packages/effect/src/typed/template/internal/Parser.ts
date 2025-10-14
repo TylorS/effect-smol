@@ -57,7 +57,7 @@ class Parser {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   private consumeNextTokenOfKinds(...kinds: Array<import("html5parser").TokenKind>) {
     const token = this.tokens[this.index]
-    if (!kinds.includes(token.type as any)) {
+    if (!kinds.includes(token.type)) {
       throw new Error(
         `Expected ${kinds.map((kind) => TokenKindToName[kind]).join(" or ")} but got ${TokenKindToName[token.type]}`
       )

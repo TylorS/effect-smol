@@ -1,5 +1,5 @@
-import * as Option from "effect/data/Option"
-import { hasProperty, isNullish } from "effect/data/Predicate"
+import { isOption, match } from "../../../data/Option.ts"
+import { hasProperty, isNullish } from "../../../data/Predicate.ts"
 
 export function escape(s: unknown): string {
   switch (typeof s) {
@@ -116,10 +116,10 @@ export function renderToString(value: unknown, delimiter: string): string {
   if (isNullish(value)) {
     return ""
   }
-  if (Option.isOption(value)) {
-    return Option.match(value, {
+  if (isOption(value)) {
+    return match(value, {
       onNone: () => "",
-      onSome: (v) => renderToString(v, delimiter)
+      onSome: (v: unknown) => renderToString(v, delimiter)
     })
   }
   if (hasProperty(value, "toString") && typeof value.toString === "function") {
