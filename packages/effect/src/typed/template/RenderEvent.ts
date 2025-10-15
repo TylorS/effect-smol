@@ -12,12 +12,14 @@ export interface DomRenderEvent {
   readonly [RenderEventTypeId]: "dom"
   readonly content: Node | Array<Node> | PersistentDocumentFragment
   readonly toString: () => string
+  readonly valueOf: () => Node | Array<Node> | PersistentDocumentFragment
 }
 
 export const DomRenderEvent = (content: Node | Array<Node> | PersistentDocumentFragment): DomRenderEvent => ({
   [RenderEventTypeId]: "dom",
   content,
-  toString: () => getOuterHtml(content)
+  toString: () => getOuterHtml(content),
+  valueOf: () => content.valueOf() as Node | Array<Node> | PersistentDocumentFragment
 })
 
 export interface HtmlRenderEvent {
@@ -25,13 +27,15 @@ export interface HtmlRenderEvent {
   readonly html: string
   readonly last: boolean
   readonly toString: () => string
+  readonly valueOf: () => string
 }
 
 export const HtmlRenderEvent = (html: string, last: boolean): HtmlRenderEvent => ({
   [RenderEventTypeId]: "html",
   html,
   last,
-  toString: () => html
+  toString: () => html,
+  valueOf: () => html
 })
 
 export function isRenderEvent(event: unknown): event is RenderEvent {

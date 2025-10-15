@@ -118,7 +118,7 @@ export class TextOnlyElement {
 export class DocType {
   readonly _tag = "doctype"
   readonly name: string
-  readonly publicType: string | undefined
+  readonly publicId: string | undefined
   readonly systemId: string | undefined
   constructor(
     name: string,
@@ -126,7 +126,7 @@ export class DocType {
     systemId?: string
   ) {
     this.name = name
-    this.publicType = publicType
+    this.publicId = publicType
     this.systemId = systemId
   }
 }
