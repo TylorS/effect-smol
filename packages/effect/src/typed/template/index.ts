@@ -1,5 +1,6 @@
 export * from "./Html.ts"
 export * from "./HtmlChunk.ts"
+export * from "./Render.ts"
 export * from "./Renderable.ts"
 export * from "./RenderEvent.ts"
 export * from "./RenderTemplate.ts"
