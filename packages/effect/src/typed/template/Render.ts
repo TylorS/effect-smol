@@ -117,16 +117,16 @@ function attachRoot<A extends RenderEvent | null>(
   what: A // TODO: Should we support HTML RenderEvents here too?,
 ): Effect.Effect<Rendered | (A extends null ? null : never)> {
   return Effect.sync(() => {
-    const wire = what?.valueOf() as Rendered
+    const rendered = what?.valueOf() as Rendered
     const previous = renderCache.get(where)
-    if (wire !== previous) {
-      if (previous && !wire) removeChildren(where, previous)
-      renderCache.set(where, wire || null)
-      if (wire) replaceChildren(where, wire)
-      return wire as Rendered
+    if (rendered !== previous) {
+      if (previous && !rendered) removeChildren(where, previous)
+      renderCache.set(where, rendered || null)
+      if (rendered) replaceChildren(where, rendered)
+      return rendered
     }
 
-    return previous as Rendered
+    return previous
   })
 }
 
@@ -303,7 +303,7 @@ function setupRenderPart<E = never, R = never>(
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
-          return liftRenderableToFx(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
+          return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
         Fx.observe((texts) =>
@@ -311,7 +311,7 @@ function setupRenderPart<E = never, R = never>(
             element.textContent = texts.join("")
           })
         )
-      ) as Effect.Effect<unknown, E, R>
+      )
     }
   }
 }
@@ -335,13 +335,19 @@ function splitClassNames(value: string) {
   })
 }
 
-function renderValue(renderable: Renderable.Any, f: (value: unknown) => unknown) {
+function renderValue<E, R>(
+  renderable: Renderable.Any,
+  f: (value: unknown) => unknown
+): void | Effect.Effect<unknown, E, R> {
   return matchRenderable(renderable, {
     Primitive: (value) => {
       f(value)
     },
     Effect: (effect) => Effect.tap(effect, f),
-    Fx: (fx) => Fx.observe(fx, (value) => Effect.sync(() => f(value)))
+    Fx: (fx) =>
+      Fx.observe(fx, (value) => {
+        f(value)
+      })
   })
 }
 
@@ -526,10 +532,10 @@ function liftRenderableToFx<E = never, R = never>(
       if (isNullish(renderable)) {
         return Fx.succeed(null)
       } else if (Array.isArray(renderable)) {
-        return Fx.tuple(...renderable.map(liftRenderableToFx)) as any
+        return Fx.tuple(...renderable.map(liftRenderableToFx<E, R>))
       } else if (Effect.isEffect(renderable)) {
         return Fx.unwrap(
-          Effect.map(renderable, liftRenderableToFx)
+          Effect.map(renderable, liftRenderableToFx<E, R>)
         )
       } else if (Fx.isFx(renderable)) {
         return renderable
