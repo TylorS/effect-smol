@@ -69,17 +69,15 @@ export const DomRenderTemplate = Object.assign(
             yield* ctx.refCounter.wait
           }
 
-          const wire = content.childNodes.length > 1
+          const rendered = content.childNodes.length > 1
             ? new PersistentDocumentFragment(firstChild, content, lastChild)
             : content.childNodes[0] as Node
 
-          // // Setup our event listeners for our wire.
-          // // We use the parentScope to allow event listeners to exist
-          // // beyond the lifetime of the current Fiber, but no further than its parent template.
-          yield* ctx.eventSource.setup(wire, ctx.parentScope)
+          // Setup our event listeners for our rendered content.
+          yield* ctx.eventSource.setup(rendered, ctx.scope)
 
           // Emit just once
-          yield* sink.onSuccess(DomRenderEvent(wire))
+          yield* sink.onSuccess(DomRenderEvent(rendered))
 
           // Ensure our templates last forever in the DOM environment
           // so event listeners are kept attached to the current Scope.
