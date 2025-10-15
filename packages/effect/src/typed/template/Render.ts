@@ -228,11 +228,11 @@ function setupRenderPart<E = never, R = never>(
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
-          return liftRenderableToFx(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
+          return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
         Fx.observe((texts) => Effect.sync(() => setAttr(texts.join(""))))
-      ) as Effect.Effect<unknown, E, R>
+      )
     }
     case "sparse-class-name": {
       const element = node as HTMLElement | SVGElement
@@ -253,16 +253,16 @@ function setupRenderPart<E = never, R = never>(
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
-          return liftRenderableToFx(ctx.values[node.index]).pipe(Fx.map(update))
+          return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map(update))
         })
-      ).pipe(Fx.observe((texts) => Effect.sync(() => update(texts.join(" "))))) as Effect.Effect<unknown, E, R>
+      ).pipe(Fx.observe((texts) => Effect.sync(() => update(texts.join(" ")))))
     }
     case "sparse-comment": {
       const comment = node as Comment
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
-          return liftRenderableToFx(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
+          return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
         Fx.observe((texts) =>
@@ -270,7 +270,7 @@ function setupRenderPart<E = never, R = never>(
             comment.textContent = texts.join("")
           })
         )
-      ) as Effect.Effect<unknown, E, R>
+      )
     }
 
     case "node": {
