@@ -180,11 +180,16 @@ const withCurrentRenderPriority = (
     (priority) => {
       const dispose = addDisposable(
         ctx,
-        ctx.renderQueue.add(key, f, () => {
-          if (typeof dispose === "function") {
-            dispose()
-          }
-        }, priority)
+        ctx.renderQueue.add(
+          key,
+          f,
+          () => {
+            if (typeof dispose === "function") {
+              dispose()
+            }
+          },
+          priority
+        )
       )
     }
   )
