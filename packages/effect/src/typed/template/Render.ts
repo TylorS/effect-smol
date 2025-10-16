@@ -30,6 +30,10 @@ export const RenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQueue", {
   defaultValue: () => new RQ.MixedRenderQueue()
 })
 
+export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRenderPriority", {
+  defaultValue: () => RQ.RenderPriority.Raf(0)
+})
+
 export const DomRenderTemplate = Object.assign(
   Layer.effect(
     RenderTemplate,
@@ -56,15 +60,13 @@ export const DomRenderTemplate = Object.assign(
         } as const
       }
 
-      // TODO: Use a render queue?? Use a fiber to dequeue?
-
       return <const Values extends ReadonlyArray<Renderable.Any>>(
         templateStrings: TemplateStringsArray,
         ...values: Values
       ): Fx.Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope.Scope> =>
         Fx.make(Effect.fn(function*(sink) {
           const { content, firstChild, lastChild, template } = getEntry(templateStrings)
-          const ctx = yield* makeTemplateContext(values, sink.onFailure)
+          const ctx = yield* makeTemplateContext(document, values, sink.onFailure)
           const effects = setupRenderParts(template.parts, content, ctx)
 
           if (effects.length > 0) {
@@ -96,7 +98,7 @@ export const DomRenderTemplate = Object.assign(
   ),
   {
     using: (document: Document) => DomRenderTemplate.pipe(Layer.provide(Layer.succeed(RenderDocument, document)))
-  }
+  } as const
 )
 
 export type Rendered = Node | Array<Node> | PersistentDocumentFragment
@@ -168,6 +170,26 @@ function setupRenderParts(
   return effects
 }
 
+const withCurrentRenderPriority = (
+  key: unknown,
+  ctx: TemplateContext,
+  f: () => void
+) => {
+  return Effect.tap(
+    CurrentRenderPriority.asEffect(),
+    (priority) => {
+      const dispose = addDisposable(
+        ctx,
+        ctx.renderQueue.add(key, f, () => {
+          if (typeof dispose === "function") {
+            dispose()
+          }
+        }, priority)
+      )
+    }
+  )
+}
+
 function setupRenderPart<E = never, R = never>(
   part: Template.PartNode | Template.SparsePartNode,
   node: Node,
@@ -178,22 +200,41 @@ function setupRenderPart<E = never, R = never>(
       const element = node as HTMLElement | SVGElement
       const attr = element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
       const setAttr = makeAttributeValueSetter(element, attr)
-      return renderValue(ctx.values[part.index], (value: unknown) => setAttr(renderToString(value, "")))
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) => withCurrentRenderPriority(attr, ctx, () => setAttr(renderToString(value, "")))
+      )
     }
     case "boolean-part": {
       const element = node as HTMLElement | SVGElement
-      return renderValue(ctx.values[part.index], (value: unknown) => element.toggleAttribute(part.name, !!value))
+      const onToggleAttribute = (value: unknown) => element.toggleAttribute(part.name, !!value)
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) => withCurrentRenderPriority(onToggleAttribute, ctx, () => onToggleAttribute(value))
+      )
     }
     case "className-part": {
-      return renderValue(ctx.values[part.index], makeClassListSetter(node as HTMLElement | SVGElement))
+      const setClassName = makeClassListSetter(node as HTMLElement | SVGElement)
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) => withCurrentRenderPriority(setClassName, ctx, () => setClassName(value))
+      )
     }
     case "comment-part": {
-      return renderValue(ctx.values[part.index], (value: unknown) => {
-        ;(node as Comment).textContent = renderToString(value, "")
-      })
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) =>
+          withCurrentRenderPriority(node, ctx, () => {
+            ;(node as Comment).textContent = renderToString(value, "")
+          })
+      )
     }
     case "data": {
-      return renderValue(ctx.values[part.index], makeDatasetSetter(node as HTMLElement | SVGElement))
+      const setDataset = makeDatasetSetter(node as HTMLElement | SVGElement)
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) => withCurrentRenderPriority(setDataset, ctx, () => setDataset(value))
+      )
     }
     case "event": {
       const element = node as Element
@@ -211,9 +252,13 @@ function setupRenderPart<E = never, R = never>(
     }
     case "property": {
       const element = node as HTMLElement | SVGElement
-      return renderValue(ctx.values[part.index], (value: unknown) => {
+      const setProperty = (value: unknown) => {
         ;(element as any)[part.name] = value
-      })
+      }
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) => withCurrentRenderPriority(setProperty, ctx, () => setProperty(value))
+      )
     }
     case "properties": {
       const element = node as HTMLElement | SVGElement
@@ -259,29 +304,33 @@ function setupRenderPart<E = never, R = never>(
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) => Effect.sync(() => setAttr(texts.join(""))))
+        Fx.observe((texts) => withCurrentRenderPriority(attr, ctx, () => setAttr(texts.join(""))))
       )
     }
     case "sparse-class-name": {
       const element = node as HTMLElement | SVGElement
+      const setClassList = makeClassListSetter(element)
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
           return liftRenderableToFx<E, R>(ctx.values[node.index])
         })
-      ).pipe(Fx.observe(makeClassListSetter(element)))
+      ).pipe(
+        Fx.observe((values) => withCurrentRenderPriority(setClassList, ctx, () => setClassList(values)))
+      )
     }
     case "sparse-comment": {
       const comment = node as Comment
+      const setCommentText = (value: unknown) => {
+        comment.textContent = renderToString(value, "")
+      }
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) => {
-          comment.textContent = texts.join("")
-        })
+        Fx.observe((texts) => withCurrentRenderPriority(setCommentText, ctx, () => setCommentText(texts.join(""))))
       )
     }
 
@@ -292,38 +341,49 @@ function setupRenderPart<E = never, R = never>(
       let text: Text | null = null
       let nodes: Array<Node> = []
 
-      return renderValue(ctx.values[part.index], (value: unknown) =>
-        matchNodeValue(
-          value,
-          (content) => {
-            if (text === null) {
-              text = ctx.document.createTextNode("")
-            }
+      const updateCommentText = (value: unknown) => {
+        if (text === null) {
+          text = ctx.document.createTextNode("")
+        }
 
-            text.textContent = content
-          },
-          (updatedNodes) => {
-            nodes = diffChildren(comment, nodes, updatedNodes, document)
-          }
-        ))
+        text.textContent = renderToString(value, "")
+      }
+
+      const updateNodes = (updatedNodes: Array<Node>) => {
+        nodes = diffChildren(comment, nodes, updatedNodes, document)
+      }
+
+      const update = (value: unknown) => {
+        matchNodeValue(value, updateCommentText, updateNodes)
+      }
+
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) => withCurrentRenderPriority(update, ctx, () => update(value))
+      )
     }
     case "text-part": {
       const element = node as HTMLElement | SVGElement
-      return renderValue(ctx.values[part.index], (value: unknown) => {
+      const setTextContent = (value: unknown) => {
         element.textContent = renderToString(value, "")
-      })
+      }
+      return renderValue(
+        ctx.values[part.index],
+        (value: unknown) => withCurrentRenderPriority(setTextContent, ctx, () => setTextContent(value))
+      )
     }
     case "sparse-text": {
       const element = node as HTMLElement | SVGElement
+      const setTextContent = (value: unknown) => {
+        element.textContent = renderToString(value, "")
+      }
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) => {
-          element.textContent = texts.join("")
-        })
+        Fx.observe((texts) => withCurrentRenderPriority(setTextContent, ctx, () => setTextContent(texts.join(""))))
       )
     }
   }
@@ -354,14 +414,12 @@ function renderValue<E, R>(
 ): void | Effect.Effect<unknown, E, R> {
   return matchRenderable(renderable, {
     Primitive: (value) => {
-      if (isNullish(value)) return
       f(value)
     },
-    Effect: (effect) => Effect.tap(effect, f),
-    Fx: (fx) =>
-      Fx.observe(fx, (value) => {
-        f(value)
-      })
+    Effect: Effect.tap(f),
+    Fx: Fx.observe((value) => {
+      f(value)
+    })
   })
 }
 
@@ -372,8 +430,9 @@ function matchRenderable<X, A, B, C>(
     Effect: (effect: Effect.Effect<X>) => B
     Fx: (fx: Fx.Fx<X>) => C
   }
-): A | B | C {
-  if (Fx.isFx(renderable)) {
+): A | B | C | void {
+  if (isNullish(renderable)) return
+  else if (Fx.isFx(renderable)) {
     return matches.Fx(renderable as any)
   } else if (Effect.isEffect(renderable)) {
     return matches.Effect(renderable as any)
@@ -446,7 +505,7 @@ function setupRenderProperties<E = never, R = never>(
 ): Effect.Effect<unknown, E, R> | void {
   const effects: Array<Effect.Effect<unknown, E, R>> = []
   for (const [key, value] of Object.entries(properties)) {
-    const part = makePart(keyToPartType(key))
+    const part = makePropertiesPart(keyToPartType(key))
     const effect = setupRenderPart(part, element, { ...ctx, values: [value] })
     if (effect !== undefined) {
       effects.push(effect)
@@ -514,7 +573,7 @@ function diffDataSet(
 
 type PartType = ReturnType<typeof keyToPartType>
 
-function makePart([partType, partName]: PartType) {
+function makePropertiesPart([partType, partName]: PartType) {
   switch (partType) {
     case "attr":
       return new Template.AttrPartNode(partName, 0)
@@ -540,6 +599,7 @@ function makePart([partType, partName]: PartType) {
 type TemplateContext<R = never> = {
   readonly document: Document
   readonly renderQueue: RQ.RenderQueue
+  readonly disposables: Set<Disposable>
   readonly eventSource: EventSource
   readonly parentScope: Scope.Scope
   readonly refCounter: IndexRefCounter
@@ -566,11 +626,11 @@ type TemplateContext<R = never> = {
 }
 
 function makeTemplateContext<Values extends ReadonlyArray<Renderable.Any>, RSink = never>(
+  document: Document,
   values: Values,
   onCause: (cause: Cause<Renderable.Error<Values[number]>>) => Effect.Effect<unknown, never, RSink>
 ) {
   return Effect.gen(function*() {
-    const document = yield* RenderDocument
     const renderQueue = yield* RenderQueue
     const services = yield* Effect.services<Renderable.Services<Values[number]> | RSink | Scope.Scope>()
     const refCounter = yield* makeRefCounter
@@ -581,6 +641,7 @@ function makeTemplateContext<Values extends ReadonlyArray<Renderable.Any>, RSink
       services,
       document,
       renderQueue,
+      disposables: new Set(),
       eventSource,
       parentScope,
       refCounter,
@@ -591,6 +652,9 @@ function makeTemplateContext<Values extends ReadonlyArray<Renderable.Any>, RSink
       spreadIndex: values.length,
       manyKey: undefined
     }
+
+    yield* Scope.addFinalizer(scope, Effect.sync(() => ctx.disposables.forEach(dispose)))
+
     return ctx
   })
 }
@@ -685,4 +749,13 @@ function diffChildren(
     diffable(document),
     comment
   )
+}
+
+function addDisposable(ctx: TemplateContext, disposable: Disposable) {
+  ctx.disposables.add(disposable)
+  return () => ctx.disposables.delete(disposable)
+}
+
+function dispose(disposable: Disposable) {
+  disposable[Symbol.dispose]()
 }

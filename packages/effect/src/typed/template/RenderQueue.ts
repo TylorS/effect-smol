@@ -4,13 +4,18 @@ export const RenderQueueTypeId = "@typed/template/RenderQueue"
 export type RenderQueueTypeId = typeof RenderQueueTypeId
 
 export abstract class RenderQueue implements Disposable {
-  protected readonly buckets: Array<KeyedPriorityBucket<() => void>> = []
+  protected readonly buckets: Array<KeyedPriorityBucket<{ task: () => void; dispose: () => void }>> = []
   protected scheduled: Disposable | undefined = undefined
 
   readonly [RenderQueueTypeId]: RenderQueueTypeId = RenderQueueTypeId
 
-  readonly add: (key: unknown, task: () => void, priority: number) => Disposable = (key, task, priority) => {
-    insert(this.buckets, priority, key, task)
+  readonly add: (
+    key: unknown,
+    task: () => void,
+    dispose: () => void,
+    priority: number
+  ) => Disposable = (key, task, dispose, priority) => {
+    insert(this.buckets, priority, key, { task, dispose }, (task) => task.dispose())
     this.scheduleNext()
     return disposable(() => remove(this.buckets, priority, key))
   }
@@ -30,8 +35,9 @@ export abstract class RenderQueue implements Disposable {
 
     while (shouldContinue(deadline) && this.buckets.length > 0) {
       const [_priority, map] = this.buckets.shift()!
-      for (const task of map.values()) {
+      for (const { dispose, task } of map.values()) {
         task()
+        dispose()
       }
     }
 
@@ -61,6 +67,13 @@ export class SyncRenderQueue extends RenderQueue {
   }
 }
 
+export class SetTimeoutRenderQueue extends RenderQueue {
+  protected schedule(task: (deadline: IdleDeadline) => void): Disposable {
+    const id = setTimeout(() => task(idleDealineFromTime(performance.now(), DEFAULT_DURATION_ALLOWED)), 0)
+    return disposable(() => clearTimeout(id))
+  }
+}
+
 export class RequestAnimationFrameRenderQueue extends RenderQueue {
   readonly durationAllowed: number
   constructor(durationAllowed: number = DEFAULT_DURATION_ALLOWED) {
@@ -84,24 +97,28 @@ export class RequestIdleCallbackRenderQueue extends RenderQueue {
 const NONE = disposable(constVoid)
 
 export class MixedRenderQueue extends RenderQueue {
-  private readonly sync: SyncRenderQueue
-  private readonly raf: RequestAnimationFrameRenderQueue
-  private readonly ric: RequestIdleCallbackRenderQueue
+  private readonly high: RenderQueue
+  private readonly mid: RenderQueue
+  private readonly low: RenderQueue
 
   constructor(durationAllowed: number = DEFAULT_DURATION_ALLOWED) {
     super()
-    this.sync = new SyncRenderQueue()
-    this.raf = new RequestAnimationFrameRenderQueue(durationAllowed)
-    this.ric = new RequestIdleCallbackRenderQueue()
+    this.high = new SyncRenderQueue()
+    this.mid = typeof requestAnimationFrame === "function"
+      ? new RequestAnimationFrameRenderQueue(durationAllowed)
+      : new SetTimeoutRenderQueue()
+    this.low = typeof requestIdleCallback === "function"
+      ? new RequestIdleCallbackRenderQueue()
+      : new SetTimeoutRenderQueue()
   }
 
-  override readonly add = (key: unknown, task: () => void, priority: number): Disposable => {
+  override readonly add = (key: unknown, task: () => void, dispose: () => void, priority: number): Disposable => {
     if (priority === RenderPriority.Sync) {
-      return this.sync.add(key, task, priority)
+      return this.high.add(key, task, dispose, priority)
     } else if (priority > RenderPriority.Sync && priority <= RenderPriority.Raf(RAF_PRIORITY_RANGE)) {
-      return this.raf.add(key, task, priority)
+      return this.mid.add(key, task, dispose, priority)
     } else {
-      return this.ric.add(key, task, priority)
+      return this.low.add(key, task, dispose, priority)
     }
   }
 
@@ -111,9 +128,9 @@ export class MixedRenderQueue extends RenderQueue {
   }
 
   override [Symbol.dispose]: () => void = () => {
-    dispose(this.sync)
-    dispose(this.raf)
-    dispose(this.ric)
+    dispose(this.high)
+    dispose(this.mid)
+    dispose(this.low)
   }
 }
 
@@ -152,12 +169,23 @@ function shouldContinue(deadline: IdleDeadline): boolean {
 
 type KeyedPriorityBucket<A> = [priority: number, Map<unknown, A>]
 
-function insert<A>(buckets: Array<KeyedPriorityBucket<A>>, priority: number, key: unknown, task: A): void {
+function insert<A>(
+  buckets: Array<KeyedPriorityBucket<A>>,
+  priority: number,
+  key: unknown,
+  task: A,
+  onRemoved: (task: A) => void
+): void {
   const index = binarySearch(buckets, priority)
   if (index === buckets.length) {
     buckets.push([priority, new Map([[key, task]])])
   } else {
-    buckets[index][1].set(key, task)
+    const map = buckets[index][1]
+    const existing = map.get(key)
+    if (existing !== undefined) {
+      onRemoved(existing)
+    }
+    map.set(key, task)
   }
 }
 
