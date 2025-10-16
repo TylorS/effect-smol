@@ -1,9 +1,13 @@
-import type * as Effect from "../../Effect.ts"
+import type * as Cause from "../../Cause.js"
+import * as Effect from "../../Effect.js"
+import { dual } from "../../Function.ts"
+import type { ServiceMap } from "../../index.ts"
+import { type Pipeable, pipeArguments } from "../../interfaces/Pipeable.ts"
 
 export const EventHandlerTypeId = Symbol.for("@typed/template/EventHandler")
 export type EventHandlerTypeId = typeof EventHandlerTypeId
 
-export interface EventHandler<Ev extends Event = Event, E = never, R = never> {
+export interface EventHandler<Ev extends Event = Event, E = never, R = never> extends Pipeable {
   readonly [EventHandlerTypeId]: EventHandlerTypeId
   readonly handler: (event: Ev) => Effect.Effect<unknown, E, R>
   readonly options: (AddEventListenerOptions & EventOptions) | undefined
@@ -29,8 +33,49 @@ export function make<Ev extends Event, E = never, R = never>(
       if (options) handleEventOptions(options, ev)
       return handler(ev)
     },
-    options
+    options,
+    pipe(this: EventHandler<Ev, E, R>) {
+      return pipeArguments(this, arguments)
+    }
   }
+}
+
+export const provide: {
+  <R2 = never>(
+    services: ServiceMap.ServiceMap<R2>
+  ): <Ev extends Event, E = never, R = never>(handler: EventHandler<Ev, E, R>) => EventHandler<Ev, E, Exclude<R, R2>>
+
+  <Ev extends Event, E = never, R = never, R2 = never>(
+    handler: EventHandler<Ev, E, R>,
+    services: ServiceMap.ServiceMap<R2>
+  ): EventHandler<Ev, E, Exclude<R, R2>>
+} = dual(2, <Ev extends Event, E = never, R = never, R2 = never>(
+  handler: EventHandler<Ev, E, R>,
+  services: ServiceMap.ServiceMap<R2>
+): EventHandler<Ev, E, Exclude<R, R2>> => {
+  return make((ev) => handler.handler(ev).pipe(Effect.provideServices(services)), handler.options)
+})
+
+export const catchCause: {
+  <E, E2 = never, R2 = never>(
+    f: (cause: Cause.Cause<E>) => Effect.Effect<unknown, E2, R2>
+  ): <Ev extends Event, R = never>(handler: EventHandler<Ev, E, R>) => EventHandler<Ev, E2, R | R2>
+
+  <Ev extends Event, E = never, R = never, E2 = never, R2 = never>(
+    handler: EventHandler<Ev, E, R>,
+    f: (cause: Cause.Cause<E>) => Effect.Effect<unknown, E2, R2>
+  ): EventHandler<Ev, E2, R | R2>
+} = dual(2, <Ev extends Event, E = never, R = never, E2 = never, R2 = never>(
+  handler: EventHandler<Ev, E, R>,
+  f: (cause: Cause.Cause<E>) => Effect.Effect<unknown, E2, R2>
+): EventHandler<Ev, E2, R | R2> => {
+  return make((ev) => handler.handler(ev).pipe(Effect.catchCause(f)), handler.options)
+})
+
+export function fromEffectOrEventHandler<Ev extends Event, E = never, R = never>(
+  handler: Effect.Effect<unknown, E, R> | EventHandler<Ev, E, R>
+): EventHandler<Ev, E, R> {
+  return Effect.isEffect(handler) ? make(() => handler) : handler
 }
 
 export function handleEventOptions<Ev extends Event>(

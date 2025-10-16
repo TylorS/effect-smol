@@ -6,15 +6,15 @@ import type { Fx } from "../Fx.ts"
 import { make } from "../sink/Sink.ts"
 
 export const observe: {
-  <A, E2, R2>(
+  <A, E2 = never, R2 = never>(
     f: (value: A) => void | Effect.Effect<unknown, E2, R2>
   ): <E, R>(fx: Fx<A, E, R>) => Effect.Effect<unknown, E | E2, R | R2>
 
-  <A, E, R, E2, R2>(
+  <A, E, R, E2 = never, R2 = never>(
     fx: Fx<A, E, R>,
     f: (value: A) => void | Effect.Effect<unknown, E2, R2>
   ): Effect.Effect<unknown, E | E2, R | R2>
-} = dual(2, <A, E, R, E2, R2>(
+} = dual(2, <A, E, R, E2 = never, R2 = never>(
   fx: Fx<A, E, R>,
   f: (value: A) => void | Effect.Effect<unknown, E2, R2>
 ): Effect.Effect<unknown, E | E2, R | R2> =>

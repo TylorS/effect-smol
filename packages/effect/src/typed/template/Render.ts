@@ -1,28 +1,34 @@
 import udomdiff from "udomdiff"
 import type { Cause } from "../../Cause.ts"
-import { isNullish } from "../../data/Predicate.ts"
+import { isFunction, isNullish, isObject } from "../../data/Predicate.ts"
 import * as Effect from "../../Effect.ts"
-import { dual, flow } from "../../Function.ts"
+import { constVoid, dual, flow, identity } from "../../Function.ts"
 import * as Layer from "../../Layer.ts"
 import * as Scope from "../../Scope.js"
 import * as ServiceMap from "../../ServiceMap.ts"
 import * as Fx from "../fx/index.js"
 import { type IndexRefCounter, makeRefCounter } from "../fx/internal/IndexRefCounter.ts"
 import { CouldNotFindCommentError } from "./errors.ts"
-import type { EventHandler } from "./EventHandler.ts"
+import * as EventHandler from "./EventHandler.js"
 import { type EventSource, makeEventSource } from "./EventSource.ts"
 import { buildTemplateFragment } from "./internal/buildTemplateFragement.ts"
 import { renderToString } from "./internal/encoding.ts"
-import { findPath, type ParentChildNodes } from "./internal/ParentChildNodes.ts"
+import { keyToPartType } from "./internal/keyToPartType.ts"
+import { findPath } from "./internal/ParentChildNodes.ts"
 import { parse } from "./internal/Parser.ts"
 import { diffable, PersistentDocumentFragment } from "./PersistentDocumentFragment.ts"
 import type { Renderable } from "./Renderable.ts"
 import { DomRenderEvent, isRenderEvent, type RenderEvent } from "./RenderEvent.ts"
+import * as RQ from "./RenderQueue.js"
 import { RenderTemplate } from "./RenderTemplate.ts"
-import type * as Template from "./Template.ts"
+import * as Template from "./Template.js"
 
 // Can be utilized to override the document for rendering
 export const RenderDocument = ServiceMap.Reference<Document>("RenderDocument", { defaultValue: () => document })
+
+export const RenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQueue", {
+  defaultValue: () => new RQ.MixedRenderQueue()
+})
 
 export const DomRenderTemplate = Object.assign(
   Layer.effect(
@@ -58,7 +64,7 @@ export const DomRenderTemplate = Object.assign(
       ): Fx.Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope.Scope> =>
         Fx.make(Effect.fn(function*(sink) {
           const { content, firstChild, lastChild, template } = getEntry(templateStrings)
-          const ctx = yield* makeTemplateContext(document, values, sink.onFailure)
+          const ctx = yield* makeTemplateContext(values, sink.onFailure)
           const effects = setupRenderParts(template.parts, content, ctx)
 
           if (effects.length > 0) {
@@ -151,9 +157,9 @@ function setupRenderParts(
   ctx: TemplateContext
 ): Array<Effect.Effect<unknown>> {
   const effects: Array<Effect.Effect<unknown>> = []
-
   for (const [part, path] of parts) {
-    const effect = setupRenderPart(part, content, path, ctx)
+    const node = findPath(content, path)
+    const effect = setupRenderPart(part, node, ctx)
     if (effect !== undefined) {
       effects.push(effect)
     }
@@ -164,12 +170,9 @@ function setupRenderParts(
 
 function setupRenderPart<E = never, R = never>(
   part: Template.PartNode | Template.SparsePartNode,
-  content: ParentChildNodes,
-  path: ReadonlyArray<number>,
-  ctx: TemplateContext
+  node: Node,
+  ctx: TemplateContext<R>
 ): Effect.Effect<unknown, E, R> | void {
-  const node = findPath(content, path)
-
   switch (part._tag) {
     case "attr": {
       const element = node as HTMLElement | SVGElement
@@ -182,32 +185,29 @@ function setupRenderPart<E = never, R = never>(
       return renderValue(ctx.values[part.index], (value: unknown) => element.toggleAttribute(part.name, !!value))
     }
     case "className-part": {
-      const element = node as HTMLElement | SVGElement
-
-      const update = makeClassListSetter(element)
-      return renderValue(ctx.values[part.index], (value: unknown) => {
-        update(value)
-      })
+      return renderValue(ctx.values[part.index], makeClassListSetter(node as HTMLElement | SVGElement))
     }
     case "comment-part": {
-      const comment = node as Comment
       return renderValue(ctx.values[part.index], (value: unknown) => {
-        comment.textContent = renderToString(value, "")
+        ;(node as Comment).textContent = renderToString(value, "")
       })
     }
     case "data": {
-      const element = node as HTMLElement | SVGElement
-      return renderValue(ctx.values[part.index], (value: unknown) => {
-        const diff = diffDataSet(element.dataset, value as Record<string, string | undefined>)
-        if (diff) {
-          const { added, removed } = diff
-          removed.forEach((k) => delete element.dataset[k])
-          added.forEach(([k, v]) => element.dataset[k] = v)
-        }
-      })
+      return renderValue(ctx.values[part.index], makeDatasetSetter(node as HTMLElement | SVGElement))
     }
     case "event": {
-      return ctx.eventSource.addEventListener(node as Element, part.name, ctx.values[part.index] as EventHandler)
+      const element = node as Element
+      const eventHandler = ctx.values[part.index]
+      if (isNullish(eventHandler)) return
+
+      return ctx.eventSource.addEventListener(
+        element,
+        part.name,
+        EventHandler.fromEffectOrEventHandler(eventHandler).pipe(
+          EventHandler.provide(ctx.services),
+          EventHandler.catchCause(ctx.onCause)
+        )
+      )
     }
     case "property": {
       const element = node as HTMLElement | SVGElement
@@ -216,10 +216,38 @@ function setupRenderPart<E = never, R = never>(
       })
     }
     case "properties": {
-      return // TODO: Implement this
+      const element = node as HTMLElement | SVGElement
+      const properties = ctx.values[part.index]
+
+      const setupIfObject = (props: unknown) => {
+        if (isObject(props)) {
+          return setupRenderProperties(props as Record<string, unknown>, element, ctx)
+        }
+      }
+
+      return matchRenderable(properties, {
+        Primitive: setupIfObject,
+        Effect: Effect.tap(setupIfObject),
+        Fx: flow(
+          Fx.switchMapEffect((props) => setupIfObject(props) || Effect.void),
+          Fx.drain,
+          Effect.provideService(Scope.Scope, ctx.scope)
+        )
+      })
     }
     case "ref": {
-      return // TODO: Implement this
+      const element = node as HTMLElement | SVGElement
+      const renderable = ctx.values[part.index]
+      if (isNullish(renderable)) return
+      if (isFunction(renderable)) {
+        return matchRenderable(renderable(element), {
+          Primitive: constVoid,
+          Effect: identity,
+          Fx: Fx.drain
+        })
+      }
+
+      throw new Error("Invalid value provided to ref part")
     }
     case "sparse-attr": {
       const element = node as HTMLElement | SVGElement
@@ -236,26 +264,12 @@ function setupRenderPart<E = never, R = never>(
     }
     case "sparse-class-name": {
       const element = node as HTMLElement | SVGElement
-
-      let classList: ReadonlyArray<string> = Array.from(element.classList)
-      const update = (value: unknown) => {
-        const classNames = getClassList(value)
-        const { added, removed } = diffStrings(classList, classNames)
-        if (added.length > 0) {
-          element.classList.add(...added)
-        }
-        if (removed.length > 0) {
-          element.classList.remove(...removed)
-        }
-        classList = classNames
-      }
-
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
-          return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map(update))
+          return liftRenderableToFx<E, R>(ctx.values[node.index])
         })
-      ).pipe(Fx.observe((texts) => Effect.sync(() => update(texts.join(" ")))))
+      ).pipe(Fx.observe(makeClassListSetter(element)))
     }
     case "sparse-comment": {
       const comment = node as Comment
@@ -265,11 +279,9 @@ function setupRenderPart<E = never, R = never>(
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) =>
-          Effect.sync(() => {
-            comment.textContent = texts.join("")
-          })
-        )
+        Fx.observe((texts) => {
+          comment.textContent = texts.join("")
+        })
       )
     }
 
@@ -280,17 +292,20 @@ function setupRenderPart<E = never, R = never>(
       let text: Text | null = null
       let nodes: Array<Node> = []
 
-      return renderValue(ctx.values[part.index], (value: unknown) => {
-        matchNodeValue(value, (content) => {
-          if (text === null) {
-            text = ctx.document.createTextNode("")
-          }
+      return renderValue(ctx.values[part.index], (value: unknown) =>
+        matchNodeValue(
+          value,
+          (content) => {
+            if (text === null) {
+              text = ctx.document.createTextNode("")
+            }
 
-          text.textContent = content
-        }, (updatedNodes) => {
-          nodes = diffChildren(comment, nodes, updatedNodes, document)
-        })
-      })
+            text.textContent = content
+          },
+          (updatedNodes) => {
+            nodes = diffChildren(comment, nodes, updatedNodes, document)
+          }
+        ))
     }
     case "text-part": {
       const element = node as HTMLElement | SVGElement
@@ -306,11 +321,9 @@ function setupRenderPart<E = never, R = never>(
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) =>
-          Effect.sync(() => {
-            element.textContent = texts.join("")
-          })
-        )
+        Fx.observe((texts) => {
+          element.textContent = texts.join("")
+        })
       )
     }
   }
@@ -341,6 +354,7 @@ function renderValue<E, R>(
 ): void | Effect.Effect<unknown, E, R> {
   return matchRenderable(renderable, {
     Primitive: (value) => {
+      if (isNullish(value)) return
       f(value)
     },
     Effect: (effect) => Effect.tap(effect, f),
@@ -387,6 +401,9 @@ function makeAttributeValueSetter(element: HTMLElement | SVGElement, attr: Attr)
 }
 
 function makeClassListSetter(element: HTMLElement | SVGElement) {
+  // We do double-bookeeping such that we don't assume we know everything about the classList
+  // Other DOM-based libraries might have additional classes in the classList, so we need to allow them to exist
+  // outside of our control.
   let classList: ReadonlyArray<string> = Array.from(element.classList)
   return (value: unknown) => {
     const classNames = getClassList(value)
@@ -398,6 +415,45 @@ function makeClassListSetter(element: HTMLElement | SVGElement) {
       element.classList.remove(...removed)
     }
     classList = classNames
+  }
+}
+
+function makeDatasetSetter(element: HTMLElement | SVGElement) {
+  // We do double-bookeeping such that we don't assume we know everything about the dataset
+  // Other DOM-based libraries might have additional keys in the dataset, so we need to allow them to exist
+  // outside of our control.
+  const previous = { ...element.dataset }
+  return (value: unknown) => {
+    const diff = diffDataSet(previous, value as Record<string, string | undefined>)
+    if (diff) {
+      const { added, removed } = diff
+      removed.forEach((k) => {
+        delete element.dataset[k]
+        delete previous[k]
+      })
+      added.forEach(([k, v]) => {
+        element.dataset[k] = v
+        previous[k] = v
+      })
+    }
+  }
+}
+
+function setupRenderProperties<E = never, R = never>(
+  properties: Record<string, unknown>,
+  element: HTMLElement | SVGElement,
+  ctx: TemplateContext<R>
+): Effect.Effect<unknown, E, R> | void {
+  const effects: Array<Effect.Effect<unknown, E, R>> = []
+  for (const [key, value] of Object.entries(properties)) {
+    const part = makePart(keyToPartType(key))
+    const effect = setupRenderPart(part, element, { ...ctx, values: [value] })
+    if (effect !== undefined) {
+      effects.push(effect)
+    }
+  }
+  if (effects.length > 0) {
+    return Effect.all(effects, { concurrency: "unbounded" })
   }
 }
 
@@ -456,13 +512,40 @@ function diffDataSet(
   }
 }
 
-type TemplateContext = {
+type PartType = ReturnType<typeof keyToPartType>
+
+function makePart([partType, partName]: PartType) {
+  switch (partType) {
+    case "attr":
+      return new Template.AttrPartNode(partName, 0)
+    case "boolean":
+      return new Template.BooleanPartNode(partName, 0)
+    case "class":
+      return new Template.ClassNamePartNode(0)
+    case "data":
+      return new Template.DataPartNode(0)
+    case "event":
+      return new Template.EventPartNode(partName, 0)
+    case "property":
+      return new Template.PropertyPartNode(partName, 0)
+    case "properties":
+      return new Template.PropertiesPartNode(0)
+    case "ref":
+      return new Template.RefPartNode(0)
+    default:
+      throw new Error(`Unknown part type: ${partType}`)
+  }
+}
+
+type TemplateContext<R = never> = {
   readonly document: Document
+  readonly renderQueue: RQ.RenderQueue
   readonly eventSource: EventSource
   readonly parentScope: Scope.Scope
   readonly refCounter: IndexRefCounter
   readonly scope: Scope.Closeable
-  readonly values: ReadonlyArray<Renderable<any, any>>
+  readonly values: ReadonlyArray<Renderable<any, any, any>>
+  readonly services: ServiceMap.ServiceMap<R>
   readonly onCause: (cause: Cause<any>) => Effect.Effect<unknown>
 
   /**
@@ -483,18 +566,21 @@ type TemplateContext = {
 }
 
 function makeTemplateContext<Values extends ReadonlyArray<Renderable.Any>, RSink = never>(
-  document: Document,
   values: Values,
   onCause: (cause: Cause<Renderable.Error<Values[number]>>) => Effect.Effect<unknown, never, RSink>
 ) {
   return Effect.gen(function*() {
+    const document = yield* RenderDocument
+    const renderQueue = yield* RenderQueue
     const services = yield* Effect.services<Renderable.Services<Values[number]> | RSink | Scope.Scope>()
     const refCounter = yield* makeRefCounter
     const parentScope = ServiceMap.get(services, Scope.Scope)
     const scope = yield* Scope.fork(parentScope)
     const eventSource = makeEventSource()
     const ctx: TemplateContext = {
+      services,
       document,
+      renderQueue,
       eventSource,
       parentScope,
       refCounter,
