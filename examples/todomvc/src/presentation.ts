@@ -12,9 +12,9 @@ import * as Domain from "./domain"
 
 const onSubmit = EventHandler.make(() => App.createTodo, { preventDefault: true })
 
-const onInput = EventHandler.make((ev: InputEvent) =>
-  RefSubject.set(App.TodoText, (ev.target as HTMLInputElement).value)
-)
+const onInput = EventHandler.make((ev: InputEvent & { target: HTMLInputElement }) => {
+  return RefSubject.set(App.TodoText, ev.target.value)
+})
 
 const plural = RefSubject.map((c: number) => (c === 1 ? "" : "s"))
 

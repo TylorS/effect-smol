@@ -51,9 +51,9 @@ export const DomRenderTemplate = Object.assign(
           entries.set(templateStrings, entry)
         }
 
-        const firstChild = document.createComment(`t${entry.template.hash}`)
+        const firstChild = document.createComment(`t_${entry.template.hash}`)
         const content = document.importNode(entry.dom, true) as DocumentFragment
-        const lastChild = document.createComment(`/t${entry.template.hash}`)
+        const lastChild = document.createComment(`/t_${entry.template.hash}`)
 
         return {
           template: entry.template,
@@ -718,6 +718,7 @@ function liftRenderableToFx<E = never, R = never>(
 ): Fx.Fx<any, E, R> {
   switch (typeof renderable) {
     case "undefined":
+    case "function":
     case "object": {
       if (isNullish(renderable)) {
         return Fx.succeed(null)

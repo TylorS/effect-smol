@@ -256,6 +256,7 @@ function liftRenderableToFx<E, R>(
 ): Fx<any, E, R> {
   switch (typeof renderable) {
     case "undefined":
+    case "function":
     case "object": {
       if (isNullish(renderable)) {
         return succeed(null)

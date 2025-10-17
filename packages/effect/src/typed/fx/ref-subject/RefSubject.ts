@@ -464,9 +464,9 @@ function initializeCoreAndTap<A, E, R, R2>(
 }
 
 function setCore<A, E, R, R2>(core: RefSubjectCore<A, E, R, R2>, a: A): Effect.Effect<A, never, Exclude<R, R2>> {
-  const exit = Exit.succeed(a)
-
   return Effect.suspend(() => {
+    const exit = Exit.succeed(a)
+
     if (core.deferredRef.done(exit)) {
       // If the value changed, send an event
       return Effect.as(sendEvent(core, exit), a)

@@ -15,17 +15,7 @@ function buildTemplateNode(document: Document, node: Template.Node): Node {
     case "comment-part":
       return document.createComment(`c_${node.index}`)
     case "sparse-comment": {
-      const comment = document.createComment("")
-
-      for (const n of node.nodes) {
-        if (n._tag === "text") {
-          comment.appendChild(document.createTextNode(n.value))
-        } else {
-          comment.appendChild(document.createComment(`c_${n.index}`))
-        }
-      }
-
-      return comment
+      return document.createComment(`c_${node.nodes.map((n) => n._tag === "text" ? "" : n.index).join("_")}`)
     }
     case "doctype":
       return document.implementation.createDocumentType(
