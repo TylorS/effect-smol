@@ -9,6 +9,8 @@ import * as Option from "../../../data/Option.ts"
 import * as Effect from "../../../Effect.ts"
 import * as Exit from "../../../Exit.ts"
 import { dual, flow } from "../../../Function.ts"
+import type { Layer } from "../../../Layer.ts"
+import { sum } from "../../../Number.ts"
 import type * as Scope from "../../../Scope.ts"
 import * as Fx from "../index.ts"
 import { MulticastEffect } from "../internal/multicast.ts"
@@ -226,86 +228,67 @@ export const mapEffect: {
   return transform(versioned, (fx) => Fx.mapEffect(fx, options.onFx), Effect.flatMap(options.onEffect))
 })
 
-// /**
-//  * @since 1.0.0
-//  */
-// export function tuple<const VS extends ReadonlyArray<Versioned<any, any, any, any, any, any, any, any>>>(
-//   versioneds: VS
-// ): Versioned<
-//   Versioned.VersionContext<VS[number]>,
-//   Versioned.VersionError<VS[number]>,
-//   { readonly [K in keyof VS]: Effect.Success<VS[K]> },
-//   Fx.Error<VS[number]>,
-//   Fx.Services<VS[number]>,
-//   { readonly [K in keyof VS]: Fx.Success<VS[K]> },
-//   Effect.Error<VS[number]>,
-//   Effect.Services<VS[number]>
-// > {
-//   return make(
-//     Effect.map(Effect.all(versioneds.map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
-//     Fx.struct(versioneds),
-//     Effect.all(versioneds, { concurrency: "unbounded" }) as any
-//   ) as any
-// }
+/**
+ * @since 1.0.0
+ */
+export function tuple<const VS extends ReadonlyArray<Versioned<any, any, any, any, any, any, any, any>>>(
+  versioneds: VS
+): Versioned<
+  Versioned.VersionContext<VS[number]>,
+  Versioned.VersionError<VS[number]>,
+  { readonly [K in keyof VS]: Effect.Success<VS[K]> },
+  Fx.Error<VS[number]>,
+  Fx.Services<VS[number]>,
+  { readonly [K in keyof VS]: Fx.Success<VS[K]> },
+  Effect.Error<VS[number]>,
+  Effect.Services<VS[number]>
+> {
+  return make(
+    Effect.map(Effect.all(versioneds.map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
+    Fx.tuple(...versioneds),
+    Effect.all(versioneds.map((v) => v.asEffect()), { concurrency: "unbounded" })
+  ) as any
+}
 
-// /**
-//  * @since 1.0.0
-//  */
-// export function struct<const VS extends Readonly<Record<string, Versioned<any, any, any, any, any, any, any, any>>>>(
-//   versioneds: VS
-// ): Versioned<
-//   Versioned.VersionContext<VS[keyof VS]>,
-//   Versioned.VersionError<VS[keyof VS]>,
-//   { readonly [K in keyof VS]: Fx.Success<VS[K]> },
-//   Fx.Error<VS[keyof VS]>,
-//   Fx.Services<VS[keyof VS]>,
-//   { readonly [K in keyof VS]: Effect.Success<VS[K]> },
-//   Effect.Error<VS[keyof VS]>,
-//   Effect.Effect.Context<VS[keyof VS]>
-// > {
-//   return make(
-//     Effect.map(Effect.all(Object.values(versioneds).map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
-//     Fx.struct(versioneds),
-//     Effect.all(versioneds, { concurrency: "unbounded" }) as any
-//   )
-// }
+/**
+ * @since 1.0.0
+ */
+export function struct<const VS extends Readonly<Record<string, Versioned<any, any, any, any, any, any, any, any>>>>(
+  versioneds: VS
+): Versioned<
+  Versioned.VersionContext<VS[keyof VS]>,
+  Versioned.VersionError<VS[keyof VS]>,
+  { readonly [K in keyof VS]: Fx.Success<VS[K]> },
+  Fx.Error<VS[keyof VS]>,
+  Fx.Services<VS[keyof VS]>,
+  { readonly [K in keyof VS]: Effect.Success<VS[K]> },
+  Effect.Error<VS[keyof VS]>,
+  Effect.Services<VS[keyof VS]>
+> {
+  return make(
+    Effect.map(Effect.all(Object.values(versioneds).map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
+    Fx.struct(versioneds),
+    Effect.all(mapRecord(versioneds, (v) => v.asEffect()), { concurrency: "unbounded" }) as any
+  )
+}
 
-// /**
-//  * @since 1.0.0
-//  */
-// export const provide: {
-//   <S>(ctx: Context.Context<S> | Runtime.Runtime<S>): <R0, E0, A, E, R, B, E2, R2>(
-//     versioned: Versioned<R0, E0, A, E, R, B, E2, R2>
-//   ) => Versioned<Exclude<R0, S>, E0, A, E, Exclude<R, S>, B, E2, Exclude<R2, S>>
+/**
+ * @since 1.0.0
+ */
+export const provide = <R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
+  versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
+  layer: Layer<S, never, R3>
+): Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>> => {
+  return make(
+    Effect.provide(versioned.version, layer),
+    Fx.provide(versioned, layer),
+    Effect.provide(versioned.asEffect(), layer)
+  )
+}
 
-//   <R3, S>(layer: Layer.Layer<S, never, R3>): <R0, E0, A, E, R, B, E2, R2>(
-//     versioned: Versioned<R0, E0, A, E, R, B, E2, R2>
-//   ) => Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>>
-
-//   <R0, E0, A, E, R, B, E2, R2, S>(
-//     versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
-//     context: Context.Context<S> | Runtime.Runtime<S>
-//   ): Versioned<Exclude<R0, S>, E0, A, E, Exclude<R, S>, B, E2, Exclude<R2, S>>
-
-//   <R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
-//     versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
-//     context: Layer.Layer<S, never, R3>
-//   ): Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>>
-
-//   <R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
-//     versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
-//     context: Context.Context<S> | Runtime.Runtime<S> | Layer.Layer<S, never, R3>
-//   ): Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>>
-// } = dual(2, function provide<R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
-//   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
-//   context: Context.Context<S> | Runtime.Runtime<S> | Layer.Layer<S, never, R3>
-// ): Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>> {
-//   return make(
-//     Effect.provide(versioned.version, context as Layer.Layer<S, never, R3>),
-//     Fx.provide(versioned, context),
-//     Effect.provide(versioned, context as Layer.Layer<S, never, R3>)
-//   )
-// })
+function mapRecord<K extends string, V, R>(record: Record<K, V>, f: (v: V, k: K) => R): Record<K, R> {
+  return Object.fromEntries(Object.entries<V>(record).map(([k, v]) => [k, f(v, k as K)])) as Record<K, R>
+}
 
 export function of<A>(value: A): Versioned<never, never, A, never, never, A, never, never> {
   return make(Effect.succeed(1), Fx.succeed(value), Effect.succeed(value))

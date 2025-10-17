@@ -1,4 +1,5 @@
 export { collectAll, collectAllFork, collectUpTo, collectUpToFork } from "./collect.ts"
+export { first } from "./first.ts"
 export { fork, runFork } from "./fork.ts"
 export { drain, drainLayer, observe } from "./observe.ts"
 export { runPromise, runPromiseExit } from "./runPromise.ts"

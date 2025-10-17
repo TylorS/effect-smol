@@ -1,4 +1,5 @@
 export {
+  append,
   causes,
   compact,
   continueWith,
@@ -23,6 +24,8 @@ export {
   flip,
   gen,
   genScoped,
+  if,
+  keyed,
   loop,
   loopCause,
   loopCauseEffect,
@@ -31,11 +34,13 @@ export {
   mapEffect,
   mergeAll,
   mergeOrdered,
+  prepend,
   provide,
   skip,
   skipRepeats,
   skipRepeatsWith,
   slice,
+  struct,
   switchMap,
   switchMapEffect,
   take,
@@ -43,10 +48,12 @@ export {
   tapEffect,
   tuple,
   unwrap,
-  unwrapScoped
+  unwrapScoped,
+  when
 } from "./combinators/index.ts"
 export {
   at,
+  callback,
   die,
   empty,
   fail,
@@ -59,8 +66,10 @@ export {
   interrupt,
   make,
   never,
+  null,
   periodic,
-  succeed
+  succeed,
+  succeedNull
 } from "./constructors/index.ts"
 export type { Error, Fx, Services, Success } from "./Fx.ts"
 export {
@@ -70,6 +79,7 @@ export {
   collectUpToFork,
   drain,
   drainLayer,
+  first,
   fork,
   observe,
   runFork,

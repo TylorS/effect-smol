@@ -11,12 +11,12 @@ type Rendered = Node | Array<Node> | PersistentDocumentFragment
 
 export interface EventSource {
   readonly addEventListener: <Ev extends Event>(
-    element: Element,
+    element: EventTarget,
     event: EventName,
     handler: Handler<Ev>
-  ) => void
+  ) => Disposable
 
-  readonly setup: (rendered: Rendered, scope: Scope.Scope) => Effect.Effect<void>
+  readonly setup: (rendered: EventTarget, scope: Scope.Scope) => Effect.Effect<void>
 }
 
 type Entry = readonly [Element, Handler<any>]
@@ -35,12 +35,12 @@ export function makeEventSource(): EventSource {
   >()
 
   function addEventListener(
-    element: Element,
+    element: EventTarget,
     event: EventName,
     handler: Handler<any>
-  ): void {
+  ): Disposable {
     const sets = listeners.get(event)
-    const entry: Entry = [element, handler]
+    const entry: Entry = [element as Element, handler]
     const isOnce = handler.options?.once === true
     const normal: Set<Entry> = sets?.[0] ?? new Set<Entry>()
     const once: Set<Entry> = sets?.[1] ?? new Set<Entry>()
@@ -49,8 +49,10 @@ export function makeEventSource(): EventSource {
     }
     if (isOnce) {
       once.add(entry)
+      return disposable(() => once.delete(entry))
     } else {
       normal.add(entry)
+      return disposable(() => normal.delete(entry))
     }
   }
 
@@ -78,8 +80,8 @@ export function makeEventSource(): EventSource {
     return disposables
   }
 
-  function setup(rendered: Rendered, scope: Scope.Scope) {
-    const elements = getElements(rendered)
+  function setup(rendered: EventTarget, scope: Scope.Scope) {
+    const elements = getElements(rendered as Rendered)
 
     if (elements.length === 0 || listeners.size === 0) {
       return Effect.void

@@ -24,7 +24,7 @@ export type EventOptions = {
   readonly stopImmediatePropagation?: boolean
 }
 
-export function make<Ev extends Event, E = never, R = never>(
+export function make<Ev extends Event, E, R>(
   handler: (event: Ev) => Effect.Effect<unknown, E, R>,
   options?: AddEventListenerOptions & EventOptions
 ): EventHandler<Ev, E, R> {

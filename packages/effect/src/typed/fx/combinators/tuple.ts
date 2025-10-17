@@ -3,6 +3,7 @@ import { make } from "../constructors/make.ts"
 import { succeed } from "../constructors/succeed.ts"
 import type { Fx } from "../Fx.ts"
 import * as Sink from "../sink/index.ts"
+import { map } from "./map.ts"
 
 export function tuple<FX extends ReadonlyArray<Fx<any, any, any>>>(
   ...fxs: FX
@@ -28,4 +29,17 @@ export function tuple<FX extends ReadonlyArray<Fx<any, any, any>>>(
         })
       )), { concurrency: "unbounded", discard: true })
   }))
+}
+
+export function struct<FXS extends Readonly<Record<string, Fx<any, any, any>>>>(
+  fxs: FXS
+): Fx<{ readonly [K in keyof FXS]: Fx.Success<FXS[K]> }, Fx.Error<FXS[keyof FXS]>, Fx.Services<FXS[keyof FXS]>> {
+  return map(
+    tuple(
+      ...Object.entries(fxs).map(([key, fx]) => map(fx, (value) => [key, value] as const))
+    ),
+    Object.fromEntries as (
+      entries: ReadonlyArray<readonly [string, any]>
+    ) => { readonly [K in keyof FXS]: Fx.Success<FXS[K]> }
+  )
 }

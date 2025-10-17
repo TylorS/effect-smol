@@ -18,6 +18,7 @@ import {
   tuple,
   unwrap
 } from "../fx/index.ts"
+import { CurrentComputedBehavior } from "../fx/ref-subject/RefSubject.ts"
 import { type HtmlChunk, type HtmlPartChunk, type HtmlSparsePartChunk, templateToHtmlChunks } from "./HtmlChunk.ts"
 import { TEXT_START, TYPED_NODE_END, TYPED_NODE_START } from "./internal/meta.ts"
 import { parse } from "./internal/Parser.ts"
@@ -79,10 +80,12 @@ export const HtmlRenderTemplate = Layer.effect(
       )
     }
   })
+).pipe(
+  Layer.provideMerge(Layer.succeed(CurrentComputedBehavior, "one"))
 )
 
 export const StaticHtmlRenderTemplate = HtmlRenderTemplate.pipe(
-  Layer.provide(Layer.succeed(StaticRendering, true))
+  Layer.provideMerge(Layer.succeed(StaticRendering, true))
 )
 
 function renderChunk<E, R>(

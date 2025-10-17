@@ -12,7 +12,11 @@ export type Renderable<A, E = never, R = never> =
   | Fx<A, E, R>
 
 export declare namespace Renderable {
-  export type Any = Renderable<any, any, any>
+  export type Any =
+    | Renderable<any, any, any>
+    | Renderable<any, never, never>
+    | Renderable<never, any, any>
+    | Renderable<never, never, any>
 
   export type Primitive =
     | string

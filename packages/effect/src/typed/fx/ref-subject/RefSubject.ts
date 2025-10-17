@@ -1,17 +1,23 @@
 import type * as Cause from "../../../Cause.ts"
+import * as Array from "../../../collections/Array.ts"
 import type { Equivalence } from "../../../data/Equivalence.ts"
 import * as Option from "../../../data/Option.ts"
 import * as Effect from "../../../Effect.ts"
 import * as Exit from "../../../Exit.ts"
 import * as Fiber from "../../../Fiber.ts"
-import { dual } from "../../../Function.ts"
+import { dual, identity } from "../../../Function.ts"
 import { equals } from "../../../interfaces/Equal.ts"
+import { pipeArguments } from "../../../interfaces/Pipeable.ts"
+import * as Layer from "../../../Layer.js"
 import * as MutableRef from "../../../MutableRef.ts"
+import { sum } from "../../../Number.ts"
 import * as Scope from "../../../Scope.ts"
 import * as ServiceMap from "../../../ServiceMap.ts"
+import type { Bounds } from "../combinators/slice.ts"
 import * as Fx from "../index.ts"
 import * as DeferredRef from "../internal/DeferredRef.ts"
 import { getExitEquivalence } from "../internal/equivalence.ts"
+import type { UnionToTuple } from "../internal/UnionToTuple.ts"
 import { YieldableFx } from "../internal/yieldable.ts"
 import * as Sink from "../sink/Sink.ts"
 import * as Subject from "../subject/Subject.ts"
@@ -32,12 +38,28 @@ export interface Computed<out A, out E = never, out R = never>
   readonly [ComputedTypeId]: ComputedTypeId
 }
 
+export declare namespace Computed {
+  export type Any =
+    | Computed<any, any, any>
+    | Computed<never, any, any>
+    | Computed<any, never, any>
+    | Computed<never, never, any>
+}
+
 export interface Filtered<out A, out E = never, out R = never>
   extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R>
 {
   readonly [FilteredTypeId]: FilteredTypeId
 
   asComputed(): Computed<Option.Option<A>, E, R>
+}
+
+export declare namespace Filtered {
+  export type Any =
+    | Filtered<any, any, any>
+    | Filtered<never, any, any>
+    | Filtered<any, never, any>
+    | Filtered<never, never, any>
 }
 
 export interface GetSetDelete<A, E, R> {
@@ -56,6 +78,32 @@ export interface RefSubject<A, E = never, R = never> extends Computed<A, E, R>, 
   readonly interrupt: Effect.Effect<void, never, R>
 }
 
+export declare namespace RefSubject {
+  export type Any =
+    | RefSubject<any, any, any>
+    | RefSubject<any, any>
+    | RefSubject<any, never, any>
+    | RefSubject<any>
+
+  export interface Service<Self, Id extends string, A, E> extends RefSubject<A, E, Self> {
+    readonly id: Id
+
+    readonly service: ServiceMap.Service<Self, RefSubject<A, E>>
+
+    readonly make: <R = never>(
+      value: A | Effect.Effect<A, E, R> | Fx.Fx<A, E, R>,
+      options?: RefSubjectOptions<A> & { readonly skip?: number; readonly take?: number }
+    ) => Layer.Layer<Self, never, R>
+
+    readonly layer: <E2, R2>(
+      make: Effect.Effect<RefSubject<A, E>, E2, R2 | Scope.Scope>
+    ) => Layer.Layer<Self, E2, R2>
+  }
+
+  export interface Class<Self, Id extends string, A, E> extends RefSubject.Service<Self, Id, A, E> {
+    new(): RefSubject.Service<Self, Id, A, E>
+  }
+}
 export const CurrentComputedBehavior = ServiceMap.Reference("@typed/fx/CurrentComputedBehavior", {
   defaultValue: (): "one" | "multiple" => "multiple"
 })
@@ -228,9 +276,6 @@ class RefSubjectCore<A, E, R, R2> {
   public _fiber: Fiber.Fiber<A, E> | undefined = undefined
 }
 
-/**
- * @since 1.20.0
- */
 export interface RefSubjectOptions<A> {
   readonly eq?: Equivalence<A>
 }
@@ -496,9 +541,6 @@ function sendEvent<A, E, R, R2>(
   }
 }
 
-/**
- * @since 1.20.0
- */
 export const set: {
   <A>(value: A): <E, R>(ref: RefSubject<A, E, R>) => Effect.Effect<A, E, R>
   <A, E, R>(ref: RefSubject<A, E, R>, a: A): Effect.Effect<A, E, R>
@@ -506,16 +548,10 @@ export const set: {
   return ref.updates((ref) => ref.set(a))
 })
 
-/**
- * @since 1.20.0
- */
 export function reset<A, E, R>(ref: RefSubject<A, E, R>): Effect.Effect<Option.Option<A>, E, R> {
   return ref.updates((ref) => ref.delete)
 }
 
-/**
- * @since 1.20.0
- */
 export {
   /**
    * @since 1.20.0
@@ -523,9 +559,6 @@ export {
   reset as delete
 }
 
-/**
- * @since 1.20.0
- */
 export const updateEffect: {
   <A, E2, R2>(
     f: (value: A) => Effect.Effect<A, E2, R2>
@@ -541,9 +574,6 @@ export const updateEffect: {
   return ref.updates((ref) => Effect.flatMap(Effect.flatMap(ref.get, f), ref.set))
 })
 
-/**
- * @since 1.20.0
- */
 export const update: {
   <A>(f: (value: A) => A): <E, R>(ref: RefSubject<A, E, R>) => Effect.Effect<A, E, R>
   <A, E, R>(ref: RefSubject<A, E, R>, f: (value: A) => A): Effect.Effect<A, E, R>
@@ -551,9 +581,6 @@ export const update: {
   return updateEffect(ref, (value) => Effect.succeed(f(value)))
 })
 
-/**
- * @since 1.20.0
- */
 export const modifyEffect: {
   <A, B, E2, R2>(
     f: (value: A) => Effect.Effect<readonly [B, A], E2, R2>
@@ -575,9 +602,6 @@ export const modifyEffect: {
   )
 })
 
-/**
- * @since 1.20.0
- */
 export const modify: {
   <A, B>(f: (value: A) => readonly [B, A]): <E, R>(ref: RefSubject<A, E, R>) => Effect.Effect<B, E, R>
   <A, E, R, B>(ref: RefSubject<A, E, R>, f: (value: A) => readonly [B, A]): Effect.Effect<B, E, R>
@@ -591,9 +615,6 @@ export function isRefSubject(value: any): value is RefSubject<any, any, any> {
 
 const isRefSubjectDataFirst = (args: IArguments) => isRefSubject(args[0])
 
-/**
- * @since 1.20.0
- */
 export const runUpdates: {
   <A, E, R, B, E2, R2, R3 = never, E3 = never, C = never>(
     f: (ref: GetSetDelete<A, E, R>) => Effect.Effect<B, E2, R2>,
@@ -647,4 +668,749 @@ export function increment<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<nu
 
 export function decrement<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<number, E, R> {
   return update(ref, (value) => value - 1)
+}
+
+const Variance: Fx.Fx.Variance<any, any, any> = {
+  _A: identity,
+  _E: identity,
+  _R: identity
+}
+
+export function Service<Self, A, E = never>() {
+  return <const Id extends string>(id: Id): RefSubject.Class<Self, Id, A, E> => {
+    const service = ServiceMap.Service<Self, RefSubject<A, E>>(id)
+
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    return class RefSubjectService {
+      /// Service
+
+      static readonly id = id
+      static readonly service = service
+
+      static readonly layer = <E2, R2>(
+        make: Effect.Effect<RefSubject<A, E>, E2, R2 | Scope.Scope>
+      ) => Layer.effect(service, make)
+
+      static readonly make = <R = never>(
+        value: A | Effect.Effect<A, E, R> | Fx.Fx<A, E, R>,
+        options?: RefSubjectOptions<A> & Partial<Bounds>
+      ): Layer.Layer<Self, never, R> => {
+        const bounds = getDefaultBounds(options)
+        return make(value, options).pipe(
+          Effect.map((ref) => bounds ? slice(ref, bounds.skip, bounds.take) : ref),
+          this.layer
+        )
+      }
+
+      /// Computed
+      static readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
+      static readonly version = Effect.flatMap(service.asEffect(), (ref) => ref.version)
+
+      // RefSubject
+      static readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
+      static readonly updates = <B, E2, R2>(f: (ref: GetSetDelete<A, E, never>) => Effect.Effect<B, E2, R2>) =>
+        Effect.flatMap(service.asEffect(), (ref) => ref.updates(f))
+
+      // Subject
+      static readonly onSuccess = (value: A) => Effect.flatMap(service.asEffect(), (ref) => ref.onSuccess(value))
+      static readonly onFailure = (cause: Cause.Cause<E>) =>
+        Effect.flatMap(service.asEffect(), (ref) => ref.onFailure(cause))
+      static readonly subscriberCount = Effect.flatMap(service.asEffect(), (ref) => ref.subscriberCount)
+      static readonly interrupt = Effect.flatMap(service.asEffect(), (ref) => ref.interrupt)
+
+      // Fx
+      static readonly [Fx.FxTypeId]: Fx.Fx.Variance<A, E, Self> = Variance
+      static readonly run = <RSink>(sink: Sink.Sink<A, E, RSink>) =>
+        Effect.flatMap(service.asEffect(), (ref) => ref.run(sink))
+
+      // Yieldable
+      static readonly asEffect = () => Effect.flatMap(service.asEffect(), Effect.fromYieldable)
+      static readonly [Symbol.iterator] = function*() {
+        const ref = yield* service
+        return yield* ref
+      }
+      static readonly pipe: RefSubject.Service<Self, Id, A, E>["pipe"] = function pipe(
+        this: RefSubject.Service<Self, Id, A, E>
+      ) {
+        return pipeArguments(this, arguments)
+      }
+
+      constructor() {
+        return RefSubjectService
+      }
+    } as unknown as RefSubject.Class<Self, Id, A, E>
+  }
+}
+
+function getDefaultBounds(options?: Partial<Bounds>): Bounds | undefined {
+  if (options === undefined || (options.skip === undefined && options.take === undefined)) {
+    return { skip: 0, take: Infinity }
+  }
+
+  return { skip: options.skip ?? 0, take: options.take ?? Infinity }
+}
+
+/**
+ * Extract all values from an object using a Proxy
+ *
+ * @since 2.0.0
+ */
+export const proxy: {
+  <A extends ReadonlyArray<any> | Readonly<Record<PropertyKey, any>>, E, R>(
+    source: Computed<A, E, R>
+  ): { readonly [K in keyof A]: Computed<A[K], E, R> }
+
+  <A extends ReadonlyArray<any> | Readonly<Record<PropertyKey, any>>, E, R>(
+    source: Filtered<A, E, R>
+  ): { readonly [K in keyof A]: Filtered<A[K], E, R> }
+} = <
+  A extends Readonly<Record<PropertyKey, any>> | ReadonlyArray<any>,
+  E,
+  R
+>(
+  source: Computed<A, E, R> | Filtered<A, E, R>
+): any => {
+  const target: any = {}
+  return new Proxy(target, {
+    get(self, prop) {
+      if (prop in self) return self[prop]
+      return self[prop] = map(source, (a) => a[prop as keyof A])
+    }
+  })
+}
+
+export type Services<T> = T extends RefSubject<infer _A, infer _E, infer R> ? R :
+  T extends Computed<infer _A, infer _E, infer R> ? R :
+  T extends Filtered<infer _A, infer _E, infer R> ? R :
+  never
+
+export type Error<T> = T extends RefSubject<infer _A, infer E, infer _R> ? E :
+  T extends Computed<infer _A, infer E, infer _R> ? E :
+  T extends Filtered<infer _A, infer E, infer _R> ? E :
+  never
+
+export type Success<T> = T extends RefSubject<infer A, infer _E, infer _R> ? A :
+  T extends Computed<infer A, infer _E, infer _R> ? A :
+  T extends Filtered<infer A, infer _E, infer _R> ? A :
+  never
+
+export type Identifier<T> = T extends RefSubject.Service<infer R, infer _Id, infer _A, infer _E> ? R : never
+
+export const mapEffect: {
+  <T extends RefSubject.Any | Computed.Any | Filtered.Any, B, E2, R2>(
+    f: (a: Success<T>) => Effect.Effect<B, E2, R2>
+  ): (
+    ref: T
+  ) => T extends Filtered.Any ? Filtered<B, Error<T> | E2, Services<T> | R2>
+    : Computed<B, Error<T> | E2, Services<T> | R2>
+
+  <A, E, R, B, E2, R2>(
+    ref: RefSubject<A, E, R> | Computed<A, E, R>,
+    f: (a: A) => Effect.Effect<B, E2, R2>
+  ): Computed<B, E | E2, R | R2>
+
+  <A, E, R, B, E2, R2>(
+    ref: Filtered<A, E, R>,
+    f: (a: A) => Effect.Effect<B, E2, R2>
+  ): Filtered<B, E | E2, R | R2>
+
+  <R0, E0, A, E, R, E2, R2, C, E3, R3>(
+    versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+    f: (a: A) => Effect.Effect<C, E3, R3>
+  ): Computed<C, E0 | E | E2 | E3, R0 | R2 | R3 | Exclude<R, Scope.Scope>>
+} = dual(2, function mapEffect<R0, E0, A, E, R, E2, R2, C, E3, R3>(
+  versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+  f: (a: A) => Effect.Effect<C, E3, R3>
+):
+  | Computed<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
+  | Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
+{
+  return FilteredTypeId in versioned
+    ? new FilteredImpl(versioned, (a) => Effect.asSome(f(a)))
+    : new ComputedImpl(versioned, f)
+})
+
+export const map: {
+  <T extends RefSubject.Any | Computed.Any | Filtered.Any, B>(f: (a: Success<T>) => B): (
+    ref: T
+  ) => T extends Filtered.Any ? Filtered<B, Error<T>, Services<T>>
+    : Computed<B, Error<T>, Services<T>>
+
+  <A, E, R, B>(ref: RefSubject<A, E, R> | Computed<A, E, R>, f: (a: A) => B): Computed<B, E, R>
+  <A, E, R, B>(filtered: Filtered<A, E, R>, f: (a: A) => B): Filtered<B, E, R>
+
+  <R0, E0, A, E, R, B, E2, R2>(
+    versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+    f: (a: A) => B
+  ):
+    | Computed<B, E0 | E | E2, R0 | R2 | Exclude<R, Scope.Scope>>
+    | Filtered<B, E0 | E | E2, R0 | R2 | Exclude<R, Scope.Scope>>
+} = dual(2, function map<R0, E0, A, E, R, B, E2, R2>(
+  versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+  f: (a: A) => B
+):
+  | Computed<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
+  | Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
+{
+  return mapEffect(versioned, (a) => Effect.succeed(f(a)))
+})
+
+export const filterMapEffect: {
+  <A, B, E2, R2>(
+    f: (a: A) => Effect.Effect<Option.Option<B>, E2, R2>
+  ): {
+    <E, R>(ref: RefSubject<A, E, R> | Computed<A, E, R>): Filtered<B, E | E2, R | R2>
+    <E, R>(ref: Filtered<A, E, R>): Filtered<B, E | E2, R | R2>
+    <R0, E0, B, E, R, E2, R2>(
+      versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+      f: (a: A) => Effect.Effect<Option.Option<B>, E2, R2>
+    ): Filtered<B, E0 | E | E2, R0 | R2>
+  }
+
+  <A, E, R, B, E2, R2>(
+    ref: RefSubject<A, E, R> | Computed<A, E, R> | Filtered<A, E, R>,
+    f: (a: A) => Effect.Effect<Option.Option<B>, E2, R2>
+  ): Filtered<B, E | E2, R | R2>
+  <R0, E0, A, E, R, B, E2, R2, R3, E3>(
+    versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+    f: (a: A) => Effect.Effect<Option.Option<B>, E3, R3>
+  ): Filtered<B, E0 | E | E2 | E3, R0 | R2 | R3 | Exclude<R, Scope.Scope>>
+} = dual(2, function filterMapEffect<R0, E0, A, E, R, B, E2, R2, R3, E3>(
+  versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+  f: (a: A) => Effect.Effect<Option.Option<B>, E3, R3>
+): Filtered<B, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3> {
+  return new FilteredImpl(versioned, f)
+})
+
+export const filterMap: {
+  <A, B>(f: (a: A) => Option.Option<B>): {
+    <E, R>(ref: RefSubject<A, E, R> | Computed<A, E, R> | Filtered<A, E, R>): Filtered<B, E, R>
+    <R0, E0, B, E, R, E2, R2>(
+      versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+      f: (a: A) => Option.Option<B>
+    ): Filtered<B, E0 | E | E2, R0 | R2>
+  }
+
+  <R0, E0, A, E, R, B, E2, R2>(
+    versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+    f: (a: A) => Option.Option<B>
+  ): Filtered<B, E0 | E | E2, R0 | R2 | Exclude<R, Scope.Scope>>
+
+  <A, E, R, B>(
+    ref: RefSubject<A, E, R> | Computed<A, E, R> | Filtered<A, E, R>,
+    f: (a: A) => Option.Option<B>
+  ): Filtered<B, E, R>
+} = dual(2, function filterMap<R0, E0, A, E, R, B, E2, R2>(
+  versioned: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>,
+  f: (a: A) => Option.Option<B>
+): Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2 | R2> {
+  return new FilteredImpl(versioned, (a) => Effect.succeed(f(a)))
+})
+
+export const compact: {
+  <A, E, R>(ref: Computed<Option.Option<A>, E, R>): Filtered<A>
+  <A, E, R>(ref: Filtered<Option.Option<A>, E, R>): Filtered<A>
+
+  <R0, E0, A, E, R, E2, R2>(
+    versioned: Versioned.Versioned<R0, E0, Option.Option<A>, E, R, Option.Option<A>, E2, R2>
+  ): Filtered<
+    A,
+    E0 | E | Exclude<E, Cause.NoSuchElementError> | Exclude<E2, Cause.NoSuchElementError>,
+    R0 | R2 | Exclude<R, Scope.Scope>
+  >
+} = function compact<R0, E0, A, E, R, E2, R2>(
+  versioned: Versioned.Versioned<R0, E0, Option.Option<A>, E, R, Option.Option<A>, E2, R2>
+): any {
+  return new FilteredImpl(versioned, Effect.succeed)
+}
+
+class RefSubjectSimpleTransform<A, E, R, R2, R3> extends YieldableFx<A, E, R | R2 | Scope.Scope, A, E, R | R3>
+  implements RefSubject<A, E, R | R2 | R3>
+{
+  readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
+  readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
+
+  readonly version: Effect.Effect<number, E, R>
+  readonly interrupt: Effect.Effect<void, never, R>
+  readonly subscriberCount: Effect.Effect<number, never, R>
+  private _fx: Fx.Fx<A, E, Scope.Scope | R | R2>
+
+  readonly ref: RefSubject<A, E, R>
+  readonly transformFx: (fx: Fx.Fx<A, E, Scope.Scope | R>) => Fx.Fx<A, E, Scope.Scope | R | R2>
+  readonly transformEffect: (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | R3>
+
+  constructor(
+    ref: RefSubject<A, E, R>,
+    transformFx: (fx: Fx.Fx<A, E, Scope.Scope | R>) => Fx.Fx<A, E, Scope.Scope | R | R2>,
+    transformEffect: (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | R3>
+  ) {
+    super()
+
+    this.ref = ref
+    this.transformFx = transformFx
+    this.transformEffect = transformEffect
+    this.version = ref.version
+    this.interrupt = ref.interrupt
+    this.subscriberCount = ref.subscriberCount
+
+    this._fx = transformFx(ref)
+  }
+
+  run<R4>(sink: Sink.Sink<A, E, R4>) {
+    return this._fx.run(sink)
+  }
+
+  toEffect(): Effect.Effect<A, E, R | R3> {
+    return this.transformEffect(this.ref.asEffect())
+  }
+
+  updates<E2, R2, C>(
+    run: (ref: GetSetDelete<A, E, R>) => Effect.Effect<C, E2, R2>
+  ): Effect.Effect<C, E | E2, R | R2> {
+    return this.ref.updates(run)
+  }
+
+  onFailure(cause: Cause.Cause<E>): Effect.Effect<unknown, never, R> {
+    return this.ref.onFailure(cause)
+  }
+
+  onSuccess(value: A): Effect.Effect<unknown, never, R> {
+    return this.ref.onSuccess(value)
+  }
+}
+
+export const slice: {
+  (skip: number, take: number): <A, E, R>(ref: RefSubject<A, E, R>) => RefSubject<A, E, R>
+  <A, E, R>(ref: RefSubject<A, E, R>, skip: number, take: number): RefSubject<A, E, R>
+} = dual(
+  3,
+  function slice<A, E, R>(ref: RefSubject<A, E, R>, skip: number, take: number): RefSubject<A, E, R> {
+    return new RefSubjectSimpleTransform(ref, (_) => Fx.slice(_, { skip, take }), identity)
+  }
+)
+
+type RefKind = "r" | "c" | "f"
+
+const join = (a: RefKind, b: RefKind) => {
+  if (a === "r") return b
+  if (b === "r") return a
+  if (a === "f") return a
+  if (b === "f") return b
+  return "c"
+}
+
+function getRefKind<
+  const Refs extends ReadonlyArray<RefSubject<any, any, any> | Computed<any, any, any> | Filtered<any, any, any>>
+>(refs: Refs): RefKind {
+  let kind: RefKind = "r"
+
+  for (const ref of refs) {
+    if (FilteredTypeId in ref) {
+      kind = "f"
+      break
+    } else if (!(RefSubjectTypeId in ref)) {
+      kind = join(kind, "c")
+    }
+  }
+
+  return kind
+}
+
+type StructFrom<
+  Refs extends Readonly<Record<string, RefSubject.Any | Computed.Any | Filtered.Any>>
+> = {
+  "c": [ComputedStructFrom<Refs>] extends [Computed<infer A, infer E, infer R>] ? Computed<A, E, R> : never
+  "f": [FilteredStructFrom<Refs>] extends [Filtered<infer A, infer E, infer R>] ? Filtered<A, E, R> : never
+  "r": [RefSubjectStructFrom<Refs>] extends [RefSubject<infer A, infer E, infer R>] ? RefSubject<A, E, R> : never
+}[GetStructKind<Refs>]
+
+type GetStructKind<
+  Refs extends Readonly<Record<string, RefSubject.Any | Computed.Any | Filtered.Any>>
+> = MergeKinds<
+  UnionToTuple<
+    {
+      [K in keyof Refs]: MatchKind<Refs[K]>
+    }[keyof Refs]
+  >
+>
+
+type Ref = RefSubject.Any | Computed.Any | Filtered.Any
+
+type MatchKind<T extends Ref> = [T] extends [Filtered.Any] ? "f"
+  : [T] extends [RefSubject.Any] ? "r"
+  : "c"
+
+type MergeKind<A extends RefKind, B extends RefKind> = A extends "f" ? A
+  : B extends "f" ? B
+  : A extends "r" ? B
+  : B extends "r" ? A
+  : "c"
+
+type MergeKinds<Kinds extends ReadonlyArray<any>> = Kinds extends
+  readonly [infer Head extends RefKind, ...infer Tail extends ReadonlyArray<RefKind>] ?
+  MergeKind<Head, MergeKinds<Tail>>
+  : "r"
+
+type FilteredStructFrom<
+  Refs extends Readonly<Record<string, RefSubject.Any | Computed.Any | Filtered.Any>>
+> = Filtered<
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Fx.Error<Refs[keyof Refs]>,
+  Effect.Services<Refs[keyof Refs]>
+>
+
+type ComputedStructFrom<
+  Refs extends Readonly<Record<string, RefSubject.Any | Computed.Any | Filtered.Any>>
+> = Computed<
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Effect.Error<Refs[keyof Refs]>,
+  Effect.Services<Refs[keyof Refs]>
+>
+
+type RefSubjectStructFrom<
+  Refs extends Readonly<Record<string, RefSubject.Any | Computed.Any | Filtered.Any>>
+> = RefSubject<
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Effect.Error<Refs[keyof Refs]>,
+  Effect.Services<Refs[keyof Refs]>
+>
+
+type TupleFrom<
+  Refs extends ReadonlyArray<RefSubject<any, any, any> | Computed<any, any, any> | Filtered<any, any, any>>
+> = {
+  "c": [ComputedTupleFrom<Refs>] extends [Computed<infer A, infer E, infer R>] ? Computed<A, E, R> : never
+  "f": [FilteredTupleFrom<Refs>] extends [Filtered<infer A, infer E, infer R>] ? Filtered<A, E, R> : never
+  "r": [RefSubjectTupleFrom<Refs>] extends [RefSubject<infer A, infer E, infer R>] ? RefSubject<A, E, R> : never
+}[GetTupleKind<Refs>]
+
+type GetTupleKind<Refs extends ReadonlyArray<Ref>, Kind extends RefKind = "r"> = Refs extends
+  readonly [infer Head extends Ref, ...infer Tail extends ReadonlyArray<Ref>] ?
+  GetTupleKind<Tail, MergeKind<Kind, MatchKind<Head>>>
+  : Kind
+
+type FilteredTupleFrom<
+  Refs extends ReadonlyArray<RefSubject<any, any, any> | Computed<any, any, any> | Filtered<any, any, any>>
+> = Filtered<
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Fx.Error<Refs[number]>,
+  Effect.Services<Refs[number]>
+>
+
+type ComputedTupleFrom<
+  Refs extends ReadonlyArray<RefSubject<any, any, any> | Computed<any, any, any> | Filtered<any, any, any>>
+> = Computed<
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Effect.Error<Refs[number]>,
+  Effect.Services<Refs[number]>
+>
+
+type RefSubjectTupleFrom<
+  Refs extends ReadonlyArray<RefSubject<any, any, any> | Computed<any, any, any> | Filtered<any, any, any>>
+> = RefSubject<
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Effect.Error<Refs[number]>,
+  Effect.Services<Refs[number]>
+>
+
+export function struct<
+  const Refs extends Readonly<Record<string, RefSubject.Any | Computed.Any | Filtered.Any>>
+>(refs: Refs): StructFrom<Refs> {
+  const kind = getRefKind(Object.values(refs))
+  switch (kind) {
+    case "r":
+      return makeStructRef(refs as any) as StructFrom<Refs>
+    case "c":
+      return makeStructComputed(refs as any) as StructFrom<Refs>
+    case "f":
+      return makeStructFiltered(refs as any) as any as StructFrom<Refs>
+  }
+}
+export function tuple<
+  const Refs extends ReadonlyArray<Ref>
+>(refs: Refs): TupleFrom<Refs> {
+  const kind = getRefKind(refs)
+  switch (kind) {
+    case "r":
+      return makeTupleRef(refs as any) as TupleFrom<Refs>
+    case "c":
+      return makeTupleComputed(refs as any) as TupleFrom<Refs>
+    case "f":
+      return makeTupleFiltered(refs as any) as any as TupleFrom<Refs>
+  }
+}
+
+function makeTupleRef<
+  const Refs extends ReadonlyArray<RefSubject<any, any, any>>
+>(refs: Refs): RefSubjectTupleFrom<Refs> {
+  return new RefSubjectTuple(refs)
+}
+
+const UNBOUNDED = { concurrency: "unbounded" } as const
+
+class RefSubjectTuple<
+  const Refs extends ReadonlyArray<RefSubject<any, any, any>>
+> extends YieldableFx<
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Effect.Error<Refs[number]>,
+  Effect.Services<Refs[number]>,
+  {
+    readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+  },
+  Effect.Error<Refs[number]>,
+  Effect.Services<Refs[number]>
+> implements RefSubjectTupleFrom<Refs> {
+  readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
+  readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
+
+  readonly version: Effect.Effect<number, Effect.Error<Refs[number]>, Effect.Services<Refs[number]>>
+  readonly interrupt: Effect.Effect<void, never, Effect.Services<Refs[number]>>
+  readonly subscriberCount: Effect.Effect<number, never, Effect.Services<Refs[number]>>
+
+  private versioned: Versioned.Versioned<
+    Effect.Services<Refs[number]>,
+    Effect.Error<Refs[number]>,
+    { readonly [K in keyof Refs]: Effect.Success<Refs[K]> },
+    Effect.Error<Refs[number]>,
+    Effect.Services<Refs[number]>,
+    { readonly [K in keyof Refs]: Effect.Success<Refs[K]> },
+    Effect.Error<Refs[number]>,
+    Effect.Services<Refs[number]>
+  >
+
+  private getSetDelete: GetSetDelete<
+    { readonly [K in keyof Refs]: Effect.Success<Refs[K]> },
+    Effect.Error<Refs[number]>,
+    Effect.Services<Refs[number]>
+  >
+
+  readonly refs: Refs
+
+  constructor(
+    refs: Refs
+  ) {
+    super()
+
+    this.refs = refs
+    this.versioned = Versioned.hold(Versioned.tuple(refs)) as any
+    this.version = this.versioned.version
+    this.interrupt = Effect.all(refs.map((r) => r.interrupt), UNBOUNDED)
+    this.subscriberCount = Effect.map(
+      Effect.all(refs.map((r) => r.subscriberCount), UNBOUNDED),
+      Array.reduce(0, sum)
+    )
+
+    this.getSetDelete = {
+      get: this.versioned.asEffect(),
+      set: (a) => Effect.all(refs.map((r, i) => set(r, a[i])), UNBOUNDED) as any,
+      delete: Effect.map(Effect.all(refs.map((r) => reset(r)), UNBOUNDED), Option.all) as any
+    }
+
+    this.updates = this.updates.bind(this)
+    this.onFailure = this.onFailure.bind(this)
+    this.onSuccess = this.onSuccess.bind(this)
+  }
+
+  run<R2 = never>(
+    sink: Sink.Sink<
+      {
+        readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+      },
+      Effect.Error<Refs[number]>,
+      R2
+    >
+  ): Effect.Effect<unknown, never, Effect.Services<Refs[number]> | R2> {
+    return this.versioned.run(sink)
+  }
+
+  override toEffect(): Effect.Effect<
+    { readonly [K in keyof Refs]: Effect.Success<Refs[K]> },
+    Effect.Error<Refs[number]>,
+    Effect.Services<Refs[number]>
+  > {
+    return this.versioned.asEffect()
+  }
+
+  updates<E2, R2, C>(
+    run: (
+      ref: GetSetDelete<
+        {
+          readonly [K in keyof Refs]: Effect.Success<Refs[K]>
+        },
+        Effect.Error<Refs[number]>,
+        Effect.Services<Refs[number]>
+      >
+    ) => Effect.Effect<C, E2, R2>
+  ) {
+    return run(this.getSetDelete)
+  }
+
+  onFailure(
+    cause: Cause.Cause<Effect.Error<Refs[number]>>
+  ): Effect.Effect<unknown, never, Effect.Services<Refs[number]>> {
+    return Effect.all(this.refs.map((ref) => ref.onFailure(cause)))
+  }
+
+  onSuccess(
+    value: { readonly [K in keyof Refs]: Effect.Success<Refs[K]> }
+  ): Effect.Effect<unknown, never, Effect.Services<Refs[number]>> {
+    return Effect.catchCause(this.getSetDelete.set(value), (c) => this.onFailure(c))
+  }
+}
+
+function makeTupleComputed<
+  const Refs extends ReadonlyArray<Computed<any, any, any>>
+>(refs: Refs): ComputedTupleFrom<Refs> {
+  return new ComputedImpl(Versioned.tuple(refs) as any, Effect.succeed) as any
+}
+
+function makeTupleFiltered<
+  const Refs extends ReadonlyArray<Computed<any, any, any> | Filtered<any, any, any>>
+>(refs: Refs): FilteredTupleFrom<Refs> {
+  return new FilteredImpl(Versioned.tuple(refs) as any, Effect.succeedSome) as any
+}
+
+function makeStructRef<
+  const Refs extends Readonly<Record<string, RefSubject.Any>>
+>(refs: Refs): RefSubjectStructFrom<Refs> {
+  return new RefSubjectStruct(refs) as any
+}
+
+class RefSubjectStruct<
+  const Refs extends Readonly<Record<string, RefSubject.Any>>
+> extends YieldableFx<
+  {
+    readonly [K in keyof Refs]: Success<Refs[K]>
+  },
+  Error<Refs[keyof Refs]>,
+  Services<Refs[keyof Refs]> | Scope.Scope,
+  {
+    readonly [K in keyof Refs]: Success<Refs[K]>
+  },
+  Error<Refs[keyof Refs]>,
+  Services<Refs[keyof Refs]>
+> implements
+  RefSubject<
+    {
+      readonly [K in keyof Refs]: Success<Refs[K]>
+    },
+    Error<Refs[keyof Refs]>,
+    Services<Refs[keyof Refs]>
+  >
+{
+  readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
+  readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
+
+  readonly version: Effect.Effect<
+    number,
+    Error<Refs[keyof Refs]>,
+    Services<Refs[keyof Refs]>
+  >
+  readonly interrupt: Effect.Effect<void, never, Services<Refs[keyof Refs]>>
+  readonly subscriberCount: Effect.Effect<number, never, Services<Refs[keyof Refs]>>
+
+  private versioned: Versioned.Versioned<
+    Services<Refs[keyof Refs]>,
+    Error<Refs[keyof Refs]>,
+    { readonly [K in keyof Refs]: Success<Refs[K]> },
+    Error<Refs[keyof Refs]>,
+    Services<Refs[keyof Refs]>,
+    { readonly [K in keyof Refs]: Success<Refs[K]> },
+    Error<Refs[keyof Refs]>,
+    Services<Refs[keyof Refs]>
+  >
+
+  private getSetDelete: GetSetDelete<
+    { readonly [K in keyof Refs]: Success<Refs[K]> },
+    Error<Refs[keyof Refs]>,
+    Services<Refs[keyof Refs]>
+  >
+
+  readonly refs: Refs
+
+  constructor(
+    refs: Refs
+  ) {
+    super()
+
+    this.refs = refs
+    this.versioned = Versioned.hold(Versioned.struct(refs)) as any
+    this.version = this.versioned.version
+    this.interrupt = Effect.all(Object.values(refs).map((r) => r.interrupt), UNBOUNDED)
+    this.subscriberCount = Effect.map(
+      Effect.all(Object.values(refs).map((r) => r.subscriberCount), UNBOUNDED),
+      Array.reduce(0, sum)
+    )
+
+    this.getSetDelete = {
+      get: this.versioned.asEffect(),
+      set: (a) => Effect.all(Object.keys(refs).map((k) => set(refs[k] as any, a[k])), UNBOUNDED) as any,
+      delete: Effect.map(Effect.all(Object.values(refs).map((r) => reset(r as any)), UNBOUNDED), Option.all) as any
+    }
+
+    this.updates = this.updates.bind(this)
+    this.onFailure = this.onFailure.bind(this)
+    this.onSuccess = this.onSuccess.bind(this)
+  }
+
+  run<R3 = never>(
+    sink: Sink.Sink<{ readonly [K in keyof Refs]: Success<Refs[K]> }, Error<Refs[keyof Refs]>, R3>
+  ): Effect.Effect<unknown, never, Services<Refs[keyof Refs]> | Scope.Scope | R3> {
+    return this.versioned.run(sink as any) as any
+  }
+
+  toEffect() {
+    return this.versioned.asEffect()
+  }
+
+  updates<E2, R2, C>(
+    run: (
+      ref: GetSetDelete<
+        {
+          readonly [K in keyof Refs]: Success<Refs[K]>
+        },
+        Error<Refs[keyof Refs]>,
+        Services<Refs[keyof Refs]>
+      >
+    ) => Effect.Effect<C, E2, R2>
+  ) {
+    return run(this.getSetDelete)
+  }
+
+  onFailure(
+    cause: Cause.Cause<Error<Refs[keyof Refs]>>
+  ): Effect.Effect<unknown, never, Services<Refs[keyof Refs]>> {
+    return Effect.all(Object.values(this.refs).map((ref) => ref.onFailure(cause as any)))
+  }
+
+  onSuccess(
+    value: { readonly [K in keyof Refs]: Success<Refs[K]> }
+  ): Effect.Effect<unknown, never, Services<Refs[keyof Refs]>> {
+    return Effect.catchCause(this.getSetDelete.set(value), (c) => this.onFailure(c))
+  }
+}
+
+function makeStructComputed<
+  const Refs extends Readonly<Record<string, Computed<any, any, any>>>
+>(refs: Refs): ComputedStructFrom<Refs> {
+  return new ComputedImpl(Versioned.struct(refs) as any, Effect.succeed) as any
+}
+
+function makeStructFiltered<
+  const Refs extends Readonly<Record<string, Computed<any, any, any> | Filtered<any, any, any>>>
+>(refs: Refs): FilteredStructFrom<Refs> {
+  return new FilteredImpl(Versioned.struct(refs) as any, Effect.succeedSome) as any
 }

@@ -1,3 +1,5 @@
+/// <reference types="./udomdiff.d.ts" />
+
 import udomdiff from "udomdiff"
 import type { Cause } from "../../Cause.ts"
 import { isFunction, isNullish, isObject } from "../../data/Predicate.ts"
@@ -91,7 +93,7 @@ export const DomRenderTemplate = Object.assign(
                 : content.childNodes[0] as Node
 
               // Setup our event listeners for our rendered content.
-              yield* ctx.eventSource.setup(rendered, ctx.scope)
+              yield* ctx.eventSource.setup(rendered as EventTarget, ctx.scope)
 
               // Emit just once
               yield* sink.onSuccess(DomRenderEvent(rendered))
@@ -265,11 +267,13 @@ function setupRenderPart<E = never, R = never>(
         EventHandler.catchCause(ctx.onCause)
       )
 
-      return ctx.eventSource.addEventListener(
+      ctx.eventSource.addEventListener(
         element,
         part.name,
         eventHandler
       )
+
+      return
     }
     case "property": {
       const element = node as HTMLElement | SVGElement
