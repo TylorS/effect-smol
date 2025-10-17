@@ -8,6 +8,7 @@ import * as Scope from "../../Scope.js"
 import * as ServiceMap from "../../ServiceMap.ts"
 import * as Fx from "../fx/index.js"
 import { type IndexRefCounter, makeRefCounter } from "../fx/internal/IndexRefCounter.ts"
+import type * as Sink from "../fx/sink/index.ts"
 import { CouldNotFindCommentError } from "./errors.ts"
 import * as EventHandler from "./EventHandler.js"
 import { type EventSource, makeEventSource } from "./EventSource.ts"
@@ -39,17 +40,17 @@ export const DomRenderTemplate = Object.assign(
     RenderTemplate,
     Effect.gen(function*() {
       const document = yield* RenderDocument
-      const entries = new WeakMap<TemplateStringsArray, { template: Template.Template; fragment: DocumentFragment }>()
+      const entries = new WeakMap<TemplateStringsArray, { template: Template.Template; dom: DocumentFragment }>()
       const getEntry = (templateStrings: TemplateStringsArray) => {
         let entry = entries.get(templateStrings)
         if (entry === undefined) {
           const template = parse(templateStrings)
-          entry = { template, fragment: buildTemplateFragment(document, template) }
+          entry = { template, dom: buildTemplateFragment(document, template) }
           entries.set(templateStrings, entry)
         }
 
         const firstChild = document.createComment(`t${entry.template.hash}`)
-        const content = entry.fragment.cloneNode(true) as DocumentFragment
+        const content = document.importNode(entry.dom, true) as DocumentFragment
         const lastChild = document.createComment(`/t${entry.template.hash}`)
 
         return {
@@ -60,40 +61,50 @@ export const DomRenderTemplate = Object.assign(
         } as const
       }
 
-      return <const Values extends ReadonlyArray<Renderable.Any>>(
+      return <const Values extends ArrayLike<Renderable.Any>>(
         templateStrings: TemplateStringsArray,
-        ...values: Values
+        values: Values
       ): Fx.Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope.Scope> =>
-        Fx.make(Effect.fn(function*(sink) {
-          const { content, firstChild, lastChild, template } = getEntry(templateStrings)
-          const ctx = yield* makeTemplateContext(document, values, sink.onFailure)
-          const effects = setupRenderParts(template.parts, content, ctx)
+        Fx.make<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope.Scope>(
+          Effect.fn(
+            function*<RSink = never>(
+              sink: Sink.Sink<RenderEvent, Renderable.Error<Values[number]>, RSink>
+            ): Generator<
+              Effect.Effect<unknown, never, Scope.Scope | Renderable.Services<Values[number]> | RSink>,
+              never,
+              any
+            > {
+              const { content, firstChild, lastChild, template } = getEntry(templateStrings)
+              const ctx = yield* makeTemplateContext<Values, RSink>(document, values, sink.onFailure)
+              const effects = setupRenderParts(template.parts, content, ctx)
 
-          if (effects.length > 0) {
-            yield* Effect.forEach(effects, flow(Effect.catchCause(ctx.onCause), Effect.forkIn(ctx.scope)))
-          }
+              if (effects.length > 0) {
+                yield* Effect.forEach(effects, flow(Effect.catchCause(ctx.onCause), Effect.forkIn(ctx.scope)))
+              }
 
-          if (ctx.expected > 0 && (yield* ctx.refCounter.expect(ctx.expected))) {
-            yield* ctx.refCounter.wait
-          }
+              if (ctx.expected > 0 && ctx.refCounter.expect(ctx.expected)) {
+                yield* ctx.refCounter.wait
+              }
 
-          const rendered = content.childNodes.length > 1
-            ? new PersistentDocumentFragment(firstChild, content, lastChild)
-            : content.childNodes[0] as Node
+              const rendered = content.childNodes.length > 1
+                ? new PersistentDocumentFragment(firstChild, content, lastChild)
+                : content.childNodes[0] as Node
 
-          // Setup our event listeners for our rendered content.
-          yield* ctx.eventSource.setup(rendered, ctx.scope)
+              // Setup our event listeners for our rendered content.
+              yield* ctx.eventSource.setup(rendered, ctx.scope)
 
-          // Emit just once
-          yield* sink.onSuccess(DomRenderEvent(rendered))
+              // Emit just once
+              yield* sink.onSuccess(DomRenderEvent(rendered))
 
-          // Ensure our templates last forever in the DOM environment
-          // so event listeners are kept attached to the current Scope.
-          return yield* Effect.never.pipe(
-            // Close our scope whenever the current Fiber is interrupted
-            Effect.onExit((exit) => Scope.close(ctx.scope, exit))
+              // Ensure our templates last forever in the DOM environment
+              // so event listeners are kept attached to the current Scope.
+              return yield* Effect.never.pipe(
+                // Close our scope whenever the current Fiber is interrupted
+                Effect.onExit((exit) => Scope.close(ctx.scope, exit))
+              )
+            }
           )
-        }))
+        )
     })
   ),
   {
@@ -172,21 +183,23 @@ function setupRenderParts(
 
 const withCurrentRenderPriority = (
   key: unknown,
+  index: number,
   ctx: TemplateContext,
   f: () => void
 ) => {
   return Effect.tap(
-    CurrentRenderPriority.asEffect(),
+    Effect.service(CurrentRenderPriority),
     (priority) => {
       const dispose = addDisposable(
         ctx,
         ctx.renderQueue.add(
           key,
-          f,
           () => {
-            if (typeof dispose === "function") {
-              dispose()
-            }
+            f()
+            ctx.refCounter.release(index)
+          },
+          () => {
+            dispose()
           },
           priority
         )
@@ -206,63 +219,66 @@ function setupRenderPart<E = never, R = never>(
       const attr = element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
       const setAttr = makeAttributeValueSetter(element, attr)
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) => withCurrentRenderPriority(attr, ctx, () => setAttr(renderToString(value, "")))
+        ctx,
+        part.index,
+        (value: unknown) => setAttr(renderToString(value, ""))
       )
     }
     case "boolean-part": {
       const element = node as HTMLElement | SVGElement
-      const onToggleAttribute = (value: unknown) => element.toggleAttribute(part.name, !!value)
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) => withCurrentRenderPriority(onToggleAttribute, ctx, () => onToggleAttribute(value))
+        ctx,
+        part.index,
+        (value: unknown) => element.toggleAttribute(part.name, !!value)
       )
     }
     case "className-part": {
-      const setClassName = makeClassListSetter(node as HTMLElement | SVGElement)
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) => withCurrentRenderPriority(setClassName, ctx, () => setClassName(value))
+        ctx,
+        part.index,
+        makeClassListSetter(node as HTMLElement | SVGElement)
       )
     }
     case "comment-part": {
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) =>
-          withCurrentRenderPriority(node, ctx, () => {
-            ;(node as Comment).textContent = renderToString(value, "")
-          })
+        ctx,
+        part.index,
+        (value: unknown) => {
+          ;(node as Comment).textContent = renderToString(value, "")
+        }
       )
     }
     case "data": {
-      const setDataset = makeDatasetSetter(node as HTMLElement | SVGElement)
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) => withCurrentRenderPriority(setDataset, ctx, () => setDataset(value))
+        ctx,
+        part.index,
+        makeDatasetSetter(node as HTMLElement | SVGElement)
       )
     }
     case "event": {
       const element = node as Element
-      const eventHandler = ctx.values[part.index]
-      if (isNullish(eventHandler)) return
+      const value = ctx.values[part.index]
+      if (isNullish(value)) return
+
+      const eventHandler = EventHandler.fromEffectOrEventHandler(value).pipe(
+        EventHandler.provide(ctx.services),
+        EventHandler.catchCause(ctx.onCause)
+      )
 
       return ctx.eventSource.addEventListener(
         element,
         part.name,
-        EventHandler.fromEffectOrEventHandler(eventHandler).pipe(
-          EventHandler.provide(ctx.services),
-          EventHandler.catchCause(ctx.onCause)
-        )
+        eventHandler
       )
     }
     case "property": {
       const element = node as HTMLElement | SVGElement
-      const setProperty = (value: unknown) => {
-        ;(element as any)[part.name] = value
-      }
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) => withCurrentRenderPriority(setProperty, ctx, () => setProperty(value))
+        ctx,
+        part.index,
+        (value: unknown) => {
+          ;(element as any)[part.name] = value
+        }
       )
     }
     case "properties": {
@@ -271,11 +287,11 @@ function setupRenderPart<E = never, R = never>(
 
       const setupIfObject = (props: unknown) => {
         if (isObject(props)) {
-          return setupRenderProperties(props as Record<string, unknown>, element, ctx)
+          return setupRenderProperties<E, R>(props as Record<string, unknown>, element, ctx)
         }
       }
 
-      return matchRenderable(properties, {
+      return matchRenderable(properties, ctx, {
         Primitive: setupIfObject,
         Effect: Effect.tap(setupIfObject),
         Fx: flow(
@@ -290,7 +306,7 @@ function setupRenderPart<E = never, R = never>(
       const renderable = ctx.values[part.index]
       if (isNullish(renderable)) return
       if (isFunction(renderable)) {
-        return matchRenderable(renderable(element), {
+        return matchRenderable(renderable(element), ctx, {
           Primitive: constVoid,
           Effect: identity,
           Fx: Fx.drain
@@ -303,25 +319,27 @@ function setupRenderPart<E = never, R = never>(
       const element = node as HTMLElement | SVGElement
       const attr = element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
       const setAttr = makeAttributeValueSetter(element, attr)
+      const index = ++ctx.spreadIndex
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) => withCurrentRenderPriority(attr, ctx, () => setAttr(texts.join(""))))
+        Fx.observe((texts) => withCurrentRenderPriority(attr, index, ctx, () => setAttr(texts.join(""))))
       )
     }
     case "sparse-class-name": {
       const element = node as HTMLElement | SVGElement
       const setClassList = makeClassListSetter(element)
+      const index = ++ctx.spreadIndex
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
           return liftRenderableToFx<E, R>(ctx.values[node.index])
         })
       ).pipe(
-        Fx.observe((values) => withCurrentRenderPriority(setClassList, ctx, () => setClassList(values)))
+        Fx.observe((values) => withCurrentRenderPriority(setClassList, index, ctx, () => setClassList(values)))
       )
     }
     case "sparse-comment": {
@@ -329,13 +347,16 @@ function setupRenderPart<E = never, R = never>(
       const setCommentText = (value: unknown) => {
         comment.textContent = renderToString(value, "")
       }
+      const index = ++ctx.spreadIndex
       return Fx.tuple(
         ...part.nodes.map((node) => {
           if (node._tag === "text") return Fx.succeed(node.value)
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) => withCurrentRenderPriority(setCommentText, ctx, () => setCommentText(texts.join(""))))
+        Fx.observe((texts) =>
+          withCurrentRenderPriority(setCommentText, index, ctx, () => setCommentText(texts.join("")))
+        )
       )
     }
 
@@ -349,6 +370,7 @@ function setupRenderPart<E = never, R = never>(
       const updateCommentText = (value: unknown) => {
         if (text === null) {
           text = ctx.document.createTextNode("")
+          element.insertBefore(text, comment)
         }
 
         text.textContent = renderToString(value, "")
@@ -358,13 +380,12 @@ function setupRenderPart<E = never, R = never>(
         nodes = diffChildren(comment, nodes, updatedNodes, document)
       }
 
-      const update = (value: unknown) => {
-        matchNodeValue(value, updateCommentText, updateNodes)
-      }
-
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) => withCurrentRenderPriority(update, ctx, () => update(value))
+        ctx,
+        part.index,
+        (value: unknown) => {
+          matchNodeValue(value, updateCommentText, updateNodes)
+        }
       )
     }
     case "text-part": {
@@ -373,12 +394,14 @@ function setupRenderPart<E = never, R = never>(
         element.textContent = renderToString(value, "")
       }
       return renderValue(
-        ctx.values[part.index],
-        (value: unknown) => withCurrentRenderPriority(setTextContent, ctx, () => setTextContent(value))
+        ctx,
+        part.index,
+        setTextContent
       )
     }
     case "sparse-text": {
       const element = node as HTMLElement | SVGElement
+      const index = ++ctx.spreadIndex
       const setTextContent = (value: unknown) => {
         element.textContent = renderToString(value, "")
       }
@@ -388,7 +411,9 @@ function setupRenderPart<E = never, R = never>(
           return liftRenderableToFx<E, R>(ctx.values[node.index]).pipe(Fx.map((_) => renderToString(_, "")))
         })
       ).pipe(
-        Fx.observe((texts) => withCurrentRenderPriority(setTextContent, ctx, () => setTextContent(texts.join(""))))
+        Fx.observe((texts) =>
+          withCurrentRenderPriority(setTextContent, index, ctx, () => setTextContent(texts.join("")))
+        )
       )
     }
   }
@@ -414,22 +439,22 @@ function splitClassNames(value: string) {
 }
 
 function renderValue<E, R>(
-  renderable: Renderable.Any,
-  f: (value: unknown) => unknown
+  ctx: TemplateContext,
+  index: number,
+  f: (value: unknown) => void
 ): void | Effect.Effect<unknown, E, R> {
-  return matchRenderable(renderable, {
+  return matchRenderable(ctx.values[index], ctx, {
     Primitive: (value) => {
       f(value)
     },
-    Effect: Effect.tap(f),
-    Fx: Fx.observe((value) => {
-      f(value)
-    })
+    Effect: Effect.tap((value) => withCurrentRenderPriority(value, index, ctx, () => f(value))),
+    Fx: Fx.observe((value) => withCurrentRenderPriority(value, index, ctx, () => f(value)))
   })
 }
 
 function matchRenderable<X, A, B, C>(
   renderable: Renderable.Any,
+  ctx: TemplateContext,
   matches: {
     Primitive: (value: X) => A
     Effect: (effect: Effect.Effect<X>) => B
@@ -438,9 +463,13 @@ function matchRenderable<X, A, B, C>(
 ): A | B | C | void {
   if (isNullish(renderable)) return
   else if (Fx.isFx(renderable)) {
+    ctx.expected++
     return matches.Fx(renderable as any)
   } else if (Effect.isEffect(renderable)) {
+    ctx.expected++
     return matches.Effect(renderable as any)
+  } else if (Array.isArray(renderable)) {
+    return matches.Fx(liftRenderableToFx(renderable))
   } else {
     return matches.Primitive(renderable)
   }
@@ -510,8 +539,9 @@ function setupRenderProperties<E = never, R = never>(
 ): Effect.Effect<unknown, E, R> | void {
   const effects: Array<Effect.Effect<unknown, E, R>> = []
   for (const [key, value] of Object.entries(properties)) {
-    const part = makePropertiesPart(keyToPartType(key))
-    const effect = setupRenderPart(part, element, { ...ctx, values: [value] })
+    const index = ctx.spreadIndex++
+    const part = makePropertiesPart(keyToPartType(key), index)
+    const effect = setupRenderPart(part, element, { ...ctx, values: { [index]: value, length: index + 1 } })
     if (effect !== undefined) {
       effects.push(effect)
     }
@@ -578,24 +608,24 @@ function diffDataSet(
 
 type PartType = ReturnType<typeof keyToPartType>
 
-function makePropertiesPart([partType, partName]: PartType) {
+function makePropertiesPart([partType, partName]: PartType, index: number) {
   switch (partType) {
     case "attr":
-      return new Template.AttrPartNode(partName, 0)
+      return new Template.AttrPartNode(partName, index)
     case "boolean":
-      return new Template.BooleanPartNode(partName, 0)
+      return new Template.BooleanPartNode(partName, index)
     case "class":
-      return new Template.ClassNamePartNode(0)
+      return new Template.ClassNamePartNode(index)
     case "data":
-      return new Template.DataPartNode(0)
+      return new Template.DataPartNode(index)
     case "event":
-      return new Template.EventPartNode(partName, 0)
+      return new Template.EventPartNode(partName, index)
     case "property":
-      return new Template.PropertyPartNode(partName, 0)
+      return new Template.PropertyPartNode(partName, index)
     case "properties":
-      return new Template.PropertiesPartNode(0)
+      return new Template.PropertiesPartNode(index)
     case "ref":
-      return new Template.RefPartNode(0)
+      return new Template.RefPartNode(index)
     default:
       throw new Error(`Unknown part type: ${partType}`)
   }
@@ -609,7 +639,7 @@ type TemplateContext<R = never> = {
   readonly parentScope: Scope.Scope
   readonly refCounter: IndexRefCounter
   readonly scope: Scope.Closeable
-  readonly values: ReadonlyArray<Renderable<any, any, any>>
+  readonly values: ArrayLike<Renderable<any, any, any>>
   readonly services: ServiceMap.ServiceMap<R>
   readonly onCause: (cause: Cause<any>) => Effect.Effect<unknown>
 
@@ -630,19 +660,20 @@ type TemplateContext<R = never> = {
   // readonly hydrateContext: Option.Option<HydrateContext>
 }
 
-function makeTemplateContext<Values extends ReadonlyArray<Renderable.Any>, RSink = never>(
-  document: Document,
-  values: Values,
-  onCause: (cause: Cause<Renderable.Error<Values[number]>>) => Effect.Effect<unknown, never, RSink>
-) {
-  return Effect.gen(function*() {
-    const renderQueue = yield* RenderQueue
-    const services = yield* Effect.services<Renderable.Services<Values[number]> | RSink | Scope.Scope>()
-    const refCounter = yield* makeRefCounter
-    const parentScope = ServiceMap.get(services, Scope.Scope)
-    const scope = yield* Scope.fork(parentScope)
-    const eventSource = makeEventSource()
-    const ctx: TemplateContext = {
+const makeTemplateContext = Effect.fn(
+  function*<Values extends ArrayLike<Renderable.Any>, RSink = never>(
+    document: Document,
+    values: Values,
+    onCause: (cause: Cause<Renderable.Error<Values[number]>>) => Effect.Effect<unknown, never, RSink>
+  ) {
+    const renderQueue: RQ.RenderQueue = yield* RenderQueue
+    const services: ServiceMap.ServiceMap<Renderable.Services<Values[number]> | RSink | Scope.Scope> = yield* Effect
+      .services<Renderable.Services<Values[number]> | RSink | Scope.Scope>()
+    const refCounter: IndexRefCounter = yield* makeRefCounter
+    const parentScope: Scope.Scope = ServiceMap.get(services, Scope.Scope)
+    const scope: Scope.Closeable = yield* Scope.fork(parentScope)
+    const eventSource: EventSource = makeEventSource()
+    const ctx: TemplateContext<Renderable.Services<Values[number]> | RSink | Scope.Scope> = {
       services,
       document,
       renderQueue,
@@ -661,8 +692,8 @@ function makeTemplateContext<Values extends ReadonlyArray<Renderable.Any>, RSink
     yield* Scope.addFinalizer(scope, Effect.sync(() => ctx.disposables.forEach(dispose)))
 
     return ctx
-  })
-}
+  }
+)
 
 function findHoleComment(parent: Element, index: number) {
   const childNodes = parent.childNodes
@@ -670,7 +701,7 @@ function findHoleComment(parent: Element, index: number) {
   for (let i = 0; i < childNodes.length; ++i) {
     const node = childNodes[i]
 
-    if (node.nodeType === 8 && node.nodeValue === `hole${index}`) {
+    if (node.nodeType === 8 && node.nodeValue === `/n_${index}`) {
       return node as Comment
     }
   }

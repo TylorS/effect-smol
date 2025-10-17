@@ -2,6 +2,8 @@ import type { Cause } from "../../../Cause.ts"
 import * as Effect from "../../../Effect.ts"
 import * as Fiber from "../../../Fiber.ts"
 import { dual } from "../../../Function.ts"
+import { Layer } from "../../../index.js"
+import type { Scope } from "../../../Scope.ts"
 import type { Fx } from "../Fx.ts"
 import { make } from "../sink/Sink.ts"
 
@@ -39,3 +41,6 @@ export const observe: {
   ))
 
 export const drain = <A, E, R>(fx: Fx<A, E, R>): Effect.Effect<void, E, R> => observe(fx, () => Effect.void)
+
+export const drainLayer = <A, E, R>(fx: Fx<A, E, R>): Layer.Layer<never, E, Exclude<R, Scope>> =>
+  Layer.effectDiscard(Effect.fork(drain(fx)))

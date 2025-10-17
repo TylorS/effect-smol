@@ -7,15 +7,19 @@ import type { Renderable } from "./Renderable.ts"
 import type { RenderEvent } from "./RenderEvent.ts"
 
 export class RenderTemplate extends ServiceMap.Service<RenderTemplate, {
-  <const Values extends ReadonlyArray<Renderable.Any>>(
+  <const Values extends ArrayLike<Renderable.Any>>(
     template: TemplateStringsArray,
-    ...values: Values
+    values: Values
   ): Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope>
 }>()("RenderTemplate") {}
 
-export const html = <const Values extends ReadonlyArray<Renderable.Any> = readonly []>(
+export function html<const Values extends ReadonlyArray<Renderable.Any> = readonly []>(
   template: TemplateStringsArray,
   ...values: Values
-): Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]>> => {
-  return unwrap(map(RenderTemplate.asEffect(), (renderTemplate) => renderTemplate(template, ...values)))
+): Fx<
+  RenderEvent,
+  Renderable.Error<Values[number]>,
+  Renderable.Services<Values[number]> | Scope | RenderTemplate
+> {
+  return unwrap(map(RenderTemplate.asEffect(), (render) => render(template, values)))
 }

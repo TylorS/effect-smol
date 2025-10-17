@@ -1,9 +1,11 @@
 import type * as Template from "../Template.ts"
 
 export function buildTemplateFragment(document: Document, template: Template.Template): DocumentFragment {
-  const root = document.createElement("template")
-  root.append(...template.nodes.map((node) => buildTemplateNode(document, node)))
-  return root.content
+  const root = document.createDocumentFragment()
+  for (const node of template.nodes) {
+    root.appendChild(buildTemplateNode(document, node))
+  }
+  return root
 }
 
 function buildTemplateNode(document: Document, node: Template.Node): Node {

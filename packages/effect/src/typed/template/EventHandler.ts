@@ -1,4 +1,5 @@
 import type * as Cause from "../../Cause.js"
+import { hasProperty } from "../../data/Predicate.ts"
 import * as Effect from "../../Effect.js"
 import { dual } from "../../Function.ts"
 import type { ServiceMap } from "../../index.ts"
@@ -75,7 +76,14 @@ export const catchCause: {
 export function fromEffectOrEventHandler<Ev extends Event, E = never, R = never>(
   handler: Effect.Effect<unknown, E, R> | EventHandler<Ev, E, R>
 ): EventHandler<Ev, E, R> {
-  return Effect.isEffect(handler) ? make(() => handler) : handler
+  if (isEventHandler(handler)) {
+    return handler
+  }
+  return make(() => handler as Effect.Effect<unknown, E, R>)
+}
+
+function isEventHandler<Ev extends Event, E = never, R = never>(handler: unknown): handler is EventHandler<Ev, E, R> {
+  return hasProperty(handler, EventHandlerTypeId)
 }
 
 export function handleEventOptions<Ev extends Event>(

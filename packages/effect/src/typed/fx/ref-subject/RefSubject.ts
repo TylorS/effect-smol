@@ -91,7 +91,7 @@ class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   ) {
     super(
       input,
-      (fx) => Fx.mapEffect(fx, f),
+      (fx) => Fx.mapEffect(fx, f) as any,
       Effect.flatMap(f)
     )
 
@@ -164,7 +164,7 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   ) {
     super(
       input,
-      (fx) => Fx.filterMapEffect(fx, f),
+      (fx) => Fx.filterMapEffect(fx, f) as any,
       (effect) =>
         Effect.flatMap(
           Effect.flatMap(
@@ -640,3 +640,11 @@ export const runUpdates: {
     }
   }
 )
+
+export function increment<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<number, E, R> {
+  return update(ref, (value) => value + 1)
+}
+
+export function decrement<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<number, E, R> {
+  return update(ref, (value) => value - 1)
+}

@@ -3,7 +3,7 @@ import * as Option from "../../../data/Option.ts"
 import * as Effect from "../../../Effect.ts"
 import * as Exit from "../../../Exit.ts"
 import * as Fiber from "../../../Fiber.ts"
-import { dual } from "../../../Function.ts"
+import { dual, identity } from "../../../Function.ts"
 import { pipeArguments } from "../../../interfaces/Pipeable.ts"
 import * as MutableRef from "../../../MutableRef.ts"
 import * as Scope from "../../../Scope.ts"
@@ -38,8 +38,14 @@ class RefCounter {
   }
 }
 
+const VARIANCE: Fx.Variance<any, any, any> = {
+  _A: identity,
+  _E: identity,
+  _R: identity
+}
+
 export class Share<A, E, R, R2> implements Fx<A, E, R | R2 | Scope.Scope> {
-  readonly [FxTypeId]: FxTypeId = FxTypeId
+  readonly [FxTypeId]: Fx.Variance<A, E, R | R2 | Scope.Scope> = VARIANCE
 
   _FxFiber: MutableRef.MutableRef<Option.Option<Fiber.Fiber<unknown>>> = MutableRef.make(Option.none())
   _RefCount = new RefCounter()
@@ -122,7 +128,7 @@ const DISCARD = { discard: true } as const
  * @internal
  */
 export class SubjectImpl<A, E> implements Subject<A, E> {
-  readonly [FxTypeId]: FxTypeId = FxTypeId
+  readonly [FxTypeId]: Fx.Variance<A, E, Scope.Scope> = VARIANCE
   protected sinks: Set<readonly [Sink<A, E, any>, ServiceMap.ServiceMap<any>, Scope.Closeable]> = new Set()
 
   constructor() {

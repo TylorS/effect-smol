@@ -5,7 +5,7 @@
 import type { Cause } from "../../../Cause.ts"
 import type * as Option from "../../../data/Option.ts"
 import type * as Effect from "../../../Effect.ts"
-import { dual } from "../../../Function.ts"
+import { dual, identity } from "../../../Function.ts"
 import { pipeArguments } from "../../../interfaces/Pipeable.ts"
 import type * as Scope from "../../../Scope.ts"
 import * as Fx from "../index.ts"
@@ -33,8 +33,14 @@ export const make: {
   return new PushImpl(sink, fx)
 })
 
+const VARIANCE = {
+  _A: identity,
+  _E: identity,
+  _R: identity
+}
+
 class PushImpl<A, E, R, B, E2, R2> implements Push<A, E, R, B, E2, R2> {
-  readonly [FxTypeId]: FxTypeId = FxTypeId
+  readonly [FxTypeId]: typeof VARIANCE = VARIANCE
   readonly sink: Sink.Sink<A, E, R>
   readonly fx: Fx.Fx<B, E2, R2>
 

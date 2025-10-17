@@ -3,7 +3,7 @@ import type { Stream } from "../../stream/index.ts"
 import type { Fx } from "../fx/Fx.ts"
 import type { RenderEvent } from "./RenderEvent.ts"
 
-export type Renderable<A extends Renderable.Primitive, E = never, R = never> =
+export type Renderable<A, E = never, R = never> =
   | A
   | { readonly [key: string]: unknown } // TODO: How to better handle .data and ...spread attributes???
   | ReadonlyArray<Renderable<A, E, R>>
@@ -24,22 +24,18 @@ export declare namespace Renderable {
     | void
     | RenderEvent
 
-  export type Services<T> = [T] extends [never] ? never
-    : [T] extends [Effect.Effect<infer _A, infer _E, infer _R>] ? _R
-    : [T] extends [Stream.Stream<infer _A, infer _E, infer _R>] ? _R
-    : [T] extends [Fx<infer _A, infer _E, infer _R>] ? _R
-    : T extends ReadonlyArray<infer _A2> ? Services<_A2>
-    : never
-  export type Error<T> = [T] extends [never] ? never
-    : [T] extends [Effect.Effect<infer _A, infer _E, infer _R>] ? _E
-    : [T] extends [Stream.Stream<infer _A, infer _E, infer _R>] ? _E
-    : [T] extends [Fx<infer _A, infer _E, infer _R>] ? _E
-    : T extends ReadonlyArray<infer _A2> ? Error<_A2>
-    : never
-  export type Success<T> = [T] extends [never] ? never
-    : [T] extends [Effect.Effect<infer _A, infer _E, infer _R>] ? _A
-    : [T] extends [Stream.Stream<infer _A, infer _E, infer _R>] ? _A
-    : [T] extends [Fx<infer _A, infer _E, infer _R>] ? _A
-    : T extends ReadonlyArray<infer _A2> ? Success<_A2>
-    : never
+  export type Services<T> =
+    | Fx.Services<T>
+    | (T extends Stream.Stream<any, any, any> ? Stream.Services<T> : never)
+    | Effect.Services<T>
+
+  export type Error<T> =
+    | Fx.Error<T>
+    | (T extends Stream.Stream<any, any, any> ? Stream.Error<T> : never)
+    | Effect.Error<T>
+
+  export type Success<T> =
+    | Fx.Success<T>
+    | (T extends Stream.Stream<any, any, any> ? Stream.Success<T> : never)
+    | Effect.Success<T>
 }

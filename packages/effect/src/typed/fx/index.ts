@@ -69,6 +69,7 @@ export {
   collectUpTo,
   collectUpToFork,
   drain,
+  drainLayer,
   fork,
   observe,
   runFork,

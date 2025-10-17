@@ -3,8 +3,8 @@ import * as Deferred from "../../../Deferred.ts"
 import * as Effect from "../../../Effect.ts"
 
 export type IndexRefCounter = {
-  release: (index: number) => Effect.Effect<void>
-  expect: (count: number) => Effect.Effect<boolean>
+  release: (index: number) => void
+  expect: (count: number) => boolean
   wait: Effect.Effect<void>
 }
 
@@ -13,7 +13,6 @@ export type IndexRefCounter = {
  */
 export const makeRefCounter: Effect.Effect<IndexRefCounter> = Effect.map(Deferred.make<void>(), (deferred) => {
   let expected: Option.Option<number> = Option.none<number>()
-  const done = Deferred.succeed(deferred, undefined)
   const indexes = new Set<number>()
 
   function isDone() {
@@ -25,25 +24,22 @@ export const makeRefCounter: Effect.Effect<IndexRefCounter> = Effect.map(Deferre
   }
 
   function release(index: number) {
-    return Effect.suspend(() => {
-      indexes.add(index)
-      if (isDone()) {
-        return done
-      } else {
-        return Effect.succeed(false)
-      }
-    })
+    indexes.add(index)
+    if (isDone()) {
+      return Deferred.doneUnsafe(deferred, Effect.void)
+    } else {
+      return false
+    }
   }
 
   function expect(count: number) {
-    return Effect.suspend(() => {
-      expected = Option.some(count)
-      if (isDone()) {
-        return Effect.as(done, false)
-      } else {
-        return Effect.succeed(true)
-      }
-    })
+    expected = Option.some(count)
+    if (isDone()) {
+      Deferred.doneUnsafe(deferred, Effect.void)
+      return false
+    } else {
+      return true
+    }
   }
 
   return {
