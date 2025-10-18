@@ -24,15 +24,17 @@ export type EventOptions = {
   readonly stopImmediatePropagation?: boolean
 }
 
-export function make<Ev extends Event, E, R>(
-  handler: (event: Ev) => Effect.Effect<unknown, E, R>,
+export function make<Ev extends Event, E = never, R = never>(
+  handler: (event: Ev) => void | Effect.Effect<unknown, E, R>,
   options?: AddEventListenerOptions & EventOptions
 ): EventHandler<Ev, E, R> {
   return {
     [EventHandlerTypeId]: EventHandlerTypeId,
     handler: (ev: Ev) => {
       if (options) handleEventOptions(options, ev)
-      return handler(ev)
+      const result = handler(ev)
+      if (Effect.isEffect(result)) return result
+      return Effect.void
     },
     options,
     pipe(this: EventHandler<Ev, E, R>) {

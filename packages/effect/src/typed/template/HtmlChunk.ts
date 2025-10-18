@@ -14,7 +14,7 @@ import { sortBy } from "../../collections/Array.ts"
 import { mapInput, number } from "../../data/Order.ts"
 import { isObject } from "../../data/Predicate.ts"
 import { constVoid } from "../../Function.ts"
-import { renderToEscapedString } from "./internal/encoding.ts"
+import { renderToEscapedString, renderToString } from "./internal/encoding.ts"
 import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts"
 
 export type HtmlChunk =
@@ -111,9 +111,7 @@ function selfClosingElementToHtmlChunks(
   node: SelfClosingElementNode
 ) {
   builder.text(`<${node.tagName}`)
-  for (const attribute of sortAttributes(node.attributes)) {
-    attributeToHtmlChunk(builder, attribute)
-  }
+  addAttributes(builder, node.attributes)
   builder.text(`/>`)
 }
 
@@ -122,10 +120,8 @@ function textOnlyElementToHtmlChunks(
   node: TextOnlyElement
 ) {
   builder.text(`<${node.tagName}`)
-
-  for (const attribute of sortAttributes(node.attributes)) {
-    attributeToHtmlChunk(builder, attribute)
-  }
+  addAttributes(builder, node.attributes)
+  builder.text(">")
 
   if (node.textContent) {
     textContentToHtml(builder, node.textContent)
@@ -139,9 +135,9 @@ function textContentToHtml(builder: HtmlChunksBuilder, textContent: Text) {
     case "text":
       return builder.text(textContent.value)
     case "text-part":
-      return builder.part(textContent, (v) => renderToEscapedString(v, ""))
+      return builder.part(textContent, (v) => renderToString(v, ""))
     case "sparse-text":
-      return builder.sparsePart(textContent, (v) => renderToEscapedString(v, ""))
+      return builder.sparsePart(textContent, (v) => renderToString(v, ""))
   }
 }
 
@@ -155,9 +151,7 @@ function elementToHtmlChunks(
   { attributes, children, tagName }: ElementNode
 ) {
   builder.text(`<${tagName}`)
-  for (const attribute of attributes) {
-    attributeToHtmlChunk(builder, attribute)
-  }
+  addAttributes(builder, attributes)
   builder.text(">")
   for (const child of children) {
     nodeToHtmlChunk(builder, child)
@@ -165,36 +159,66 @@ function elementToHtmlChunks(
   builder.text(`</${tagName}>`)
 }
 
+function addAttributes(builder: HtmlChunksBuilder, attributes: ReadonlyArray<Attribute>) {
+  if (attributes.length > 0) {
+    const lastIndex = attributes.length - 1
+    for (const [index, attribute] of sortAttributes(attributes).entries()) {
+      attributeToHtmlChunk(builder, attribute, { isFirst: index === 0, isLast: index === lastIndex })
+    }
+  }
+}
+
+type Placement = {
+  readonly isFirst: boolean
+  readonly isLast: boolean
+}
+
 type AttributeMap = {
   readonly [K in Attribute["_tag"]]: (
     builder: HtmlChunksBuilder,
-    attribute: Extract<Attribute, { _tag: K }>
+    attribute: Extract<Attribute, { _tag: K }>,
+    placement: Placement
   ) => void
 }
 
-function attributeToHtmlChunk(builder: HtmlChunksBuilder, attr: Attribute): void {
-  attributeMap[attr._tag](builder, attr as never)
+function attributeToHtmlChunk(builder: HtmlChunksBuilder, attr: Attribute, placement: Placement): void {
+  attributeMap[attr._tag](builder, attr as never, placement)
 }
 
 const attributeMap: AttributeMap = {
-  attribute: (builder, attribute) => builder.text(`${attribute.name}="${attribute.value}"`),
-  boolean: (builder, attribute) => builder.text(`${attribute.name}`),
+  attribute: (builder, attribute, placement) =>
+    builder.text(addAttributeSpace(`${attribute.name}="${attribute.value}"`, placement)),
+  boolean: (builder, attribute, placement) => builder.text(addAttributeSpace(`${attribute.name}`, placement)),
   text: (builder, attribute) => builder.text(attribute.value),
-  attr: (builder, attribute) => builder.part(attribute, (v) => `${attribute.name}="${renderToEscapedString(v, "")}"`),
-  "sparse-attr": (builder, attribute) =>
-    builder.sparsePart(attribute, (v) => `${attribute.name}="${renderToEscapedString(v, "")}"`),
-  "boolean-part": (builder, attribute) => builder.part(attribute, (v) => v ? `${attribute.name}` : ""),
-  "className-part": (builder, attribute) => builder.part(attribute, (v) => `class="${renderToEscapedString(v, "")}"`),
-  "sparse-class-name": (builder, attribute) =>
-    builder.sparsePart(attribute, (v) => `class="${renderToEscapedString(v, " ")}"`),
+  attr: (builder, attribute, placement) =>
+    builder.part(attribute, (v) => addAttributeSpace(`${attribute.name}="${renderToEscapedString(v, "")}"`, placement)),
+  "sparse-attr": (builder, attribute, placement) =>
+    builder.sparsePart(
+      attribute,
+      (v) => addAttributeSpace(`${attribute.name}="${renderToEscapedString(v, "")}"`, placement)
+    ),
+  "boolean-part": (builder, attribute, placement) => {
+    return builder.part(attribute, (v) => addAttributeSpace(v ? `${attribute.name}` : "", placement))
+  },
+  "className-part": (builder, attribute, placement) =>
+    builder.part(attribute, (v) => addAttributeSpace(renderToEscapedString(v, ""), placement)),
+  "sparse-class-name": (builder, attribute, placement) =>
+    builder.sparsePart(attribute, (v) => addAttributeSpace(`class="${renderToEscapedString(v, "")}"`, placement)),
   data: (builder, attribute) => builder.part(attribute, (v) => isObject(v) ? recordWithPrefix(`data-`, v) : ""),
-  property: (builder, attribute) =>
-    builder.part(attribute, (v) => `${attribute.name}="${renderToEscapedString(v, "")}"`),
-  properties: (builder, attribute) => builder.part(attribute, (v) => isObject(v) ? recordWithPrefix(``, v) : ""),
+  property: (builder, attribute, placement) =>
+    builder.part(attribute, (v) => addAttributeSpace(`${attribute.name}="${renderToEscapedString(v, "")}"`, placement)),
+  properties: (builder, attribute, placement) =>
+    builder.part(attribute, (v) => addAttributeSpace(isObject(v) ? recordWithPrefix(``, v) : "", placement)),
 
   // Don't have HTML representations for these
   ref: constVoid,
   event: constVoid
+}
+
+function addAttributeSpace(str: string, placement: Placement) {
+  if (str.length === 0) return str
+  if (placement.isFirst) return " " + str + (placement.isLast ? "" : " ")
+  return str + (placement.isLast ? "" : " ")
 }
 
 function recordWithPrefix(prefix: string, r: {}) {

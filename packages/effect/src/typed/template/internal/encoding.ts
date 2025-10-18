@@ -1,5 +1,6 @@
 import { isOption, match } from "../../../data/Option.ts"
 import { hasProperty, isNullish } from "../../../data/Predicate.ts"
+import { isHtmlRenderEvent } from "../RenderEvent.ts"
 
 export function escape(s: unknown): string {
   switch (typeof s) {
@@ -111,7 +112,7 @@ export function unescapeHtml(html: string) {
 
 export function renderToString(value: unknown, delimiter: string): string {
   if (Array.isArray(value)) {
-    return value.map((v) => renderToString(v, delimiter)).join(delimiter)
+    return value.map((v) => renderToString(v, delimiter)).join("")
   }
   if (isNullish(value)) {
     return ""
@@ -122,9 +123,16 @@ export function renderToString(value: unknown, delimiter: string): string {
       onSome: (v: unknown) => renderToString(v, delimiter)
     })
   }
-  if (hasProperty(value, "toString") && typeof value.toString === "function") {
-    return value.toString()
+  if (isHtmlRenderEvent(value)) {
+    return value.html
   }
+  if (hasProperty(value, "toString") && typeof value.toString === "function") {
+    const s = value.toString()
+    if (s !== "[object Object]") {
+      return s
+    }
+  }
+
   if (typeof value === "object") {
     return JSON.stringify(value)
   }
