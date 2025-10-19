@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect"
 import * as Option from "../../../data/Option.ts"
+import * as Effect from "../../../Effect.ts"
 import * as Exit from "../../../Exit.ts"
 import * as Fiber from "../../../Fiber.js"
 import { type Duration, identity, ServiceMap, SynchronizedRef } from "../../../index.ts"

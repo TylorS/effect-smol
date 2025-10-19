@@ -1,5 +1,5 @@
-import { identity } from "effect/Function"
 import type * as Equivalence from "../../../data/Equivalence.ts"
+import { identity } from "../../../Function.ts"
 import * as Equal from "../../../interfaces/Equal.ts"
 
 export type DiffResult<A, B> = ReadonlyArray<Diff<A, B>>
