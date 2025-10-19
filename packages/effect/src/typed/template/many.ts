@@ -1,8 +1,11 @@
 import * as Option from "../../data/Option.ts"
+import { isSome } from "../../data/Option.ts"
 import * as Effect from "../../Effect.ts"
+import { Layer, ServiceMap } from "../../index.ts"
 import type { Scope } from "../../Scope.ts"
 import * as Fx from "../fx/index.ts"
 import * as RefSubject from "../fx/ref-subject/RefSubject.ts"
+import { HydrateContext } from "./HydrateContext.ts"
 import { renderToString } from "./internal/encoding.ts"
 import { HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } from "./RenderEvent.ts"
 
@@ -14,7 +17,21 @@ export function many<A, E, R, B extends PropertyKey, R2, E2>(
   return Fx.gen(function*() {
     const behavior = yield* RefSubject.CurrentComputedBehavior
     if (behavior === "multiple") {
-      // TODO: Handle HydrateContext
+      const services = yield* Effect.services<never>()
+      const hydrateContext = ServiceMap.getOption(services, HydrateContext)
+      // If we're hydrating, attempt to provide the correct HydrateContext to rendering Fx
+      if (isSome(hydrateContext) && hydrateContext.value.hydrate) {
+        return Fx.keyed(values, {
+          getKey,
+          onValue: (ref, key) =>
+            Fx.provide(
+              render(ref, key),
+              Layer.succeedServices(
+                HydrateContext.serviceMap({ ...hydrateContext.value, manyKey: key.toString() })
+              )
+            )
+        })
+      }
 
       return Fx.keyed(values, { getKey, onValue: render })
     }

@@ -162,13 +162,13 @@ describe("Html", () => {
         `"<div class="foo"></div>"`
       )
       expect(yield* getStaticHtml(html`<div class=${"foo"}></div>`)).toMatchInlineSnapshot(
-        `"<div foo></div>"`
+        `"<div class="foo"></div>"`
       )
       expect(yield* getStaticHtml(html`<div class=${Effect.succeed("foo")}></div>`)).toMatchInlineSnapshot(
-        `"<div foo></div>"`
+        `"<div class="foo"></div>"`
       )
       expect(yield* getStaticHtml(html`<div class=${Fx.succeed("foo")}></div>`)).toMatchInlineSnapshot(
-        `"<div foo></div>"`
+        `"<div class="foo"></div>"`
       )
     })
   )
@@ -177,7 +177,7 @@ describe("Html", () => {
     "renders template with a class name interpolation",
     Effect.fn(function*() {
       expect(yield* getStaticHtml(html`<div class=${"foo bar baz"}></div>`)).toMatchInlineSnapshot(
-        `"<div foo bar baz></div>"`
+        `"<div class="foo bar baz"></div>"`
       )
     })
   )
@@ -370,7 +370,7 @@ describe("Html", () => {
           }}></div>`
         )
       ).toMatchInlineSnapshot(
-        `"<div id="test" dynamic hidden data-value="effect"  aria-label="accessible"></div>"`
+        `"<div id="test" class="dynamic" hidden data-value="effect"  aria-label="accessible"></div>"`
       )
     })
   )

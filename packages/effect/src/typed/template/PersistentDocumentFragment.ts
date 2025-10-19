@@ -6,6 +6,10 @@ export class PersistentDocumentFragment {
   readonly lastChild: Comment
 
   readonly nodeType = NODE_TYPE
+  readonly ELEMENT_NODE = 1
+  readonly TEXT_NODE = 3
+  readonly COMMENT_NODE = 8
+  readonly DOCUMENT_FRAGMENT_NODE = 11
 
   constructor(
     firstChild: Comment,
@@ -16,8 +20,7 @@ export class PersistentDocumentFragment {
     this.fragment = fragment
     this.lastChild = lastChild
 
-    fragment.prepend(firstChild)
-    fragment.append(lastChild)
+    this.rebuildFragment()
   }
 
   valueOf(): Node | DocumentFragment | null {
@@ -39,17 +42,22 @@ export class PersistentDocumentFragment {
 
   private rebuildFragment() {
     if (this.fragment.childNodes.length === 0) {
-      this.fragment.append(this.firstChild)
-
-      let next = this.firstChild.nextSibling
-      while (next && next !== this.lastChild) {
-        this.fragment.append(next)
-        next = next.nextSibling
+      for (const node of getAllSiblingsBetween(this.firstChild, this.lastChild)) {
+        this.fragment.append(node)
       }
-
-      this.fragment.append(this.lastChild)
     }
   }
+}
+
+export function getAllSiblingsBetween(start: Node, end: Node): Array<Node> {
+  const siblings = [start]
+  let node: Node | null = start.nextSibling
+  while (node !== null && node !== end) {
+    siblings.push(node)
+    node = node.nextSibling
+  }
+  siblings.push(end)
+  return siblings
 }
 
 export const diffable = (document: Document) => (node: Node, operation: number): Node => {
@@ -70,7 +78,7 @@ const remove = ({ firstChild, lastChild }: Node, document: Document): Node => {
   return firstChild as Node
 }
 
-export function getElements(node: Node | Array<Node> | PersistentDocumentFragment): Array<Element> {
+export function getElements(node: Rendered): Array<Element> {
   if (Array.isArray(node)) return node.flatMap((node) => getElements(node))
   if (node instanceof PersistentDocumentFragment) {
     return node.getChildNodes().filter((node) => node.nodeType === 1) as Array<Element>
@@ -78,9 +86,41 @@ export function getElements(node: Node | Array<Node> | PersistentDocumentFragmen
   return node.nodeType === 1 ? [node as Element] : []
 }
 
-export function getOuterHtml(node: Node | Array<Node> | PersistentDocumentFragment): string {
+export function getNodes(node: Rendered): Array<Node> {
+  if (Array.isArray(node)) return node.flatMap((node) => getNodes(node))
+  if (node instanceof PersistentDocumentFragment) {
+    return node.getChildNodes()
+  }
+  return [node]
+}
+
+export function getOuterHtml(node: Rendered): string {
   if (Array.isArray(node)) return node.map((node) => getOuterHtml(node)).join("")
   if (node instanceof PersistentDocumentFragment) return node.toString()
-  if (node.nodeType === 1) return (node as Element).outerHTML
+  if (node.nodeType === node.ELEMENT_NODE) return (node as Element).outerHTML
+  if (node.nodeType === node.COMMENT_NODE) return `<!--${node.textContent}-->`
+  if (node.nodeType === node.TEXT_NODE) return node.textContent ?? ""
   return node.textContent ?? node.nodeValue ?? ""
+}
+
+export type Rendered = Node | Array<Node> | PersistentDocumentFragment
+
+export function isComment(rendered: Rendered): rendered is Comment {
+  if (Array.isArray(rendered)) return false
+  return rendered.nodeType === 8
+}
+
+export function isCommentWithValue(rendered: Rendered, value: string): rendered is Comment {
+  if (Array.isArray(rendered)) return false
+  return isComment(rendered) && rendered.nodeValue === value
+}
+
+export function isElement(rendered: Rendered): rendered is Element {
+  if (Array.isArray(rendered)) return false
+  return rendered.nodeType === 1
+}
+
+export function isText(rendered: Rendered): rendered is Text {
+  if (Array.isArray(rendered)) return false
+  return rendered.nodeType === 3
 }

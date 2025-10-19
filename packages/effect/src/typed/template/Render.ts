@@ -1,5 +1,5 @@
-import type { Cause } from "../../Cause.ts"
-import { isNone, isOption } from "../../data/Option.ts"
+import * as Cause from "../../Cause.js"
+import { getOrUndefined, isNone, isOption } from "../../data/Option.ts"
 import { isFunction, isNullish, isObject } from "../../data/Predicate.ts"
 import { map as mapRecord } from "../../data/Record.ts"
 import * as Effect from "../../Effect.ts"
@@ -9,9 +9,11 @@ import * as Scope from "../../Scope.js"
 import * as ServiceMap from "../../ServiceMap.ts"
 import * as Fx from "../fx/index.js"
 import { type IndexRefCounter, makeRefCounter } from "../fx/internal/IndexRefCounter.ts"
-import type * as Sink from "../fx/sink/index.ts"
+import * as Sink from "../fx/sink/index.js"
+import { CouldNotFindCommentError, isHydrationError } from "./errors.ts"
 import * as EventHandler from "./EventHandler.js"
 import { type EventSource, makeEventSource } from "./EventSource.ts"
+import { HydrateContext } from "./HydrateContext.ts"
 import { buildTemplateFragment } from "./internal/buildTemplateFragement.ts"
 import {
   findHoleComment,
@@ -23,10 +25,11 @@ import {
   makeTextContentUpdater
 } from "./internal/dom.ts"
 import { renderToString } from "./internal/encoding.ts"
+import * as h from "./internal/hydration.js"
 import { keyToPartType } from "./internal/keyToPartType.ts"
 import { findPath } from "./internal/ParentChildNodes.ts"
 import { parse } from "./internal/Parser.ts"
-import { PersistentDocumentFragment } from "./PersistentDocumentFragment.ts"
+import { getAllSiblingsBetween, isText, PersistentDocumentFragment } from "./PersistentDocumentFragment.ts"
 import type { Renderable } from "./Renderable.ts"
 import { DomRenderEvent, type RenderEvent } from "./RenderEvent.ts"
 import * as RQ from "./RenderQueue.js"
@@ -51,25 +54,32 @@ export const DomRenderTemplate = Object.assign(
     RenderTemplate,
     Effect.gen(function*() {
       const document = yield* RenderDocument
-      const entries = new WeakMap<TemplateStringsArray, { template: Template.Template; dom: DocumentFragment }>()
+      const templateCache = new WeakMap<TemplateStringsArray, Template.Template>()
+      const getTemplate = (templateStrings: TemplateStringsArray) => {
+        let template = templateCache.get(templateStrings)
+        if (template === undefined) {
+          template = parse(templateStrings)
+          templateCache.set(templateStrings, template)
+        }
+        return template
+      }
+      const entries = new WeakMap<TemplateStringsArray, {
+        template: Template.Template
+        firstChild: Comment
+        fragment: DocumentFragment
+        lastChild: Comment
+      }>()
       const getEntry = (templateStrings: TemplateStringsArray) => {
         let entry = entries.get(templateStrings)
         if (entry === undefined) {
-          const template = parse(templateStrings)
-          entry = { template, dom: buildTemplateFragment(document, template) }
+          const template = getTemplate(templateStrings)
+          const fragment = buildTemplateFragment(document, template)
+          const firstChild = document.createComment(`t_${template.hash}`)
+          const lastChild = document.createComment(`/t_${template.hash}`)
+          entry = { template, firstChild, fragment, lastChild }
           entries.set(templateStrings, entry)
         }
-
-        const firstChild = document.createComment(`t_${entry.template.hash}`)
-        const content = document.importNode(entry.dom, true) as DocumentFragment
-        const lastChild = document.createComment(`/t_${entry.template.hash}`)
-
-        return {
-          template: entry.template,
-          firstChild,
-          content,
-          lastChild
-        } as const
+        return entry
       }
 
       return <const Values extends ArrayLike<Renderable.Any>>(
@@ -77,46 +87,87 @@ export const DomRenderTemplate = Object.assign(
         values: Values
       ): Fx.Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope.Scope> =>
         Fx.make<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope.Scope>(
-          Effect.fn(
-            function*<RSink = never>(
-              sink: Sink.Sink<RenderEvent, Renderable.Error<Values[number]>, RSink>
-            ): Generator<
-              Effect.Effect<unknown, never, Scope.Scope | Renderable.Services<Values[number]> | RSink>,
-              never,
-              any
-            > {
-              const { content, firstChild, lastChild, template } = getEntry(templateStrings)
-              const ctx = yield* makeTemplateContext<Values, RSink>(document, values, sink.onFailure)
-              const effects = setupRenderParts(template.parts, content, ctx)
+          function render<RSink = never>(
+            sink: Sink.Sink<RenderEvent, Renderable.Error<Values[number]>, RSink>
+          ): Effect.Effect<
+            unknown,
+            never,
+            Renderable.Services<Values[number]> | Scope.Scope | RSink
+          > {
+            return Effect.gen(
+              function*() {
+                const { firstChild, fragment, lastChild, template } = getEntry(templateStrings)
+                const ctx = yield* makeTemplateContext<Values, RSink>(document, values, sink.onFailure)
 
-              if (effects.length > 0) {
-                yield* Effect.forEach(effects, flow(Effect.catchCause(ctx.onCause), Effect.forkIn(ctx.scope)))
+                return yield* Effect.gen(function*() {
+                  const hydration = attemptHydration(ctx, template.hash)
+
+                  let effects: Array<Effect.Effect<void, any, any>>
+                  let rendered: Rendered | undefined
+
+                  if (hydration) {
+                    const { hydrateCtx, where } = hydration
+                    effects = setupHydrationParts(template.parts, {
+                      ...ctx,
+                      where,
+                      manyKey: hydrateCtx.manyKey,
+                      makeHydrateContext: (where: h.HydrationNode): HydrateContext => ({
+                        where,
+                        hydrate: true
+                      })
+                    })
+
+                    rendered = getRendered(where)
+                  } else {
+                    effects = setupRenderParts(template.parts, fragment, ctx)
+                  }
+
+                  if (effects.length > 0) {
+                    yield* Effect.forEach(effects, flow(Effect.catchCause(ctx.onCause), Effect.forkIn(ctx.scope)))
+                  }
+
+                  if (ctx.expected > 0 && ctx.refCounter.expect(ctx.expected)) {
+                    yield* ctx.refCounter.wait
+                  }
+
+                  if (rendered === undefined) {
+                    // If we have more than one child, we need to wrap them in a PersistentDocumentFragment
+                    // so they can be diffed within other templates more than once.
+                    rendered = fragment.childNodes.length > 1
+                      ? new PersistentDocumentFragment(firstChild, fragment, lastChild)
+                      : fragment.childNodes[0] as Node
+                  }
+
+                  // Setup our event listeners for our rendered content.
+                  yield* ctx.eventSource.setup(rendered, ctx.scope)
+
+                  // If we're hydrating, we need to mark this part of the stack as hydrated
+                  if (hydration) {
+                    hydration.hydrateCtx.hydrate = false
+                  }
+
+                  // Emit just once
+                  yield* sink.onSuccess(DomRenderEvent(rendered))
+
+                  // Ensure our templates last forever in the DOM environment
+                  // so event listeners are kept attached to the current Scope.
+                  return yield* Effect.never.pipe(
+                    // Close our scope whenever the current Fiber is interrupted
+                    Effect.onExit((exit) => Scope.close(ctx.scope, exit))
+                  )
+                }).pipe(
+                  Effect.catchDefect((defect) => {
+                    // If we are hydrating and we have a hydration error, we need to re-render the template without hydration
+                    if (ctx.hydrateContext && ctx.hydrateContext.hydrate && isHydrationError(defect)) {
+                      ctx.hydrateContext.hydrate = false
+                      return render(sink)
+                    }
+                    return sink.onFailure(Cause.die(defect))
+                  })
+                )
               }
-
-              if (ctx.expected > 0 && ctx.refCounter.expect(ctx.expected)) {
-                yield* ctx.refCounter.wait
-              }
-
-              // If we have more than one child, we need to wrap them in a PersistentDocumentFragment
-              // so they can be diffed within other templates more than once.
-              const rendered = content.childNodes.length > 1
-                ? new PersistentDocumentFragment(firstChild, content, lastChild)
-                : content.childNodes[0] as Node
-
-              // Setup our event listeners for our rendered content.
-              yield* ctx.eventSource.setup(rendered, ctx.scope)
-
-              // Emit just once
-              yield* sink.onSuccess(DomRenderEvent(rendered))
-
-              // Ensure our templates last forever in the DOM environment
-              // so event listeners are kept attached to the current Scope.
-              return yield* Effect.never.pipe(
-                // Close our scope whenever the current Fiber is interrupted
-                Effect.onExit((exit) => Scope.close(ctx.scope, exit))
-              )
-            }
-          )
+            )
+          }
         )
     })
   ),
@@ -127,27 +178,46 @@ export const DomRenderTemplate = Object.assign(
 
 export type Rendered = Node | Array<Node> | PersistentDocumentFragment
 
+export type ToRendered<T extends RenderEvent | null> = Rendered | (T extends null ? null : never)
+
 export const render: {
   (where: HTMLElement): <A extends RenderEvent | null, E, R>(
     fx: Fx.Fx<A, E, R>
-  ) => Fx.Fx<Rendered | (A extends null ? null : never), E, R>
+  ) => Fx.Fx<ToRendered<A>, E, R>
   <A extends RenderEvent | null, E, R>(
     fx: Fx.Fx<A, E, R>,
     where: HTMLElement
-  ): Fx.Fx<Rendered | (A extends null ? null : never), E, R>
+  ): Fx.Fx<ToRendered<A>, E, R>
 } = dual(2, function render<A extends RenderEvent | null, E, R>(
   fx: Fx.Fx<A, E, R>,
   where: HTMLElement
-): Fx.Fx<Rendered | (A extends null ? null : never), E, R> {
+): Fx.Fx<ToRendered<A>, E, R> {
   return Fx.mapEffect(fx, (event) => attachRoot(where, event))
 })
 
-const renderCache = new WeakMap<HTMLElement, Rendered>()
+export const hydrate: {
+  (where: HTMLElement): <A extends RenderEvent | null, E, R>(
+    fx: Fx.Fx<A, E, R>
+  ) => Fx.Fx<ToRendered<A>, E, R>
+  <A extends RenderEvent | null, E, R>(
+    fx: Fx.Fx<A, E, R>,
+    where: HTMLElement
+  ): Fx.Fx<ToRendered<A>, E, R>
+} = dual(2, function hydrate<T extends RenderEvent | null, R, E>(
+  rendered: Fx.Fx<T, E, R>,
+  rootElement: HTMLElement
+): Fx.Fx<ToRendered<T>, E, R> {
+  return Fx.provide(
+    Fx.mapEffect(rendered, (what) => attachRoot(rootElement, what)),
+    Layer.syncServices(() => HydrateContext.serviceMap({ where: h.getHydrationRoot(rootElement), hydrate: true }))
+  )
+})
 
+const renderCache = new WeakMap<HTMLElement, Rendered>()
 function attachRoot<A extends RenderEvent | null>(
   where: HTMLElement,
   what: A // TODO: Should we support HTML RenderEvents here too?,
-): Effect.Effect<Rendered | (A extends null ? null : never)> {
+): Effect.Effect<ToRendered<A>> {
   return Effect.sync(() => {
     const rendered = what?.valueOf() as Rendered
     const previous = renderCache.get(where)
@@ -229,160 +299,101 @@ function setupRenderPart<E = never, R = never>(
   switch (part._tag) {
     case "node": {
       const element = node as HTMLElement | SVGElement
-      const comment = findHoleComment(element, part.index)
       return renderValue(
         ctx,
         part.index,
-        makeNodeUpdater(ctx.document, element, comment)
+        makeNodeUpdater(ctx.document, findHoleComment(element, part.index))
       )
     }
     case "attr": {
       const element = node as HTMLElement | SVGElement
-      const attr = element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
-      return renderValue(ctx, part.index, makeAttributeValueUpdater(element, attr))
-    }
-    case "boolean-part": {
-      return renderValue(ctx, part.index, makeBooleanUpdater(node as HTMLElement | SVGElement, part.name))
-    }
-    case "className-part": {
-      return renderValue(ctx, part.index, makeClassListUpdater(node as HTMLElement | SVGElement))
-    }
-    case "comment-part": {
-      return renderValue(ctx, part.index, makeTextContentUpdater(node as Comment))
-    }
-    case "data": {
-      const value = ctx.values[part.index]
-      if (isNullish(value)) return
-      // Special case to convert sync object to data-* attributes
-      if (isObject(value)) {
-        const effects: Array<Effect.Effect<unknown, E, R>> = []
-        for (const [k, v] of Object.entries(value)) {
-          const index = ctx.dynamicIndex++
-          const part = makePropertiesPart(["attr", `data-${k}`], index)
-          const effect = setupRenderPart(part, node, { ...ctx, values: makeArrayLike(index, v) })
-          if (effect !== undefined) {
-            ctx.expected++
-            effects.push(effect)
-          }
-        }
-        return Effect.all(effects, { concurrency: "unbounded" })
-      }
-      return renderValue(ctx, part.index, makeDatasetUpdater(node as HTMLElement | SVGElement))
-    }
-    case "event": {
-      const element = node as Element
-      const value = ctx.values[part.index]
-      if (isNullish(value)) return
-      ctx.eventSource.addEventListener(
-        element,
-        part.name,
-        EventHandler.fromEffectOrEventHandler(value).pipe(
-          EventHandler.provide(ctx.services),
-          EventHandler.catchCause(ctx.onCause)
-        )
-      )
-      return
-    }
-    case "property": {
-      const element = node as HTMLElement | SVGElement
       return renderValue(
         ctx,
         part.index,
-        (value: unknown) => {
-          ;(element as any)[part.name] = value
-        }
+        makeAttributeValueUpdater(
+          element,
+          element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
+        )
       )
     }
-    case "properties": {
-      const element = node as HTMLElement | SVGElement
-      const properties = ctx.values[part.index]
-
-      const setupIfObject = (props: unknown) => {
-        if (isObject(props)) {
-          return setupRenderProperties<E, R>(
-            props as Record<string, unknown>,
-            element,
-            ctx
-          )
-        }
-      }
-
-      return matchRenderable(properties, ctx, {
-        Primitive: setupIfObject,
-        Effect: Effect.tap(setupIfObject),
-        Fx: flow(
-          Fx.switchMapEffect((props) => setupIfObject(props) || Effect.void),
-          Fx.drain,
-          Effect.provideService(Scope.Scope, ctx.scope)
-        )
-      })
-    }
-    case "ref": {
-      const element = node as HTMLElement | SVGElement
-      const renderable = ctx.values[part.index]
-      if (isNullish(renderable)) return
-      if (isFunction(renderable)) {
-        return matchRenderable(renderable(element), ctx, {
-          Primitive: constVoid,
-          Effect: identity,
-          Fx: Fx.drain
-        })
-      }
-
-      throw new Error("Invalid value provided to ref part")
-    }
+    case "boolean-part":
+      return renderValue(ctx, part.index, makeBooleanUpdater(node as HTMLElement | SVGElement, part.name))
+    case "className-part":
+      return renderValue(ctx, part.index, makeClassListUpdater(node as HTMLElement | SVGElement))
+    case "comment-part":
+      return renderValue(ctx, part.index, makeTextContentUpdater(node as Comment))
+    case "data":
+      return setupDataset<E, R>(node as HTMLElement | SVGElement, ctx, part.index)
+    case "event":
+      return setupEventHandler(node as Element, ctx, part.index, part.name)
+    case "property":
+      return renderValue(ctx, part.index, setupPropertSetter(node as HTMLElement | SVGElement, part.name))
+    case "properties":
+      return setupProperties<E, R>(node as HTMLElement | SVGElement, ctx, part.index)
+    case "ref":
+      return setupRef<R>(node as HTMLElement | SVGElement, ctx, part.index)
     case "sparse-attr": {
       const element = node as HTMLElement | SVGElement
       const attr = element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
-      const setAttr = makeAttributeValueUpdater(element, attr)
-      const index = ++ctx.dynamicIndex
-      return renderSparsePart(
+      return renderSparseTextContent(
+        element,
         part.nodes,
-        index,
+        ++ctx.dynamicIndex,
         ctx,
-        (texts) => setAttr(texts.join("")),
-        (value) => renderToString(value, "")
+        makeAttributeValueUpdater(element, attr)
       )
     }
     case "sparse-class-name": {
-      return renderSparsePart(
+      return renderSparseTextContent(
+        node as HTMLElement | SVGElement,
         part.nodes,
         ++ctx.dynamicIndex,
         ctx,
-        makeClassListUpdater(node as HTMLElement | SVGElement),
-        identity
+        makeClassListUpdater(node as HTMLElement | SVGElement)
       )
     }
-    case "sparse-comment": {
-      const comment = node as Comment
-      const setCommentText = makeTextContentUpdater(comment)
-      return renderSparsePart(
-        part.nodes,
-        ++ctx.dynamicIndex,
-        ctx,
-        (texts) => setCommentText(texts.join("")),
-        (value) => renderToString(value, "")
-      )
+    case "sparse-comment":
+      return renderSparseTextContent(node as Comment, part.nodes, ++ctx.dynamicIndex, ctx)
+    case "text-part":
+      return renderValue(ctx, part.index, makeTextContentUpdater(node as HTMLElement | SVGElement))
+    case "sparse-text":
+      return renderSparseTextContent(node as HTMLElement | SVGElement, part.nodes, ++ctx.dynamicIndex, ctx)
+  }
+}
+
+type HydrateTemplateContext<R = never> = TemplateContext<R> & {
+  where: h.HydrationNode
+  makeHydrateContext: (where: h.HydrationNode) => HydrateContext
+}
+
+function setupHydrationParts<E, R>(
+  parts: Template.Template["parts"],
+  ctx: HydrateTemplateContext<R>
+): Array<Effect.Effect<unknown, E, R>> {
+  const effects: Array<Effect.Effect<unknown, E, R>> = []
+  for (const [part, path] of parts) {
+    const effect = setupHydrationPart<E, R>(part, path, ctx)
+    if (effect !== undefined) {
+      effects.push(effect)
     }
-    case "text-part": {
-      return renderValue(
-        ctx,
-        part.index,
-        makeTextContentUpdater(node as HTMLElement | SVGElement)
-      )
+  }
+
+  return effects
+}
+
+function setupHydrationPart<E, R>(
+  part: Template.PartNode | Template.SparsePartNode,
+  path: ReadonlyArray<number>,
+  ctx: HydrateTemplateContext<R>
+): Effect.Effect<unknown, E, R> | void {
+  switch (part._tag) {
+    case "node": {
+      const hole = h.findHydrationHole(h.getChildNodes(ctx.where), part.index)
+      if (hole === null) throw new CouldNotFindCommentError(part.index)
+      return setupHydratedNodePart(part, hole, ctx)
     }
-    case "sparse-text": {
-      const element = node as HTMLElement | SVGElement
-      const index = ++ctx.dynamicIndex
-      const setTextContent = makeTextContentUpdater(element)
-      return renderSparsePart(
-        part.nodes,
-        index,
-        ctx,
-        (texts) => setTextContent(texts.join("")),
-        (value) => renderToString(value, "")
-      )
-    }
+    default:
+      return setupRenderPart(part, h.findHydratePath(ctx.where, path), ctx)
   }
 }
 
@@ -402,6 +413,22 @@ function renderSparsePart<E, R, T = unknown>(
   ).pipe(Fx.observe((values) => withCurrentRenderPriority(f, index, ctx, () => f(values))))
 }
 
+function renderSparseTextContent<E, R>(
+  node: Node,
+  nodes: Template.SparsePartNode["nodes"],
+  index: number,
+  ctx: TemplateContext<R>,
+  onTextContent: (value: string) => void = makeTextContentUpdater(node)
+): Effect.Effect<unknown, E, R> {
+  return renderSparsePart(
+    nodes,
+    index,
+    ctx,
+    (texts) => onTextContent(texts.join("")),
+    (value) => renderToString(value, "")
+  )
+}
+
 function renderValue<E, R, X>(
   ctx: TemplateContext,
   index: number,
@@ -410,7 +437,7 @@ function renderValue<E, R, X>(
   return matchRenderable(ctx.values[index], ctx, {
     Primitive: f,
     Effect: Effect.tap((value) => withCurrentRenderPriority(value, index, ctx, () => f(value))),
-    Fx: Fx.observe((value) => withCurrentRenderPriority(value, index, ctx, () => f(value)))
+    Fx: (fx) => fx.run(Sink.make(ctx.onCause, (value) => withCurrentRenderPriority(value, index, ctx, () => f(value))))
   })
 }
 
@@ -491,7 +518,7 @@ type TemplateContext<R = never> = {
   readonly scope: Scope.Closeable
   readonly values: ArrayLike<Renderable<any, any, any>>
   readonly services: ServiceMap.ServiceMap<R>
-  readonly onCause: (cause: Cause<any>) => Effect.Effect<unknown>
+  readonly onCause: (cause: Cause.Cause<any>) => Effect.Effect<unknown>
 
   /**
    * @internal
@@ -502,19 +529,16 @@ type TemplateContext<R = never> = {
    */
   dynamicIndex: number
 
-  /**
-   * @internal
-   */
-  manyKey: string | undefined
   // TODO: Add back hydration support
-  // readonly hydrateContext: Option.Option<HydrateContext>
+  manyKey?: string | undefined
+  readonly hydrateContext: HydrateContext | undefined
 }
 
 const makeTemplateContext = Effect.fn(
   function*<Values extends ArrayLike<Renderable.Any>, RSink = never>(
     document: Document,
     values: Values,
-    onCause: (cause: Cause<Renderable.Error<Values[number]>>) => Effect.Effect<unknown, never, RSink>
+    onCause: (cause: Cause.Cause<Renderable.Error<Values[number]>>) => Effect.Effect<unknown, never, RSink>
   ) {
     const renderQueue: RQ.RenderQueue = yield* RenderQueue
     const services: ServiceMap.ServiceMap<Renderable.Services<Values[number]> | RSink | Scope.Scope> = yield* Effect
@@ -523,6 +547,7 @@ const makeTemplateContext = Effect.fn(
     const scope: Scope.Closeable = yield* Scope.fork(ServiceMap.get(services, Scope.Scope))
     const eventSource: EventSource = makeEventSource()
     const servicesWithScope = ServiceMap.add(services, Scope.Scope, scope)
+    const hydrateContext = ServiceMap.getOption(services, HydrateContext)
     const ctx: TemplateContext<Renderable.Services<Values[number]> | RSink | Scope.Scope> = {
       services: ServiceMap.add(services, Scope.Scope, scope),
       document,
@@ -535,7 +560,7 @@ const makeTemplateContext = Effect.fn(
       onCause: flow(onCause, Effect.provideServices(servicesWithScope)),
       expected: 0,
       dynamicIndex: values.length,
-      manyKey: undefined
+      hydrateContext: getOrUndefined(hydrateContext)
     }
 
     yield* Scope.addFinalizer(scope, Effect.sync(() => ctx.disposables.forEach(dispose)))
@@ -586,4 +611,159 @@ function makeArrayLike<A>(index: number, value: A): ArrayLike<A> {
     length: index + 1,
     [index]: value
   }
+}
+
+function attemptHydration(
+  ctx: TemplateContext,
+  hash: string
+): { readonly where: h.HydrationTemplate; readonly hydrateCtx: HydrateContext } | undefined {
+  if (ctx.hydrateContext && ctx.hydrateContext.hydrate) {
+    const where = findHydrationTemplateByHash(ctx.hydrateContext!, hash)
+    if (where === null) {
+      ctx.hydrateContext.hydrate = false
+      return
+    } else {
+      return { where, hydrateCtx: ctx.hydrateContext }
+    }
+  }
+}
+
+export function findHydrationTemplateByHash(hydrateCtx: HydrateContext, hash: string): h.HydrationTemplate | null {
+  // If there is not a manyKey, we can just find the template by its hash
+  if (hydrateCtx.manyKey === undefined) {
+    return findHydrationTemplate(h.getChildNodes(hydrateCtx.where), hash)
+  }
+
+  // If there is a manyKey, we need to find the many node first
+  const many = h.findHydrationMany(h.getChildNodes(hydrateCtx.where), hydrateCtx.manyKey)
+
+  if (many === null) return null
+
+  // Then we can find the template by its hash
+  return findHydrationTemplate(h.getChildNodes(many), hash)
+}
+
+function findHydrationTemplate(
+  nodes: Array<h.HydrationNode>,
+  templateHash: string
+): h.HydrationTemplate | null {
+  const toProcess: Array<h.HydrationNode> = [...nodes]
+
+  while (toProcess.length > 0) {
+    const node = toProcess.shift()!
+
+    if (node._tag === "template" && node.hash === templateHash) {
+      return node
+    } else if (node._tag === "element") {
+      // eslint-disable-next-line no-restricted-syntax
+      toProcess.push(...node.childNodes)
+    }
+  }
+
+  return null
+}
+
+function getRendered(where: h.HydrationNode) {
+  const nodes = h.getNodes(where)
+  if (nodes.length === 1) return nodes[0]
+  return nodes
+}
+
+function setupEventHandler(element: Element, ctx: TemplateContext, index: number, name: string) {
+  const value = ctx.values[index]
+  if (isNullish(value)) return
+  ctx.eventSource.addEventListener(
+    element,
+    name,
+    EventHandler.fromEffectOrEventHandler(value).pipe(
+      EventHandler.provide(ctx.services),
+      EventHandler.catchCause(ctx.onCause)
+    )
+  )
+}
+
+function setupDataset<E, R>(
+  element: HTMLElement | SVGElement,
+  ctx: TemplateContext<R>,
+  index: number
+): Effect.Effect<unknown, E, R> | void {
+  const value = ctx.values[index]
+  if (isNullish(value)) return
+  // Special case to convert sync object to data-* attributes
+  if (isObject(value)) {
+    const effects: Array<Effect.Effect<unknown, E, R>> = []
+    for (const [k, v] of Object.entries(value)) {
+      const index = ctx.dynamicIndex++
+      const part = makePropertiesPart(["attr", `data-${k}`], index)
+      const effect = setupRenderPart<E, R>(part, element, { ...ctx, values: makeArrayLike(index, v) })
+      if (effect !== undefined) {
+        ctx.expected++
+        effects.push(effect)
+      }
+    }
+    return Effect.all(effects, { concurrency: "unbounded" })
+  }
+  return renderValue(ctx, index, makeDatasetUpdater(element))
+}
+
+function setupProperties<E, R>(element: HTMLElement | SVGElement, ctx: TemplateContext<R>, index: number) {
+  const setupIfObject = (props: unknown) => {
+    if (isObject(props)) {
+      return setupRenderProperties<E, R>(
+        props as Record<string, unknown>,
+        element,
+        ctx
+      )
+    }
+  }
+
+  return matchRenderable(ctx.values[index], ctx, {
+    Primitive: setupIfObject,
+    Effect: Effect.tap(setupIfObject),
+    Fx: flow(
+      Fx.switchMapEffect((props) => setupIfObject(props) || Effect.void),
+      Fx.drain,
+      Effect.provideService(Scope.Scope, ctx.scope)
+    )
+  })
+}
+
+function setupRef<R>(element: HTMLElement | SVGElement, ctx: TemplateContext<R>, index: number) {
+  const renderable = ctx.values[index]
+  if (isNullish(renderable)) return
+  if (isFunction(renderable)) {
+    return matchRenderable(renderable(element), ctx, { Primitive: constVoid, Effect: identity, Fx: Fx.drain })
+  }
+  throw new Error("Invalid value provided to ref part")
+}
+
+function setupPropertSetter(element: Element, name: string) {
+  return (value: unknown) => {
+    ;(element as any)[name] = value
+  }
+}
+
+function setupHydratedNodePart<E, R>(
+  part: Template.NodePart,
+  hole: h.HydrationHole,
+  ctx: HydrateTemplateContext<R>
+): Effect.Effect<unknown, E, R> | void {
+  const nestedCtx = ctx.makeHydrateContext(hole)
+  const previousNodes = getAllSiblingsBetween(hole.startComment, hole.endComment)
+  const text = previousNodes.length === 3 && isText(previousNodes[1])
+    ? previousNodes[1]
+    : null
+
+  const effect = renderValue<E, R, void>(
+    ctx,
+    part.index,
+    makeNodeUpdater(
+      ctx.document,
+      hole.endComment,
+      text,
+      text === null ? previousNodes : [hole.startComment, text, hole.endComment]
+    )
+  )
+  if (effect === undefined) return
+  return Effect.provideService(effect, HydrateContext, nestedCtx)
 }

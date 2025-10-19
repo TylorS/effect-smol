@@ -126,6 +126,11 @@ export function renderToString(value: unknown, delimiter: string): string {
   if (isHtmlRenderEvent(value)) {
     return value.html
   }
+
+  if (typeof value === "string") {
+    return value
+  }
+
   if (hasProperty(value, "toString") && typeof value.toString === "function") {
     const s = value.toString()
     if (s !== "[object Object]") {

@@ -265,10 +265,26 @@ export function findHoleComment(parent: Element, index: number) {
   throw new CouldNotFindCommentError(index)
 }
 
-export function makeNodeUpdater(document: Document, element: HTMLElement | SVGElement, comment: Comment) {
-  let text: Text | null = null
-  let nodes: Array<Node> = []
+export function findHoleStartComment(parent: Element, index: number) {
+  const childNodes = parent.childNodes
 
+  for (let i = 0; i < childNodes.length; ++i) {
+    const node = childNodes[i]
+    if (node.nodeType === 8 && node.nodeValue === `/n_${index}`) {
+      return node as Comment
+    }
+  }
+
+  throw new CouldNotFindCommentError(index)
+}
+
+export function makeNodeUpdater(
+  document: Document,
+  comment: Comment,
+  text: Text | null = null,
+  nodes: Array<Node> = []
+) {
+  const element = comment.parentNode as HTMLElement | SVGElement
   const updateCommentText = (value: unknown) => {
     if (text === null) {
       text = document.createTextNode("")
@@ -276,9 +292,13 @@ export function makeNodeUpdater(document: Document, element: HTMLElement | SVGEl
     }
 
     text.textContent = renderToString(value, "")
+    nodes = diffChildren(comment, nodes, [text, comment], document)
   }
 
   const updateNodes = (updatedNodes: Array<Node>) => {
+    if (updatedNodes[updatedNodes.length - 1] !== comment) {
+      updatedNodes.push(comment)
+    }
     nodes = diffChildren(comment, nodes, updatedNodes, document)
   }
 

@@ -208,7 +208,7 @@ const attributeMap: AttributeMap = {
   "boolean-part": (builder, attribute, placement) =>
     builder.part(attribute, (v) => addAttributeSpace(v ? `${attribute.name}` : "", placement)),
   "className-part": (builder, attribute, placement) =>
-    builder.part(attribute, (v) => addAttributeSpace(renderToEscapedString(v, ""), placement)),
+    builder.part(attribute, (v) => addAttributeSpace(`class="${renderToEscapedString(v, " ")}"`, placement)),
   "sparse-class-name": (builder, attribute, placement) =>
     builder.sparsePart(attribute, (v) => addAttributeSpace(`class="${renderToEscapedString(v, "")}"`, placement)),
   data: (builder, attribute) =>
