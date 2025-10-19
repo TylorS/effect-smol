@@ -25,7 +25,7 @@ import {
   makeTextContentUpdater
 } from "./internal/dom.ts"
 import { renderToString } from "./internal/encoding.ts"
-import * as h from "./internal/hydration.js"
+import * as hydration from "./internal/hydration.js"
 import { keyToPartType } from "./internal/keyToPartType.ts"
 import { findPath } from "./internal/ParentChildNodes.ts"
 import { parse } from "./internal/Parser.ts"
@@ -111,7 +111,7 @@ export const DomRenderTemplate = Object.assign(
                       ...ctx,
                       where,
                       manyKey: hydrateCtx.manyKey,
-                      makeHydrateContext: (where: h.HydrationNode): HydrateContext => ({
+                      makeHydrateContext: (where: hydration.HydrationNode): HydrateContext => ({
                         where,
                         hydrate: true
                       })
@@ -209,7 +209,9 @@ export const hydrate: {
 ): Fx.Fx<ToRendered<T>, E, R> {
   return Fx.provide(
     Fx.mapEffect(rendered, (what) => attachRoot(rootElement, what)),
-    Layer.syncServices(() => HydrateContext.serviceMap({ where: h.getHydrationRoot(rootElement), hydrate: true }))
+    Layer.syncServices(() =>
+      HydrateContext.serviceMap({ where: hydration.getHydrationRoot(rootElement), hydrate: true })
+    )
   )
 })
 
@@ -362,8 +364,8 @@ function setupRenderPart<E = never, R = never>(
 }
 
 type HydrateTemplateContext<R = never> = TemplateContext<R> & {
-  where: h.HydrationNode
-  makeHydrateContext: (where: h.HydrationNode) => HydrateContext
+  where: hydration.HydrationNode
+  makeHydrateContext: (where: hydration.HydrationNode) => HydrateContext
 }
 
 function setupHydrationParts<E, R>(
@@ -388,12 +390,12 @@ function setupHydrationPart<E, R>(
 ): Effect.Effect<unknown, E, R> | void {
   switch (part._tag) {
     case "node": {
-      const hole = h.findHydrationHole(h.getChildNodes(ctx.where), part.index)
+      const hole = hydration.findHydrationHole(hydration.getChildNodes(ctx.where), part.index)
       if (hole === null) throw new CouldNotFindCommentError(part.index)
       return setupHydratedNodePart(part, hole, ctx)
     }
     default:
-      return setupRenderPart(part, h.findHydratePath(ctx.where, path), ctx)
+      return setupRenderPart(part, hydration.findHydratePath(ctx.where, path), ctx)
   }
 }
 
@@ -616,7 +618,7 @@ function makeArrayLike<A>(index: number, value: A): ArrayLike<A> {
 function attemptHydration(
   ctx: TemplateContext,
   hash: string
-): { readonly where: h.HydrationTemplate; readonly hydrateCtx: HydrateContext } | undefined {
+): { readonly where: hydration.HydrationTemplate; readonly hydrateCtx: HydrateContext } | undefined {
   if (ctx.hydrateContext && ctx.hydrateContext.hydrate) {
     const where = findHydrationTemplateByHash(ctx.hydrateContext!, hash)
     if (where === null) {
@@ -628,26 +630,29 @@ function attemptHydration(
   }
 }
 
-export function findHydrationTemplateByHash(hydrateCtx: HydrateContext, hash: string): h.HydrationTemplate | null {
+export function findHydrationTemplateByHash(
+  hydrateCtx: HydrateContext,
+  hash: string
+): hydration.HydrationTemplate | null {
   // If there is not a manyKey, we can just find the template by its hash
   if (hydrateCtx.manyKey === undefined) {
-    return findHydrationTemplate(h.getChildNodes(hydrateCtx.where), hash)
+    return findHydrationTemplate(hydration.getChildNodes(hydrateCtx.where), hash)
   }
 
   // If there is a manyKey, we need to find the many node first
-  const many = h.findHydrationMany(h.getChildNodes(hydrateCtx.where), hydrateCtx.manyKey)
+  const many = hydration.findHydrationMany(hydration.getChildNodes(hydrateCtx.where), hydrateCtx.manyKey)
 
   if (many === null) return null
 
   // Then we can find the template by its hash
-  return findHydrationTemplate(h.getChildNodes(many), hash)
+  return findHydrationTemplate(hydration.getChildNodes(many), hash)
 }
 
 function findHydrationTemplate(
-  nodes: Array<h.HydrationNode>,
+  nodes: Array<hydration.HydrationNode>,
   templateHash: string
-): h.HydrationTemplate | null {
-  const toProcess: Array<h.HydrationNode> = [...nodes]
+): hydration.HydrationTemplate | null {
+  const toProcess: Array<hydration.HydrationNode> = [...nodes]
 
   while (toProcess.length > 0) {
     const node = toProcess.shift()!
@@ -663,8 +668,8 @@ function findHydrationTemplate(
   return null
 }
 
-function getRendered(where: h.HydrationNode) {
-  const nodes = h.getNodes(where)
+function getRendered(where: hydration.HydrationNode) {
+  const nodes = hydration.getNodes(where)
   if (nodes.length === 1) return nodes[0]
   return nodes
 }
@@ -745,7 +750,7 @@ function setupPropertSetter(element: Element, name: string) {
 
 function setupHydratedNodePart<E, R>(
   part: Template.NodePart,
-  hole: h.HydrationHole,
+  hole: hydration.HydrationHole,
   ctx: HydrateTemplateContext<R>
 ): Effect.Effect<unknown, E, R> | void {
   const nestedCtx = ctx.makeHydrateContext(hole)
