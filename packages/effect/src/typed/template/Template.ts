@@ -137,7 +137,7 @@ export type Attribute =
   | SparseAttrNode
   | BooleanNode
   | BooleanPartNode
-  | ClassNameNode
+  | ClassNamePartNode
   | SparseClassNameNode
   | DataPartNode
   | EventPartNode
@@ -204,9 +204,6 @@ export class BooleanPartNode {
     this.index = index
   }
 }
-
-export type ClassNameNode = TextNode | ClassNamePartNode
-
 export class ClassNamePartNode {
   readonly _tag = "className-part" as const
   readonly index: number
@@ -218,8 +215,8 @@ export class ClassNamePartNode {
 export class SparseClassNameNode {
   readonly _tag = "sparse-class-name" as const
 
-  readonly nodes: Array<ClassNameNode>
-  constructor(nodes: Array<ClassNameNode>) {
+  readonly nodes: Array<ClassNamePartNode | TextNode>
+  constructor(nodes: Array<ClassNamePartNode | TextNode>) {
     this.nodes = nodes
   }
 }

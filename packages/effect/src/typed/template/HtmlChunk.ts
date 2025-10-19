@@ -1,18 +1,8 @@
-import type {
-  Attribute,
-  ElementNode,
-  Node,
-  PartNode,
-  SelfClosingElementNode,
-  SparsePartNode,
-  Template,
-  Text,
-  TextOnlyElement
-} from "./Template.ts"
+import type * as Template from "./Template.ts"
 
-import { sortBy } from "../../collections/Array.ts"
-import { mapInput, number } from "../../data/Order.ts"
-import { isObject } from "../../data/Predicate.ts"
+import * as Array from "../../collections/Array.ts"
+import * as Order from "../../data/Order.ts"
+import * as Predicate from "../../data/Predicate.ts"
 import { constVoid } from "../../Function.ts"
 import { renderToEscapedString, renderToString } from "./internal/encoding.ts"
 import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts"
@@ -29,13 +19,13 @@ export interface HtmlTextChunk {
 
 export interface HtmlPartChunk {
   readonly _tag: "part"
-  readonly node: PartNode
+  readonly node: Template.PartNode
   readonly render: (value: unknown) => string
 }
 
 export interface HtmlSparsePartChunk {
   readonly _tag: "sparse-part"
-  readonly node: SparsePartNode
+  readonly node: Template.SparsePartNode
   readonly render: (value: unknown) => string
 }
 
@@ -53,12 +43,12 @@ export class HtmlChunksBuilder {
     return this
   }
 
-  part(node: PartNode, render: (value: unknown) => string): HtmlChunksBuilder {
+  part(node: Template.PartNode, render: (value: unknown) => string): HtmlChunksBuilder {
     this.chunks.push({ _tag: "part", node, render })
     return this
   }
 
-  sparsePart(node: SparsePartNode, render: (value: unknown) => string): HtmlChunksBuilder {
+  sparsePart(node: Template.SparsePartNode, render: (value: unknown) => string): HtmlChunksBuilder {
     this.chunks.push({ _tag: "sparse-part", node, render })
     return this
   }
@@ -72,7 +62,7 @@ export class HtmlChunksBuilder {
 
 // TODO: Add support for unsafe HTML content.
 
-export function templateToHtmlChunks({ nodes }: Template) {
+export function templateToHtmlChunks({ nodes }: Template.Template) {
   const builder = new HtmlChunksBuilder()
 
   for (const node of nodes) {
@@ -82,7 +72,10 @@ export function templateToHtmlChunks({ nodes }: Template) {
   return builder.build()
 }
 
-export function addTemplateHash(chunks: ReadonlyArray<HtmlChunk>, { hash }: Template): ReadonlyArray<HtmlChunk> {
+export function addTemplateHash(
+  chunks: ReadonlyArray<HtmlChunk>,
+  { hash }: Template.Template
+): ReadonlyArray<HtmlChunk> {
   const start = TEMPLATE_START_COMMENT(hash)
   const end = TEMPLATE_END_COMMENT(hash)
   if (chunks.length === 0) return [{ _tag: "text", text: start + end }]
@@ -108,7 +101,7 @@ function appendTextChunk(chunks: ReadonlyArray<HtmlChunk>, text: string): Readon
 }
 
 type NodeMap = {
-  readonly [K in Node["_tag"]]: (builder: HtmlChunksBuilder, node: Extract<Node, { _tag: K }>) => void
+  readonly [K in Template.Node["_tag"]]: (builder: HtmlChunksBuilder, node: Extract<Template.Node, { _tag: K }>) => void
 }
 
 const nodeMap: NodeMap = {
@@ -125,7 +118,7 @@ const nodeMap: NodeMap = {
 
 function selfClosingElementToHtmlChunks(
   builder: HtmlChunksBuilder,
-  node: SelfClosingElementNode
+  node: Template.SelfClosingElementNode
 ) {
   builder.text(`<${node.tagName}`)
   addAttributes(builder, node.attributes)
@@ -134,7 +127,7 @@ function selfClosingElementToHtmlChunks(
 
 function textOnlyElementToHtmlChunks(
   builder: HtmlChunksBuilder,
-  node: TextOnlyElement
+  node: Template.TextOnlyElement
 ) {
   builder.text(`<${node.tagName}`)
   addAttributes(builder, node.attributes)
@@ -146,7 +139,7 @@ function textOnlyElementToHtmlChunks(
   builder.text(`</${node.tagName}>`)
 }
 
-function textContentToHtml(builder: HtmlChunksBuilder, textContent: Text) {
+function textContentToHtml(builder: HtmlChunksBuilder, textContent: Template.Text) {
   switch (textContent._tag) {
     case "text":
       return builder.text(textContent.value)
@@ -157,14 +150,14 @@ function textContentToHtml(builder: HtmlChunksBuilder, textContent: Text) {
   }
 }
 
-function nodeToHtmlChunk(builder: HtmlChunksBuilder, node: Node) {
+function nodeToHtmlChunk(builder: HtmlChunksBuilder, node: Template.Node) {
   const handler = nodeMap[node._tag]
   handler(builder, node as never)
 }
 
 function elementToHtmlChunks(
   builder: HtmlChunksBuilder,
-  { attributes, children, tagName }: ElementNode
+  { attributes, children, tagName }: Template.ElementNode
 ) {
   builder.text(`<${tagName}`)
   addAttributes(builder, attributes)
@@ -175,7 +168,7 @@ function elementToHtmlChunks(
   builder.text(`</${tagName}>`)
 }
 
-function addAttributes(builder: HtmlChunksBuilder, attributes: ReadonlyArray<Attribute>) {
+function addAttributes(builder: HtmlChunksBuilder, attributes: ReadonlyArray<Template.Attribute>) {
   if (attributes.length > 0) {
     const lastIndex = attributes.length - 1
     for (const [index, attribute] of sortAttributes(attributes).entries()) {
@@ -190,14 +183,14 @@ type Placement = {
 }
 
 type AttributeMap = {
-  readonly [K in Attribute["_tag"]]: (
+  readonly [K in Template.Attribute["_tag"]]: (
     builder: HtmlChunksBuilder,
-    attribute: Extract<Attribute, { _tag: K }>,
+    attribute: Extract<Template.Attribute, { _tag: K }>,
     placement: Placement
   ) => void
 }
 
-function attributeToHtmlChunk(builder: HtmlChunksBuilder, attr: Attribute, placement: Placement): void {
+function attributeToHtmlChunk(builder: HtmlChunksBuilder, attr: Template.Attribute, placement: Placement): void {
   attributeMap[attr._tag](builder, attr as never, placement)
 }
 
@@ -205,7 +198,6 @@ const attributeMap: AttributeMap = {
   attribute: (builder, attribute, placement) =>
     builder.text(addAttributeSpace(`${attribute.name}="${attribute.value}"`, placement)),
   boolean: (builder, attribute, placement) => builder.text(addAttributeSpace(`${attribute.name}`, placement)),
-  text: (builder, attribute) => builder.text(attribute.value),
   attr: (builder, attribute, placement) =>
     builder.part(attribute, (v) => addAttributeSpace(`${attribute.name}="${renderToEscapedString(v, "")}"`, placement)),
   "sparse-attr": (builder, attribute, placement) =>
@@ -213,18 +205,18 @@ const attributeMap: AttributeMap = {
       attribute,
       (v) => addAttributeSpace(`${attribute.name}="${renderToEscapedString(v, "")}"`, placement)
     ),
-  "boolean-part": (builder, attribute, placement) => {
-    return builder.part(attribute, (v) => addAttributeSpace(v ? `${attribute.name}` : "", placement))
-  },
+  "boolean-part": (builder, attribute, placement) =>
+    builder.part(attribute, (v) => addAttributeSpace(v ? `${attribute.name}` : "", placement)),
   "className-part": (builder, attribute, placement) =>
     builder.part(attribute, (v) => addAttributeSpace(renderToEscapedString(v, ""), placement)),
   "sparse-class-name": (builder, attribute, placement) =>
     builder.sparsePart(attribute, (v) => addAttributeSpace(`class="${renderToEscapedString(v, "")}"`, placement)),
-  data: (builder, attribute) => builder.part(attribute, (v) => isObject(v) ? recordWithPrefix(`data-`, v) : ""),
+  data: (builder, attribute) =>
+    builder.part(attribute, (v) => Predicate.isObject(v) ? recordWithPrefix(`data-`, v) : ""),
   property: (builder, attribute, placement) =>
     builder.part(attribute, (v) => addAttributeSpace(`${attribute.name}="${renderToEscapedString(v, "")}"`, placement)),
   properties: (builder, attribute, placement) =>
-    builder.part(attribute, (v) => addAttributeSpace(isObject(v) ? recordWithPrefix(``, v) : "", placement)),
+    builder.part(attribute, (v) => addAttributeSpace(Predicate.isObject(v) ? recordWithPrefix(``, v) : "", placement)),
 
   // Don't have HTML representations for these
   ref: constVoid,
@@ -247,27 +239,29 @@ function recordWithPrefix(prefix: string, r: {}) {
   return s.length === 0 ? "" : " " + s
 }
 
-const AttributeOrder = mapInput(
-  number,
-  (attr: Attribute) => isStaticAttribute(attr) ? -1 : isSparseAttribute(attr) ? 1 : 0
+const AttributeOrder = Order.mapInput(
+  Order.number,
+  // Order such that static attributes can be streamed out first
+  // and sparse attributes can be streamed out last
+  (attr: Template.Attribute) => isStaticAttribute(attr) ? -1 : isSparseAttribute(attr) ? 1 : 0
 )
 
-const sortAttributes = sortBy(AttributeOrder)
+const sortAttributes = Array.sortBy(AttributeOrder)
 
-const staticAttributes = new Set<Attribute["_tag"]>([
+const staticAttributes = new Set<Template.Attribute["_tag"]>([
   "attribute",
   "boolean"
 ])
 
-function isStaticAttribute(attr: Attribute) {
+function isStaticAttribute(attr: Template.Attribute) {
   return staticAttributes.has(attr._tag)
 }
 
-const sparseAttributes = new Set<Attribute["_tag"]>([
+const sparseAttributes = new Set<Template.Attribute["_tag"]>([
   "sparse-attr",
   "sparse-class-name"
 ])
 
-function isSparseAttribute(attr: Attribute) {
+function isSparseAttribute(attr: Template.Attribute) {
   return sparseAttributes.has(attr._tag)
 }

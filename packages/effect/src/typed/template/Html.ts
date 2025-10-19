@@ -1,7 +1,8 @@
 import { none, type Option, some } from "../../data/Option.ts"
-import { isNullish } from "../../data/Predicate.ts"
+import { isNullish, isObject } from "../../data/Predicate.ts"
 import { map as mapRecord } from "../../data/Record.ts"
 import { Effect, Layer, ServiceMap } from "../../index.ts"
+import type { Scope } from "../../Scope.ts"
 import { delimit } from "../fx/combinators/continueWith.ts"
 import * as Fx from "../fx/index.ts"
 import { CurrentComputedBehavior } from "../fx/ref-subject/RefSubject.ts"
@@ -96,7 +97,7 @@ function renderChunk<E, R>(
   values: ArrayLike<Renderable.Any>,
   isStatic: boolean,
   last: boolean
-): Fx.Fx<HtmlRenderEvent, E, R> {
+): Fx.Fx<HtmlRenderEvent, E, R | Scope> {
   if (chunk._tag === "text") {
     return Fx.succeed(HtmlRenderEvent(chunk.text, last))
   }
@@ -113,7 +114,7 @@ function renderPart<E, R>(
   values: ArrayLike<Renderable.Any>,
   isStatic: boolean,
   last: boolean
-): Fx.Fx<HtmlRenderEvent, E, R> {
+): Fx.Fx<HtmlRenderEvent, E, R | Scope> {
   const { node, render } = chunk
   const renderable = values[node.index]
 
@@ -121,35 +122,24 @@ function renderPart<E, R>(
   if (node._tag === "ref" || node._tag === "event") return Fx.empty
 
   if (node._tag === "node") {
-    let base = liftRenderableToFx<E, R>(renderable, isStatic, last).pipe(
-      Fx.map((x) => isHtmlRenderEvent(x) ? x : HtmlRenderEvent(renderToString(x, ""), last))
-    )
-    if (!isStatic) {
-      base = renderNodeWithNodePlaceholders<E, R>(base, node.index)
-    }
-    return base.pipe(
-      Fx.map((x) => HtmlRenderEvent(x.html, x.last && last))
-    )
+    return renderNode(renderable, node.index, isStatic, last)
   }
 
   if (node._tag === "properties") {
-    const entries = Object.entries(renderable)
-    const length = entries.length
-    const lastIndex = length - 1
-
-    // Order here doesn't matter ??
-    return Fx.mergeAll(
-      ...entries.map(
-        ([key, renderable], i) => {
-          return Fx.filterMap(
-            liftRenderableToFx<E, R>(renderable, isStatic, last && i === lastIndex),
-            (value) => {
-              const s = render({ [key]: value })
-              return s ? some(HtmlRenderEvent(s, last && i === lastIndex)) : none()
-            }
-          )
-        }
-      )
+    const setupIfObject = (props: unknown) => {
+      if (isObject(props)) {
+        return renderProperties<E, R>(props as Record<string, Renderable<any, E, R>>, isStatic, last, render)
+      }
+      return Fx.empty
+    }
+    if (isObject(renderable)) {
+      return setupIfObject(renderable)
+    }
+    if (Effect.isEffect(renderable)) {
+      return Fx.unwrap(Effect.map(renderable, setupIfObject))
+    }
+    return liftRenderableToFx<E, R>(renderable, isStatic, last).pipe(
+      Fx.switchMap(setupIfObject)
     )
   }
 
@@ -162,7 +152,50 @@ function renderPart<E, R>(
   )
 }
 
-function renderNodeWithNodePlaceholders<E, R>(
+function renderProperties<E, R>(
+  renderable: Record<string, Renderable<any, E, R>>,
+  isStatic: boolean,
+  last: boolean,
+  render: (u: Record<string, unknown>) => string
+) {
+  const entries = Object.entries(renderable)
+  const length = entries.length
+  const lastIndex = length - 1
+
+  // Order here doesn't matter ??
+  return Fx.mergeAll(
+    ...entries.map(
+      ([key, renderable], i) => {
+        return Fx.filterMap(
+          liftRenderableToFx<E, R>(renderable, isStatic, last && i === lastIndex),
+          (value) => {
+            const s = render({ [key]: value })
+            return s ? some(HtmlRenderEvent(s, last && i === lastIndex)) : none()
+          }
+        )
+      }
+    )
+  )
+}
+
+function renderNode<E, R>(
+  renderable: Renderable<any, E, R>,
+  index: number,
+  isStatic: boolean,
+  last: boolean
+) {
+  let node = liftRenderableToFx<E, R>(renderable, isStatic, last).pipe(
+    Fx.map((x) => isHtmlRenderEvent(x) ? x : HtmlRenderEvent(renderToString(x, ""), last))
+  )
+  if (!isStatic) {
+    node = addNodePlaceholders<E, R>(node, index)
+  }
+  return node.pipe(
+    Fx.map((x) => HtmlRenderEvent(x.html, x.last && last))
+  )
+}
+
+function addNodePlaceholders<E, R>(
   fx: Fx.Fx<HtmlRenderEvent, E, R>,
   index: number
 ): Fx.Fx<HtmlRenderEvent, E, R> {
