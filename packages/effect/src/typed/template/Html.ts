@@ -20,7 +20,6 @@ import { takeOneIfNotRenderEvent } from "./internal/takeOneIfNotRenderEvent.ts"
 import type { Renderable } from "./Renderable.ts"
 import { HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } from "./RenderEvent.ts"
 import { RenderTemplate } from "./RenderTemplate.ts"
-import type { Template } from "./Template.ts"
 
 const toHtmlString = (event: RenderEvent | null | undefined): Option<string> => {
   if (event === null || event === undefined) return none()
@@ -47,10 +46,7 @@ export const StaticRendering = ServiceMap.Reference<boolean>("@typed/template/Ht
   defaultValue: () => false
 })
 
-type HtmlEntry = {
-  template: Template
-  chunks: ReadonlyArray<HtmlChunk>
-}
+type HtmlEntry = ReadonlyArray<HtmlChunk>
 
 export const HtmlRenderTemplate = Layer.effect(
   RenderTemplate,
@@ -62,14 +58,10 @@ export const HtmlRenderTemplate = Layer.effect(
       if (entry === undefined) {
         const template = parse(templateStrings)
         const chunks = templateToHtmlChunks(template)
-        const chunksWithHash = isStatic ? chunks : addTemplateHash(chunks, template)
-        entry = {
-          template,
-          chunks: chunksWithHash
-        }
+        entry = isStatic ? chunks : addTemplateHash(chunks, template)
         entries.set(templateStrings, entry)
       }
-      return entry.chunks
+      return entry
     }
 
     return <const Values extends ArrayLike<Renderable.Any>>(template: TemplateStringsArray, values: Values) =>
@@ -121,28 +113,23 @@ function renderPart<E, R>(
   // We don't render ref and event nodes via HTML
   if (node._tag === "ref" || node._tag === "event") return Fx.empty
 
+  // Node need to handle all possible value types including arrays
   if (node._tag === "node") {
     return renderNode(renderable, node.index, isStatic, last)
   }
 
+  // Properties is entirely recursive
   if (node._tag === "properties") {
-    const setupIfObject = (props: unknown) => {
-      if (isObject(props)) {
-        return renderProperties<E, R>(props as Record<string, Renderable<any, E, R>>, isStatic, last, render)
-      }
+    const setup = (props: unknown) =>
+      setupProperties<E, R>(props as Record<string, Renderable<any, E, R>>, isStatic, last, render)
+    if (isObject(renderable)) return setup(renderable)
+    return Fx.switchMap(liftRenderableToFx<E, R>(renderable, isStatic, last), (props) => {
+      if (isObject(props)) return setup(props)
       return Fx.empty
-    }
-    if (isObject(renderable)) {
-      return setupIfObject(renderable)
-    }
-    if (Effect.isEffect(renderable)) {
-      return Fx.unwrap(Effect.map(renderable, setupIfObject))
-    }
-    return liftRenderableToFx<E, R>(renderable, isStatic, last).pipe(
-      Fx.switchMap(setupIfObject)
-    )
+    })
   }
 
+  // Otherwise we're going to coerce to a string
   return Fx.filterMap(
     liftRenderableToFx<E, R>(renderable, isStatic, last),
     (value) => {
@@ -152,7 +139,7 @@ function renderPart<E, R>(
   )
 }
 
-function renderProperties<E, R>(
+function setupProperties<E, R>(
   renderable: Record<string, Renderable<any, E, R>>,
   isStatic: boolean,
   last: boolean,
