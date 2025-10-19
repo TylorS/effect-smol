@@ -45,7 +45,7 @@ describe("Render", () => {
     "renders template with reactive Fx attribute",
     Effect.fn(function*() {
       const values = ["A", "B", "C"]
-      const interval = 100
+      const interval = 500
       const fxExample = yield* renderHtmlElement`<div data-foo=${
         Fx.mergeAll(...values.map((value, index) => Fx.at(value, interval * index)))
       }></div>`

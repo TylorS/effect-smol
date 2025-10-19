@@ -16,6 +16,8 @@ class MapSink<A, E, R, B> implements Sink<B, E, R> {
   constructor(sink: Sink<A, E, R>, f: (b: B) => A) {
     this.sink = sink
     this.f = f
+    this.onSuccess = this.onSuccess.bind(this)
+    this.onFailure = this.onFailure.bind(this)
   }
 
   onSuccess(value: B): Effect.Effect<unknown, never, R> {
@@ -53,6 +55,8 @@ class FilterMapSink<A, E, R, B> implements Sink<B, E, R> {
   constructor(sink: Sink<A, E, R>, f: (b: B) => Option.Option<A>) {
     this.sink = sink
     this.f = f
+    this.onSuccess = this.onSuccess.bind(this)
+    this.onFailure = this.onFailure.bind(this)
   }
 
   onSuccess(value: B): Effect.Effect<unknown, never, R> {

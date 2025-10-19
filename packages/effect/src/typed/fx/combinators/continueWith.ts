@@ -31,7 +31,7 @@ export const append: {
 } = dual(2, <A, E, R, B>(
   fx: Fx<A, E, R>,
   value: B
-): Fx<A | B, E, R> => continueWith(succeed(value), () => fx))
+): Fx<A | B, E, R> => continueWith(fx, () => succeed(value)))
 
 export const prepend: {
   <B>(
@@ -46,3 +46,24 @@ export const prepend: {
   fx: Fx<A, E, R>,
   value: B
 ): Fx<B | A, E, R> => continueWith(succeed(value), () => fx))
+
+export const delimit: {
+  <B, C>(
+    before: B,
+    after: C
+  ): <A, E, R>(fx: Fx<A, E, R>) => Fx<A | B | C, E, R>
+
+  <A, E, R, B, C>(
+    fx: Fx<A, E, R>,
+    before: B,
+    after: C
+  ): Fx<A | B | C, E, R>
+} = dual(3, <A, E, R, B, C>(
+  fx: Fx<A, E, R>,
+  before: B,
+  after: C
+): Fx<A | B | C, E, R> =>
+  fx.pipe(
+    prepend(before),
+    append(after)
+  ))

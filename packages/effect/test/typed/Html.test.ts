@@ -1,8 +1,15 @@
 import { describe, expect, it } from "@effect/vitest"
+import type { Scope } from "effect"
 import { Effect } from "effect"
 import * as Fx from "effect/typed/fx/index"
-import { renderToHtmlString, StaticHtmlRenderTemplate } from "effect/typed/template/Html"
+import {
+  HtmlRenderTemplate,
+  renderToHtml,
+  renderToHtmlString,
+  StaticHtmlRenderTemplate
+} from "effect/typed/template/Html"
 import { escape } from "effect/typed/template/internal/encoding"
+import { many } from "effect/typed/template/many"
 import { HtmlRenderEvent, type RenderEvent } from "effect/typed/template/RenderEvent"
 import { html } from "effect/typed/template/RenderTemplate"
 
@@ -289,7 +296,7 @@ describe("Html", () => {
         `"<div>1</div>"`
       )
       expect(yield* getStaticHtml(html`<div>${Symbol("foo")}</div>`)).toMatchInlineSnapshot(
-        `"<div></div>"`
+        `"<div>Symbol(foo)</div>"`
       )
       expect(yield* getStaticHtml(html`<div>${undefined}</div>`)).toMatchInlineSnapshot(
         `"<div></div>"`
@@ -297,8 +304,8 @@ describe("Html", () => {
       expect(yield* getStaticHtml(html`<div>${null}</div>`)).toMatchInlineSnapshot(
         `"<div></div>"`
       )
-      expect(yield* getStaticHtml(html`<div>${[1, "Hello", true]}</div>`)).toMatchInlineSnapshot(
-        `"<div>1Hellotrue</div>"`
+      expect(yield* getStaticHtml(html`<div>${[1, " ", "Hello", " ", true]}</div>`)).toMatchInlineSnapshot(
+        `"<div>1 Hello true</div>"`
       )
     })
   )
@@ -408,8 +415,131 @@ describe("Html", () => {
   )
 })
 
+describe("Html Render Events", () => {
+  it.live(
+    "renders html render events",
+    Effect.fn(function*() {
+      const events = yield* getHtmlRenderEvents(html`<div>${html`<p>Hello, world!</p>`}</div>`)
+
+      expect(events).toMatchInlineSnapshot(`
+        [
+          "<!--t_fqNjm/UcUg8=--><div>",
+          "<!--n_0-->",
+          "<!--t_1XMifUHMTBw=--><p>Hello, world!</p><!--/t_1XMifUHMTBw=-->",
+          "<!--/n_0-->",
+          "</div><!--/t_fqNjm/UcUg8=-->",
+        ]
+      `)
+    })
+  )
+
+  it.live(
+    "renders with many comments",
+    Effect.fn(function*(ctx) {
+      const para = (n: Fx.Fx<number, never, Scope.Scope>) => html`<p>${n}</p>`
+
+      const events = yield* getHtmlRenderEvents(para(Fx.succeed(1)))
+
+      ctx.expect(events).toMatchInlineSnapshot(`
+        [
+          "<!--t_KwZ/fKKViAs=--><p>",
+          "<!--n_0-->",
+          "1",
+          "<!--/n_0-->",
+          "</p><!--/t_KwZ/fKKViAs=-->",
+        ]
+      `)
+    })
+  )
+
+  it.live(
+    "renders with array of templates",
+    (ctx) =>
+      Effect.gen(function*() {
+        const para = (n: Fx.Fx<number, never, Scope.Scope>) => html`<p>${n}</p>`
+        const events = yield* getHtmlRenderEvents(
+          html`<div>${[
+            para(Fx.succeed(1)),
+            para(Fx.succeed(2)),
+            para(Fx.succeed(3))
+          ]}</div>`
+        )
+
+        ctx.expect(events).toMatchInlineSnapshot(`
+          [
+            "<!--t_fqNjm/UcUg8=--><div>",
+            "<!--n_0-->",
+            "<!--t_KwZ/fKKViAs=--><p>",
+            "<!--n_0-->",
+            "1",
+            "<!--/n_0-->",
+            "</p><!--/t_KwZ/fKKViAs=-->",
+            "<!--t_KwZ/fKKViAs=--><p>",
+            "<!--n_0-->",
+            "2",
+            "<!--/n_0-->",
+            "</p><!--/t_KwZ/fKKViAs=-->",
+            "<!--t_KwZ/fKKViAs=--><p>",
+            "<!--n_0-->",
+            "3",
+            "<!--/n_0-->",
+            "</p><!--/t_KwZ/fKKViAs=-->",
+            "<!--/n_0-->",
+            "</div><!--/t_fqNjm/UcUg8=-->",
+          ]
+        `)
+      })
+  )
+
+  it.live(
+    "renders with many comments",
+    (ctx) =>
+      Effect.gen(function*() {
+        const para = (n: Fx.Fx<number, never, Scope.Scope>) => html`<p>${n}</p>`
+        const events = yield* getHtmlRenderEvents(
+          html`<div>${many(Fx.succeed([1, 2, 3]), (n) => n, para)}</div>`
+        )
+
+        ctx.expect(events).toMatchInlineSnapshot(`
+          [
+            "<!--t_fqNjm/UcUg8=--><div>",
+            "<!--n_0-->",
+            "<!--t_KwZ/fKKViAs=--><p>",
+            "<!--n_0-->",
+            "1",
+            "<!--/n_0-->",
+            "</p><!--/t_KwZ/fKKViAs=-->",
+            "<!--/m_1-->",
+            "<!--t_KwZ/fKKViAs=--><p>",
+            "<!--n_0-->",
+            "2",
+            "<!--/n_0-->",
+            "</p><!--/t_KwZ/fKKViAs=-->",
+            "<!--/m_2-->",
+            "<!--t_KwZ/fKKViAs=--><p>",
+            "<!--n_0-->",
+            "3",
+            "<!--/n_0-->",
+            "</p><!--/t_KwZ/fKKViAs=-->",
+            "<!--/m_3-->",
+            "<!--/n_0-->",
+            "</div><!--/t_fqNjm/UcUg8=-->",
+          ]
+        `)
+      })
+  )
+})
+
 function getStaticHtml<E, R>(renderable: Fx.Fx<RenderEvent, E, R>) {
   return renderToHtmlString(renderable).pipe(
     Effect.provide(StaticHtmlRenderTemplate)
+  )
+}
+
+function getHtmlRenderEvents<E, R>(renderable: Fx.Fx<RenderEvent, E, R>) {
+  return renderable.pipe(
+    renderToHtml,
+    Fx.collectAll,
+    Effect.provide(HtmlRenderTemplate)
   )
 }

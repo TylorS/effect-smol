@@ -1,26 +1,17 @@
-import { none, some } from "../../data/Option.ts"
+import { none, type Option, some } from "../../data/Option.ts"
 import { isNullish } from "../../data/Predicate.ts"
 import { map as mapRecord } from "../../data/Record.ts"
 import { Effect, Layer, ServiceMap } from "../../index.ts"
-import type { Fx } from "../fx/index.ts"
-import {
-  collectAll,
-  continueWith,
-  dropAfter,
-  empty,
-  filter,
-  filterMap,
-  isFx,
-  map,
-  mergeOrdered,
-  struct,
-  succeed,
-  take,
-  tuple,
-  unwrap
-} from "../fx/index.ts"
+import { delimit } from "../fx/combinators/continueWith.ts"
+import * as Fx from "../fx/index.ts"
 import { CurrentComputedBehavior } from "../fx/ref-subject/RefSubject.ts"
-import { type HtmlChunk, type HtmlPartChunk, type HtmlSparsePartChunk, templateToHtmlChunks } from "./HtmlChunk.ts"
+import {
+  addTemplateHash,
+  type HtmlChunk,
+  type HtmlPartChunk,
+  type HtmlSparsePartChunk,
+  templateToHtmlChunks
+} from "./HtmlChunk.ts"
 import { renderToString } from "./internal/encoding.ts"
 import { TEXT_START, TYPED_NODE_END, TYPED_NODE_START } from "./internal/meta.ts"
 import { parse } from "./internal/Parser.ts"
@@ -28,15 +19,25 @@ import { takeOneIfNotRenderEvent } from "./internal/takeOneIfNotRenderEvent.ts"
 import type { Renderable } from "./Renderable.ts"
 import { HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } from "./RenderEvent.ts"
 import { RenderTemplate } from "./RenderTemplate.ts"
+import type { Template } from "./Template.ts"
 
-export function renderToHtml<E, R>(fx: Fx<RenderEvent, E, R>): Fx<string, E, R> {
-  return map(fx, (event) => event.toString())
+const toHtmlString = (event: RenderEvent | null | undefined): Option<string> => {
+  if (event === null || event === undefined) return none()
+  const s = event.toString()
+  if (s === "") return none()
+  return some(s)
 }
 
-export function renderToHtmlString<E, R>(fx: Fx<RenderEvent, E, R>): Effect.Effect<string, E, R> {
+export function renderToHtml<E, R>(
+  fx: Fx.Fx<RenderEvent | null | undefined, E, R>
+): Fx.Fx<string, E, R> {
+  return Fx.filterMap(fx, toHtmlString)
+}
+
+export function renderToHtmlString<E, R>(fx: Fx.Fx<RenderEvent | null | undefined, E, R>): Effect.Effect<string, E, R> {
   return fx.pipe(
-    map((event) => event.toString()),
-    collectAll,
+    renderToHtml,
+    Fx.collectAll,
     Effect.map((events) => events.join(""))
   )
 }
@@ -45,42 +46,42 @@ export const StaticRendering = ServiceMap.Reference<boolean>("@typed/template/Ht
   defaultValue: () => false
 })
 
+type HtmlEntry = {
+  template: Template
+  chunks: ReadonlyArray<HtmlChunk>
+}
+
 export const HtmlRenderTemplate = Layer.effect(
   RenderTemplate,
   Effect.gen(function*() {
     const isStatic = yield* StaticRendering
-    const entries = new WeakMap<TemplateStringsArray, ReadonlyArray<HtmlChunk>>()
-    const getEntry = (templateStrings: TemplateStringsArray) => {
+    const entries = new WeakMap<TemplateStringsArray, HtmlEntry>()
+    const getChunks = (templateStrings: TemplateStringsArray) => {
       let entry = entries.get(templateStrings)
       if (entry === undefined) {
-        entry = templateToHtmlChunks(parse(templateStrings), isStatic)
+        const template = parse(templateStrings)
+        const chunks = templateToHtmlChunks(template)
+        const chunksWithHash = isStatic ? chunks : addTemplateHash(chunks, template)
+        entry = {
+          template,
+          chunks: chunksWithHash
+        }
         entries.set(templateStrings, entry)
       }
-      return entry
+      return entry.chunks
     }
 
-    return <const Values extends ArrayLike<Renderable.Any>>(template: TemplateStringsArray, values: Values) => {
-      const chunks = getEntry(template)
-
-      if (chunks.length === 1 && chunks[0]._tag === "text") {
-        return succeed(HtmlRenderEvent(chunks[0].text, true))
-      }
-
-      const lastIndex = chunks.length - 1
-      return mergeOrdered(
-        ...chunks.map((chunk, i) =>
+    return <const Values extends ArrayLike<Renderable.Any>>(template: TemplateStringsArray, values: Values) =>
+      Fx.mergeOrdered(
+        ...getChunks(template).map((chunk, i, chunks) =>
           renderChunk<Renderable.Error<Values[number]>, Renderable.Services<Values[number]>>(
             chunk,
             values,
             isStatic,
-            i === lastIndex
+            i === chunks.length - 1
           )
         )
-      ).pipe(
-        dropAfter((x) => x.last),
-        filter((x) => x.html.length > 0)
       )
-    }
   })
 ).pipe(
   Layer.provideMerge(Layer.succeed(CurrentComputedBehavior, "one"))
@@ -95,9 +96,9 @@ function renderChunk<E, R>(
   values: ArrayLike<Renderable.Any>,
   isStatic: boolean,
   last: boolean
-): Fx<HtmlRenderEvent, E, R> {
+): Fx.Fx<HtmlRenderEvent, E, R> {
   if (chunk._tag === "text") {
-    return succeed(HtmlRenderEvent(chunk.text, last))
+    return Fx.succeed(HtmlRenderEvent(chunk.text, last))
   }
 
   if (chunk._tag === "part") {
@@ -112,16 +113,23 @@ function renderPart<E, R>(
   values: ArrayLike<Renderable.Any>,
   isStatic: boolean,
   last: boolean
-): Fx<HtmlRenderEvent, E, R> {
+): Fx.Fx<HtmlRenderEvent, E, R> {
   const { node, render } = chunk
   const renderable = values[node.index]
 
+  // We don't render ref and event nodes via HTML
+  if (node._tag === "ref" || node._tag === "event") return Fx.empty
+
   if (node._tag === "node") {
-    const base = map(
-      renderNode<E, R>(renderable, isStatic),
-      (x) => HtmlRenderEvent(renderToString(x, ""), x.last && last)
+    let base = liftRenderableToFx<E, R>(renderable, isStatic, last).pipe(
+      Fx.map((x) => isHtmlRenderEvent(x) ? x : HtmlRenderEvent(renderToString(x, ""), last))
     )
-    return isStatic ? base : renderNodeWithHtml<E, R>(base, node.index)
+    if (!isStatic) {
+      base = renderNodeWithNodePlaceholders<E, R>(base, node.index)
+    }
+    return base.pipe(
+      Fx.map((x) => HtmlRenderEvent(x.html, x.last && last))
+    )
   }
 
   if (node._tag === "properties") {
@@ -129,11 +137,12 @@ function renderPart<E, R>(
     const length = entries.length
     const lastIndex = length - 1
 
-    return mergeOrdered(
+    // Order here doesn't matter ??
+    return Fx.mergeAll(
       ...entries.map(
         ([key, renderable], i) => {
-          return filterMap(
-            liftRenderableToFx<E, R>(renderable, isStatic),
+          return Fx.filterMap(
+            liftRenderableToFx<E, R>(renderable, isStatic, last && i === lastIndex),
             (value) => {
               const s = render({ [key]: value })
               return s ? some(HtmlRenderEvent(s, last && i === lastIndex)) : none()
@@ -144,8 +153,8 @@ function renderPart<E, R>(
     )
   }
 
-  return filterMap(
-    liftRenderableToFx<E, R>(renderable, isStatic),
+  return Fx.filterMap(
+    liftRenderableToFx<E, R>(renderable, isStatic, last),
     (value) => {
       const s = render(value)
       return s ? some(HtmlRenderEvent(s, last)) : none()
@@ -153,82 +162,14 @@ function renderPart<E, R>(
   )
 }
 
-function renderNode<E, R>(
-  renderable: Renderable<any, any, any>,
-  isStatic: boolean
-): Fx<HtmlRenderEvent, E, R> {
-  switch (typeof renderable) {
-    case "string":
-    case "number":
-    case "boolean":
-    case "bigint":
-      return succeed(HtmlRenderEvent(String(renderable), true))
-    case "undefined":
-    case "function":
-    case "object":
-      return renderObject(renderable, isStatic)
-    default:
-      return empty
-  }
-}
-
-function renderNodeWithHtml<E, R>(
-  fx: Fx<any, E, R>,
+function renderNodeWithNodePlaceholders<E, R>(
+  fx: Fx.Fx<HtmlRenderEvent, E, R>,
   index: number
-): Fx<HtmlRenderEvent, E, R> {
-  let first = true
-  return continueWith(
-    map(fx, (x) => {
-      if (x.last) {
-        const y = HtmlRenderEvent(
-          (first ? TYPED_NODE_START(index) : "") +
-            x.html +
-            TYPED_NODE_END(index),
-          true
-        )
-        first = false
-        return y
-      } else {
-        if (first) {
-          first = false
-          return HtmlRenderEvent(
-            TYPED_NODE_START(index) + x.html,
-            false
-          )
-        }
-        return x
-      }
-    }),
-    () => {
-      return first
-        ? succeed(
-          HtmlRenderEvent(
-            TYPED_NODE_START(index) + TYPED_NODE_END(index),
-            true
-          )
-        )
-        : empty
-    }
+): Fx.Fx<HtmlRenderEvent, E, R> {
+  return fx.pipe(
+    Fx.map((event) => isHtmlRenderEvent(event) ? HtmlRenderEvent(event.html, false) : event),
+    delimit(HtmlRenderEvent(TYPED_NODE_START(index), false), HtmlRenderEvent(TYPED_NODE_END(index), true))
   )
-}
-
-function renderObject<E, R>(
-  renderable: object | null | undefined,
-  isStatic: boolean
-): Fx<HtmlRenderEvent, E, R> {
-  if (isNullish(renderable)) {
-    return isStatic ? empty : succeed(HtmlRenderEvent(TEXT_START, true))
-  } else if (Array.isArray(renderable)) {
-    return mergeOrdered(...renderable.map((r) => renderNode<E, R>(r, isStatic)))
-  } else if (Effect.isEffect(renderable)) {
-    return unwrap(Effect.map(renderable, (r) => renderNode<E, R>(r, isStatic)))
-  } else if (isFx(renderable)) {
-    return takeOneIfNotRenderEvent(renderable)
-  } else if (isHtmlRenderEvent(renderable)) {
-    return succeed(renderable)
-  } else {
-    return empty
-  }
 }
 
 function renderSparsePart<E, R>(
@@ -236,42 +177,45 @@ function renderSparsePart<E, R>(
   values: ArrayLike<Renderable.Any>,
   isStatic: boolean,
   last: boolean
-): Fx<HtmlRenderEvent, E, R> {
+): Fx.Fx<HtmlRenderEvent, E, R> {
   const { node, render } = chunk
-  return tuple(
-    ...node.nodes.map((node) => {
-      if (node._tag === "text") return succeed(node.value)
-      return liftRenderableToFx<E, R>(values[node.index], isStatic)
+  return Fx.tuple(
+    ...node.nodes.map((node, i, nodes) => {
+      if (node._tag === "text") return Fx.succeed(node.value)
+      return liftRenderableToFx<E, R>(values[node.index], isStatic, i === nodes.length - 1)
     })
   ).pipe(
-    take(1),
-    map((value) => HtmlRenderEvent(render(value), last))
+    Fx.take(1),
+    Fx.map((value) => HtmlRenderEvent(render(value), last))
   )
 }
 
 function liftRenderableToFx<E, R>(
   renderable: Renderable<any, E, R>,
-  isStatic: boolean
-): Fx<any, E, R> {
+  isStatic: boolean,
+  last: boolean
+): Fx.Fx<any, E, R> {
   switch (typeof renderable) {
     case "undefined":
     case "function":
     case "object": {
       if (isNullish(renderable)) {
-        return succeed(null)
+        return isStatic ? Fx.empty : Fx.succeed(HtmlRenderEvent(TEXT_START, true))
       } else if (Array.isArray(renderable)) {
-        return mergeOrdered(...renderable.map((r) => liftRenderableToFx<E, R>(r, isStatic)))
-      } else if (isFx(renderable)) {
+        return Fx.mergeOrdered(
+          ...renderable.map((r, i, rr) => liftRenderableToFx<E, R>(r, isStatic, i === rr.length - 1))
+        )
+      } else if (Fx.isFx(renderable)) {
         return takeOneIfNotRenderEvent(renderable)
       } else if (Effect.isEffect(renderable)) {
-        return unwrap(
-          Effect.map(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic))
+        return Fx.unwrap(
+          Effect.map(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic, last))
         )
       } else if (isHtmlRenderEvent(renderable)) {
-        return succeed(renderable)
-      } else return take(struct(mapRecord(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic))), 1)
+        return Fx.succeed(renderable)
+      } else return Fx.take(Fx.struct(mapRecord(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic, last))), 1)
     }
     default:
-      return succeed(renderable)
+      return Fx.succeed(renderable)
   }
 }

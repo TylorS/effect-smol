@@ -2,7 +2,6 @@ import * as Cause from "../../../Cause.ts"
 import * as Deferred from "../../../Deferred.ts"
 import * as Effect from "../../../Effect.ts"
 import * as Exit from "../../../Exit.ts"
-import { FiberSet } from "../../../index.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 import * as Sink from "../sink/Sink.js"
@@ -14,21 +13,14 @@ import * as Sink from "../sink/Sink.js"
 export function mergeOrdered<FX extends ReadonlyArray<Fx<any, any, any>>>(
   ...fx: FX
 ): Fx<Fx.Success<FX[number]>, Fx.Error<FX[number]>, Fx.Services<FX[number]>> {
-  return make<Fx.Success<FX[number]>, Fx.Error<FX[number]>, Fx.Services<FX[number]>>((sink) => {
+  return make<Fx.Success<FX[number]>, Fx.Error<FX[number]>, Fx.Services<FX[number]>>(Effect.fn(function*(sink) {
     const { makeSink, onEnd } = withBuffers(fx.length, sink)
 
-    return Effect.gen(function*() {
-      const set = yield* FiberSet.make<void, Fx.Error<FX[number]>>()
-      for (const [i, self] of fx.entries()) {
-        yield* FiberSet.run(
-          set,
-          Effect.onExit(self.run(makeSink(i)), () => onEnd(i)),
-          { startImmediately: true }
-        )
-      }
-      yield* FiberSet.awaitEmpty(set)
+    yield* Effect.forEach(fx, (fx, i) => Effect.onExit(fx.run(makeSink(i)), () => onEnd(i)), {
+      concurrency: "unbounded",
+      discard: true
     })
-  })
+  }))
 }
 
 function withBuffers<A, E, R>(
@@ -115,7 +107,7 @@ function IndexedBuffer<A, E, R>(
     if (buffer.length === 0) return onDone
     const effect = Effect.forEach(buffer, sink.onSuccess)
     buffer = []
-    return Effect.flatMap(effect, () => onDone)
+    return Effect.ensuring(effect, onDone)
   })
 
   return {

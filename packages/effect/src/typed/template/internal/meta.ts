@@ -2,8 +2,8 @@ export const PART_REGEX = /(\{\{(\d+)\}\})/g
 export const STRICT_PART_REGEX = /^(\{\{(\d+)\}\})/
 export const PART_STRING = (i: number) => `{{${i}}}`
 
-export const TEMPLATE_START_COMMENT = (hash: string, many?: number) => `<!--t_${hash}${many ? `_${many}` : ""}-->`
-export const TEMPLATE_END_COMMENT = (hash: string, many?: number) => `<!--/t_${hash}${many ? `_${many}` : ""}-->`
+export const TEMPLATE_START_COMMENT = (hash: string) => `<!--t_${hash}-->`
+export const TEMPLATE_END_COMMENT = (hash: string) => `<!--/t_${hash}-->`
 
 export const TEXT_START = "<!--txt-->"
 

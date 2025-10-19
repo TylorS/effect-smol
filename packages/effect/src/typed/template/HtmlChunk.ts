@@ -72,22 +72,39 @@ export class HtmlChunksBuilder {
 
 // TODO: Add support for unsafe HTML content.
 
-export function templateToHtmlChunks({ hash, nodes }: Template, isStatic: boolean) {
+export function templateToHtmlChunks({ nodes }: Template) {
   const builder = new HtmlChunksBuilder()
-
-  if (!isStatic) {
-    builder.text(TEMPLATE_START_COMMENT(hash))
-  }
 
   for (const node of nodes) {
     nodeToHtmlChunk(builder, node)
   }
 
-  if (!isStatic) {
-    builder.text(TEMPLATE_END_COMMENT(hash))
-  }
-
   return builder.build()
+}
+
+export function addTemplateHash(chunks: ReadonlyArray<HtmlChunk>, { hash }: Template): ReadonlyArray<HtmlChunk> {
+  const start = TEMPLATE_START_COMMENT(hash)
+  const end = TEMPLATE_END_COMMENT(hash)
+  if (chunks.length === 0) return [{ _tag: "text", text: start + end }]
+  return appendTextChunk(prependTextChunk(chunks, start), end)
+}
+
+function prependTextChunk(chunks: ReadonlyArray<HtmlChunk>, text: string): ReadonlyArray<HtmlChunk> {
+  if (chunks.length === 0) return [{ _tag: "text", text }]
+  const firstChunk = chunks[0]
+  if (firstChunk._tag === "text") {
+    return [{ _tag: "text", text: text + firstChunk.text }, ...chunks.slice(1)]
+  }
+  return [{ _tag: "text", text }, ...chunks]
+}
+
+function appendTextChunk(chunks: ReadonlyArray<HtmlChunk>, text: string): ReadonlyArray<HtmlChunk> {
+  if (chunks.length === 0) return [{ _tag: "text", text }]
+  const lastChunk = chunks[chunks.length - 1]
+  if (lastChunk._tag === "text") {
+    return [...chunks.slice(0, -1), { _tag: "text", text: lastChunk.text + text }]
+  }
+  return [...chunks, { _tag: "text", text }]
 }
 
 type NodeMap = {
@@ -122,8 +139,7 @@ function textOnlyElementToHtmlChunks(
   builder.text(`<${node.tagName}`)
   addAttributes(builder, node.attributes)
   builder.text(">")
-
-  if (node.textContent) {
+  if (node.textContent !== null) {
     textContentToHtml(builder, node.textContent)
   }
 
