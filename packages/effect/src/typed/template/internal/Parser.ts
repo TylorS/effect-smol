@@ -350,7 +350,7 @@ class Parser {
 
   private parseClassNameAttribute(
     value: string
-  ): Template.AttributeNode | Template.ClassNameNode | Template.SparseClassNameNode {
+  ): Template.AttributeNode | Template.ClassNamePartNode | Template.SparseClassNameNode {
     return this.parseMultipleParts(
       value,
       (index) => new Template.ClassNamePartNode(index),
