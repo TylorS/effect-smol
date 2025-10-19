@@ -97,12 +97,14 @@ export const DomRenderTemplate = Object.assign(
                 yield* ctx.refCounter.wait
               }
 
+              // If we have more than one child, we need to wrap them in a PersistentDocumentFragment
+              // so they can be diffed within other templates more than once.
               const rendered = content.childNodes.length > 1
                 ? new PersistentDocumentFragment(firstChild, content, lastChild)
                 : content.childNodes[0] as Node
 
               // Setup our event listeners for our rendered content.
-              yield* ctx.eventSource.setup(rendered as EventTarget, ctx.scope)
+              yield* ctx.eventSource.setup(rendered, ctx.scope)
 
               // Emit just once
               yield* sink.onSuccess(DomRenderEvent(rendered))

@@ -16,7 +16,7 @@ export interface EventSource {
     handler: Handler<Ev>
   ) => Disposable
 
-  readonly setup: (rendered: EventTarget, scope: Scope.Scope) => Effect.Effect<void>
+  readonly setup: (rendered: Rendered, scope: Scope.Scope) => Effect.Effect<void>
 }
 
 type Entry = readonly [Element, Handler<any>]
@@ -82,8 +82,8 @@ export function makeEventSource(): EventSource {
     return disposables
   }
 
-  function setup(rendered: EventTarget, scope: Scope.Scope) {
-    const elements = getElements(rendered as Rendered)
+  function setup(rendered: Rendered, scope: Scope.Scope) {
+    const elements = getElements(rendered)
 
     if (elements.length === 0 || listeners.size === 0) {
       return Effect.void
