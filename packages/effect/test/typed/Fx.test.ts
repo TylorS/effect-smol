@@ -92,4 +92,12 @@ describe("Fx", () => {
     ),
     expected: [1, 2, 3]
   })
+
+  it.fx.live("Fx.keyed", {
+    actual: Fx.keyed(Fx.succeed([1, 2, 3]), {
+      getKey: (n) => n,
+      onValue: Fx.map((n) => n + 1)
+    }),
+    expected: [[2, 3, 4]]
+  })
 })

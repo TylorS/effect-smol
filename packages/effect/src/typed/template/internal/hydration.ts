@@ -1,11 +1,36 @@
 import { type Inspectable, NodeInspectSymbol } from "../../../interfaces/Inspectable.ts"
 import { CouldNotFindRootElement, CouldNotFindTemplateEndError } from "../errors.ts"
+import type { HydrateContext } from "../HydrateContext.ts"
 import { getOuterHtml, isComment, isElement } from "../PersistentDocumentFragment.ts"
 
 const TYPED_TEMPLATE_PREFIX = `t_`
 const TYPED_TEMPLATE_END_PREFIX = `/t_`
 const MANY_PREFIX = `/m_`
 const HOLE_PREFIX = `n_`
+
+export function getRendered(where: HydrationNode) {
+  const nodes = getNodes(where)
+  if (nodes.length === 1) return nodes[0]
+  return nodes
+}
+
+export function findHydrationTemplateByHash(
+  hydrateCtx: HydrateContext,
+  hash: string
+): HydrationTemplate | null {
+  // If there is not a manyKey, we can just find the template by its hash
+  if (hydrateCtx.manyKey === undefined) {
+    return findHydrationTemplate(getChildNodes(hydrateCtx.where), hash)
+  }
+
+  // If there is a manyKey, we need to find the many node first
+  const many = findHydrationMany(getChildNodes(hydrateCtx.where), hydrateCtx.manyKey)
+
+  if (many === null) return null
+
+  // Then we can find the template by its hash
+  return findHydrationTemplate(getChildNodes(many), hash)
+}
 
 export function getHydrationRoot(root: HTMLElement): HydrationElement {
   const childNodes = Array.from(root.childNodes)

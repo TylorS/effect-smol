@@ -2,6 +2,7 @@ import "./styles.css"
 
 import { Effect } from "effect"
 import { not } from "effect/Boolean"
+import { capitalize } from "effect/String"
 import * as Fx from "effect/typed/fx"
 import * as RefSubject from "effect/typed/fx/ref-subject/RefSubject"
 import * as EventHandler from "effect/typed/template/EventHandler"
@@ -52,15 +53,10 @@ export const TodoApp = html`<section class="todoapp ${App.FilterState}">
         ${App.ActiveCount} item${plural(App.ActiveCount)} left
       </span>
 
-
       <ul class="filters">
-        <li>
-          <a href="/#/all" class="${
-  Fx.when(Fx.map(App.FilterState, (state) => state === "all").pipe(Fx.prepend(false)), {
-    onTrue: "selected",
-    onFalse: ""
-  })
-}">All</a>
+        ${FilterLink("all")}
+        ${FilterLink("active")}
+        ${FilterLink("completed")}
       </ul>
 
       ${clearCompleted}
@@ -117,5 +113,13 @@ function TodoItem(todo: RefSubject.RefSubject<Domain.Todo>, id: Domain.TodoId) {
         onkeydown=${onKeydown}
       />
     </li>`
+  })
+}
+
+function FilterLink(filter: Domain.FilterState) {
+  return Fx.gen(function*() {
+    const isSelected = Fx.map(App.FilterState, (state) => state === filter)
+    const classes = Fx.when(isSelected, { onTrue: "selected", onFalse: "" })
+    return html`<li><a href="/#/${filter}" class="${classes}">${capitalize(filter)}</a></li>`
   })
 }

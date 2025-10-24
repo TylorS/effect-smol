@@ -6,7 +6,7 @@ import { type Duration, identity, ServiceMap, SynchronizedRef } from "../../../i
 import { pipeArguments } from "../../../interfaces/Pipeable.ts"
 import * as Scope from "../../../Scope.ts"
 import { type Fx } from "../Fx.js"
-import { diffIterator } from "../internal/diff.ts"
+import { diffIterator, getKeyMap } from "../internal/diff.ts"
 import type { Add, Moved, Remove, Update } from "../internal/diff.ts"
 import { withScopedFork } from "../internal/scope.ts"
 import * as RefSubject from "../ref-subject/RefSubject.ts"
@@ -87,6 +87,8 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
       // Uses debounce to avoid glitches
       const scheduleNextEmit = forkDebounce(Effect.suspend(() => sink.onSuccess(getReadyIndices(state))))
 
+      let previousKeyMap: Map<PropertyKey, number> = new Map()
+
       function diffAndPatch(values: ReadonlyArray<A>) {
         return Effect.gen(function*() {
           const previous = state.previousValues
@@ -96,7 +98,10 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           let scheduled = false
           let done = false
 
-          for (const patch of diffIterator(previous, values, options)) {
+          const keyMap = getKeyMap(values, options.getKey)
+          for (
+            const patch of diffIterator<A, B>(previous, values, { getKey: options.getKey, previousKeyMap, keyMap })
+          ) {
             if (patch._tag === "Remove") {
               yield* removeValue(state, patch)
             } else if (patch._tag === "Add") {
@@ -123,6 +128,7 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           }
 
           done = true
+          previousKeyMap = keyMap
 
           if (scheduled || added === false) {
             yield* scheduleNextEmit

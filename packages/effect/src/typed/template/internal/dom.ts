@@ -189,22 +189,28 @@ export function matchNodeValue<A, B>(
     case "boolean":
       return onText(String(value))
     case "undefined":
+    case "function":
     case "object": {
-      if (!value) {
+      if (isNullish(value)) {
         return onNodes([])
       } else if (Array.isArray(value)) {
         // arrays can be used to cleanup, if empty
         if (value.length === 0) return onNodes([])
         // or diffed, if these contains nodes or "wires"
-        else {
-          return onNodes(value.flatMap((_) => renderEventToArray(document, _)))
+        return onNodes(value.flatMap((_) => renderEventToArray(document, _)))
+      } else if (isRenderEvent(value)) {
+        const isHtml = value[RenderEventTypeId] === "html"
+        if (isHtml) {
+          const tmp = document.createElement("template")
+          tmp.innerHTML = value.html
+          return onNodes(Array.from(tmp.childNodes))
+        } else {
+          return onNodes(renderEventToArray(document, value))
         }
       } else {
         return onNodes(renderEventToArray(document, value))
       }
     }
-    case "function":
-      return onNodes([])
   }
 }
 
@@ -226,11 +232,11 @@ export function renderEventToArray(document: Document, x: unknown): Array<Node> 
           const value = x.valueOf()
           return Array.isArray(value) ? value : [value as Node]
         }
-        const tmp = document.createElement("div")
+        const tmp = document.createElement("template")
         tmp.innerHTML = x.html
         return Array.from(tmp.childNodes)
       }
-      return renderEventToArray(document, x)
+      return [x as Node]
     default:
       return []
   }
@@ -270,7 +276,7 @@ export function findHoleStartComment(parent: Element, index: number) {
 
   for (let i = 0; i < childNodes.length; ++i) {
     const node = childNodes[i]
-    if (node.nodeType === 8 && node.nodeValue === `/n_${index}`) {
+    if (node.nodeType === 8 && node.nodeValue === `n_${index}`) {
       return node as Comment
     }
   }

@@ -39,7 +39,9 @@ function buildTemplateNode(document: Document, node: Template.Node): Node {
 function buildTemplateElement(document: Document, node: Template.ElementNode): HTMLElement {
   const element = document.createElement(node.tagName)
   addStaticAttributes(element, node.attributes)
-  element.append(...node.children.map((child) => buildTemplateNode(document, child)))
+  for (const child of node.children) {
+    element.appendChild(buildTemplateNode(document, child))
+  }
   return element
 }
 

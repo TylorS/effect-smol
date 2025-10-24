@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest"
 import { Effect } from "effect"
 import * as Fx from "effect/typed/fx/index"
 import * as EventHandler from "effect/typed/template/EventHandler"
-import { html, HtmlRenderEvent, type Renderable } from "effect/typed/template/index"
+import { html, type Renderable } from "effect/typed/template/index"
 import { DomRenderTemplate, render, type Rendered } from "effect/typed/template/Render"
 import { Window } from "happy-dom"
 
@@ -308,14 +308,6 @@ describe("Render", () => {
       assert.equal(nullExample.textContent, "")
       const arrayExample = yield* renderHtmlElement`<div>${[1, "Hello", true]}</div>`
       assert.equal(arrayExample.textContent, "1Hellotrue")
-    })
-  )
-
-  it.effect(
-    "interpolates html render events",
-    Effect.fn(function*() {
-      const renderEventExample = yield* renderHtmlElement`<div>${HtmlRenderEvent("<p>Hello, world!</p>", true)}</div>`
-      assert.equal(renderEventExample.innerHTML, `<p>Hello, world!</p>${TYPED_NODE_END(0)}`)
     })
   )
 

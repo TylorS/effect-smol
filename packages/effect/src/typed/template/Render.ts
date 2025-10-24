@@ -25,7 +25,15 @@ import {
   makeTextContentUpdater
 } from "./internal/dom.ts"
 import { renderToString } from "./internal/encoding.ts"
-import * as hydration from "./internal/hydration.js"
+import type { HydrationHole, HydrationNode, HydrationTemplate } from "./internal/hydration.js"
+import {
+  findHydratePath,
+  findHydrationHole,
+  findHydrationTemplateByHash,
+  getChildNodes,
+  getHydrationRoot,
+  getRendered
+} from "./internal/hydration.js"
 import { keyToPartType } from "./internal/keyToPartType.ts"
 import { findPath } from "./internal/ParentChildNodes.ts"
 import { parse } from "./internal/Parser.ts"
@@ -96,7 +104,9 @@ export const DomRenderTemplate = Object.assign(
           > {
             return Effect.gen(
               function*() {
-                const { firstChild, fragment, lastChild, template } = getEntry(templateStrings)
+                const entry = getEntry(templateStrings)
+                const { firstChild, lastChild, template } = entry
+                const fragment = document.importNode(entry.fragment, true)
                 const ctx = yield* makeTemplateContext<Values, RSink>(document, values, sink.onFailure)
 
                 return yield* Effect.gen(function*() {
@@ -109,9 +119,9 @@ export const DomRenderTemplate = Object.assign(
                     const { hydrateCtx, where } = hydration
                     effects = setupHydrationParts(template.parts, {
                       ...ctx,
+                      hydrateContext: hydrateCtx,
                       where,
-                      manyKey: hydrateCtx.manyKey,
-                      makeHydrateContext: (where: hydration.HydrationNode): HydrateContext => ({
+                      makeHydrateContext: (where: HydrationNode): HydrateContext => ({
                         where,
                         hydrate: true
                       })
@@ -119,15 +129,18 @@ export const DomRenderTemplate = Object.assign(
 
                     rendered = getRendered(where)
                   } else {
-                    effects = setupRenderParts(template.parts, fragment, ctx)
+                    effects = setupRenderParts(
+                      template.parts.map(([part, path]) => [part, findPath(fragment, path)]),
+                      ctx
+                    )
                   }
 
                   if (effects.length > 0) {
-                    yield* Effect.forEach(effects, flow(Effect.catchCause(ctx.onCause), Effect.forkIn(ctx.scope)))
-                  }
+                    yield* Effect.all(effects.map(flow(Effect.catchCause(ctx.onCause), Effect.forkIn(ctx.scope))))
 
-                  if (ctx.expected > 0 && ctx.refCounter.expect(ctx.expected)) {
-                    yield* ctx.refCounter.wait
+                    if (ctx.expected > 0 && ctx.refCounter.expect(ctx.expected)) {
+                      yield* ctx.refCounter.wait
+                    }
                   }
 
                   if (rendered === undefined) {
@@ -209,9 +222,7 @@ export const hydrate: {
 ): Fx.Fx<ToRendered<T>, E, R> {
   return Fx.provide(
     Fx.mapEffect(rendered, (what) => attachRoot(rootElement, what)),
-    Layer.syncServices(() =>
-      HydrateContext.serviceMap({ where: hydration.getHydrationRoot(rootElement), hydrate: true })
-    )
+    Layer.syncServices(() => HydrateContext.serviceMap({ where: getHydrationRoot(rootElement), hydrate: true }))
   )
 })
 
@@ -250,13 +261,13 @@ function getNodesFromRendered(rendered: Rendered): Array<globalThis.Node> {
 }
 
 function setupRenderParts(
-  parts: Template.Template["parts"],
-  content: DocumentFragment,
+  parts: ReadonlyArray<
+    readonly [part: Template.PartNode | Template.SparsePartNode, node: Node]
+  >,
   ctx: TemplateContext
 ): Array<Effect.Effect<unknown>> {
   const effects: Array<Effect.Effect<unknown>> = []
-  for (const [part, path] of parts) {
-    const node = findPath(content, path)
+  for (const [part, node] of parts) {
     const effect = setupRenderPart(part, node, ctx)
     if (effect !== undefined) {
       effects.push(effect)
@@ -300,11 +311,10 @@ function setupRenderPart<E = never, R = never>(
 ): Effect.Effect<unknown, E, R> | void {
   switch (part._tag) {
     case "node": {
-      const element = node as HTMLElement | SVGElement
       return renderValue(
         ctx,
         part.index,
-        makeNodeUpdater(ctx.document, findHoleComment(element, part.index))
+        makeNodeUpdater(ctx.document, findHoleComment(node as HTMLElement | SVGElement, part.index))
       )
     }
     case "attr": {
@@ -364,8 +374,8 @@ function setupRenderPart<E = never, R = never>(
 }
 
 type HydrateTemplateContext<R = never> = TemplateContext<R> & {
-  where: hydration.HydrationNode
-  makeHydrateContext: (where: hydration.HydrationNode) => HydrateContext
+  where: HydrationNode
+  makeHydrateContext: (where: HydrationNode) => HydrateContext
 }
 
 function setupHydrationParts<E, R>(
@@ -390,12 +400,12 @@ function setupHydrationPart<E, R>(
 ): Effect.Effect<unknown, E, R> | void {
   switch (part._tag) {
     case "node": {
-      const hole = hydration.findHydrationHole(hydration.getChildNodes(ctx.where), part.index)
+      const hole = findHydrationHole(getChildNodes(ctx.where), part.index)
       if (hole === null) throw new CouldNotFindCommentError(part.index)
       return setupHydratedNodePart(part, hole, ctx)
     }
     default:
-      return setupRenderPart(part, hydration.findHydratePath(ctx.where, path), ctx)
+      return setupRenderPart(part, findHydratePath(ctx.where, path), ctx)
   }
 }
 
@@ -412,7 +422,9 @@ function renderSparsePart<E, R, T = unknown>(
       if (node._tag === "text") return Fx.succeed(node.value)
       return Fx.map(liftRenderableToFx<E, R>(ctx.values[node.index]), transformValue)
     })
-  ).pipe(Fx.observe((values) => withCurrentRenderPriority(f, index, ctx, () => f(values))))
+  ).pipe(
+    Fx.observe((values) => withCurrentRenderPriority(f, index, ctx, () => f(values)))
+  )
 }
 
 function renderSparseTextContent<E, R>(
@@ -436,16 +448,21 @@ function renderValue<E, R, X>(
   index: number,
   f: (value: unknown) => X
 ): void | X | Effect.Effect<unknown, E, R> {
-  return matchRenderable(ctx.values[index], ctx, {
+  return matchRenderable(ctx.values[index], {
     Primitive: f,
-    Effect: Effect.tap((value) => withCurrentRenderPriority(value, index, ctx, () => f(value))),
-    Fx: (fx) => fx.run(Sink.make(ctx.onCause, (value) => withCurrentRenderPriority(value, index, ctx, () => f(value))))
+    Effect: (effect) => {
+      ctx.expected++
+      return effect.pipe(Effect.tap((value) => withCurrentRenderPriority(value, index, ctx, () => f(value))))
+    },
+    Fx: (fx) => {
+      ctx.expected++
+      return fx.run(Sink.make(ctx.onCause, (value) => withCurrentRenderPriority(value, index, ctx, () => f(value))))
+    }
   })
 }
 
 function matchRenderable<X, A, B, C>(
   renderable: Renderable.Any,
-  ctx: TemplateContext,
   matches: {
     Primitive: (value: X) => A
     Effect: (effect: Effect.Effect<X>) => B
@@ -454,13 +471,10 @@ function matchRenderable<X, A, B, C>(
 ): A | B | C | void {
   if (isNullish(renderable)) return
   else if (Fx.isFx(renderable)) {
-    ctx.expected++
     return matches.Fx(renderable as any)
   } else if (Effect.isEffect(renderable)) {
-    ctx.expected++
     return matches.Effect(renderable as any)
   } else if (Array.isArray(renderable)) {
-    ctx.expected++
     return matches.Fx(liftRenderableToFx(renderable))
   } else {
     return matches.Primitive(renderable)
@@ -482,6 +496,7 @@ function setupRenderProperties<E = never, R = never>(
     }
   }
   if (effects.length > 0) {
+    ctx.expected += effects.length
     return Effect.all(effects, { concurrency: "unbounded" })
   }
 }
@@ -531,8 +546,6 @@ type TemplateContext<R = never> = {
    */
   dynamicIndex: number
 
-  // TODO: Add back hydration support
-  manyKey?: string | undefined
   readonly hydrateContext: HydrateContext | undefined
 }
 
@@ -615,12 +628,12 @@ function makeArrayLike<A>(index: number, value: A): ArrayLike<A> {
   }
 }
 
-function attemptHydration(
+export function attemptHydration(
   ctx: TemplateContext,
   hash: string
-): { readonly where: hydration.HydrationTemplate; readonly hydrateCtx: HydrateContext } | undefined {
+): { readonly where: HydrationTemplate; readonly hydrateCtx: HydrateContext } | undefined {
   if (ctx.hydrateContext && ctx.hydrateContext.hydrate) {
-    const where = findHydrationTemplateByHash(ctx.hydrateContext!, hash)
+    const where = findHydrationTemplateByHash(ctx.hydrateContext, hash)
     if (where === null) {
       ctx.hydrateContext.hydrate = false
       return
@@ -628,50 +641,6 @@ function attemptHydration(
       return { where, hydrateCtx: ctx.hydrateContext }
     }
   }
-}
-
-export function findHydrationTemplateByHash(
-  hydrateCtx: HydrateContext,
-  hash: string
-): hydration.HydrationTemplate | null {
-  // If there is not a manyKey, we can just find the template by its hash
-  if (hydrateCtx.manyKey === undefined) {
-    return findHydrationTemplate(hydration.getChildNodes(hydrateCtx.where), hash)
-  }
-
-  // If there is a manyKey, we need to find the many node first
-  const many = hydration.findHydrationMany(hydration.getChildNodes(hydrateCtx.where), hydrateCtx.manyKey)
-
-  if (many === null) return null
-
-  // Then we can find the template by its hash
-  return findHydrationTemplate(hydration.getChildNodes(many), hash)
-}
-
-function findHydrationTemplate(
-  nodes: Array<hydration.HydrationNode>,
-  templateHash: string
-): hydration.HydrationTemplate | null {
-  const toProcess: Array<hydration.HydrationNode> = [...nodes]
-
-  while (toProcess.length > 0) {
-    const node = toProcess.shift()!
-
-    if (node._tag === "template" && node.hash === templateHash) {
-      return node
-    } else if (node._tag === "element") {
-      // eslint-disable-next-line no-restricted-syntax
-      toProcess.push(...node.childNodes)
-    }
-  }
-
-  return null
-}
-
-function getRendered(where: hydration.HydrationNode) {
-  const nodes = hydration.getNodes(where)
-  if (nodes.length === 1) return nodes[0]
-  return nodes
 }
 
 function setupEventHandler(element: Element, ctx: TemplateContext, index: number, name: string) {
@@ -702,10 +671,12 @@ function setupDataset<E, R>(
       const part = makePropertiesPart(["attr", `data-${k}`], index)
       const effect = setupRenderPart<E, R>(part, element, { ...ctx, values: makeArrayLike(index, v) })
       if (effect !== undefined) {
-        ctx.expected++
         effects.push(effect)
       }
     }
+
+    ctx.expected += effects.length
+
     return Effect.all(effects, { concurrency: "unbounded" })
   }
   return renderValue(ctx, index, makeDatasetUpdater(element))
@@ -722,7 +693,7 @@ function setupProperties<E, R>(element: HTMLElement | SVGElement, ctx: TemplateC
     }
   }
 
-  return matchRenderable(ctx.values[index], ctx, {
+  return matchRenderable(ctx.values[index], {
     Primitive: setupIfObject,
     Effect: Effect.tap(setupIfObject),
     Fx: flow(
@@ -737,7 +708,7 @@ function setupRef<R>(element: HTMLElement | SVGElement, ctx: TemplateContext<R>,
   const renderable = ctx.values[index]
   if (isNullish(renderable)) return
   if (isFunction(renderable)) {
-    return matchRenderable(renderable(element), ctx, { Primitive: constVoid, Effect: identity, Fx: Fx.drain })
+    return matchRenderable(renderable(element), { Primitive: constVoid, Effect: identity, Fx: Fx.drain })
   }
   throw new Error("Invalid value provided to ref part")
 }
@@ -750,7 +721,7 @@ function setupPropertSetter(element: Element, name: string) {
 
 function setupHydratedNodePart<E, R>(
   part: Template.NodePart,
-  hole: hydration.HydrationHole,
+  hole: HydrationHole,
   ctx: HydrateTemplateContext<R>
 ): Effect.Effect<unknown, E, R> | void {
   const nestedCtx = ctx.makeHydrateContext(hole)

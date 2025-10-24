@@ -504,12 +504,6 @@ function parseTextAndParts<T>(
   let skipWhitespace = true
   const out: Array<Template.TextNode | T> = []
   const parts = s.split(PART_REGEX)
-
-  if (parts.length === 1) {
-    if (s.trimStart() === "") return []
-    return [new Template.TextNode(s)]
-  }
-
   // Each part takes 2 indices, so we need to subtract 2 to get the last part
   const last = parts.length - 2
 

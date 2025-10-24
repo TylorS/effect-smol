@@ -52,7 +52,8 @@ export const moved = <A, B>(value: A, from: number, to: number, key: B): Moved<A
 export type DiffOptions<A, B extends PropertyKey> = {
   readonly getKey: (a: A) => B
   readonly eq?: Equivalence.Equivalence<A>
-  readonly keyMap?: Map<PropertyKey, number>
+  readonly previousKeyMap?: Map<PropertyKey, number> | undefined
+  readonly keyMap?: Map<PropertyKey, number> | undefined
 }
 
 export function diff<A extends PropertyKey>(
@@ -74,8 +75,8 @@ export function diff<A, B extends PropertyKey>(
 ): DiffResult<A, B> {
   const { eq = Equal.equals, getKey = identity as any } = options
   const diff: Array<Diff<A, B>> = []
-  const oldKeyMap = options.keyMap ?? getKeyMap(a, getKey)
-  const keyMap = getKeyMap(b, getKey)
+  const oldKeyMap = options.previousKeyMap ?? getKeyMap(a, getKey)
+  const keyMap = options.keyMap ?? getKeyMap(b, getKey)
 
   for (let i = 0; i < a.length; ++i) {
     const aValue = a[i]
@@ -122,8 +123,8 @@ export function* diffIterator<A, B extends PropertyKey>(
   options: Partial<DiffOptions<A, B>> = {}
 ): Generator<Diff<A, B>> {
   const { eq = Equal.equals, getKey = identity as any } = options
-  const oldKeyMap = options.keyMap ?? getKeyMap(a, getKey)
-  const keyMap = getKeyMap(b, getKey)
+  const oldKeyMap = options.previousKeyMap ?? getKeyMap(a, getKey)
+  const keyMap = options.keyMap ?? getKeyMap(b, getKey)
 
   for (let i = 0; i < a.length; ++i) {
     const aValue = a[i]
@@ -158,14 +159,16 @@ function sortDiff<A, B>(a: Diff<A, B>, b: Diff<A, B>): number {
 
 const keysMaps = new WeakMap<any, Map<PropertyKey, number>>()
 
-function getKeyMap<A>(a: ReadonlyArray<A>, getKey: (a: A) => PropertyKey): Map<PropertyKey, number> {
+export function getKeyMap<A>(a: ReadonlyArray<A>, getKey: (a: A) => PropertyKey): Map<PropertyKey, number> {
   let keyMap = keysMaps.get(a)
   if (keyMap === undefined) {
     keyMap = new Map()
     keysMaps.set(a, keyMap)
-    a.forEach((a, index) => {
-      keyMap!.set(getKey(a), index)
-    })
+    if (a.length > 0) {
+      a.forEach((a, index) => {
+        keyMap!.set(getKey(a), index)
+      })
+    }
   }
   return keyMap
 }

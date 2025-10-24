@@ -12,17 +12,15 @@ const TODOS_STORAGE_KEY = `@typed/todomvc/todos`
 
 export const layerKeyValueStore = KeyValueStore.layerStorage(() => localStorage)
 export const getTodos = Effect.gen(function*() {
-  const kv = yield* KeyValueStore.KeyValueStore
-  const schemaStore = KeyValueStore.toSchemaStore(kv, Domain.TodoList)
-  const todos = yield* schemaStore.get(TODOS_STORAGE_KEY)
+  const kv = KeyValueStore.toSchemaStore(yield* KeyValueStore.KeyValueStore, Domain.TodoList)
+  const todos = yield* kv.get(TODOS_STORAGE_KEY)
   return Option.getOrElse(todos, (): Domain.TodoList => [])
-})
+}).pipe(Effect.catchCause(() => Effect.succeed([])))
 
 export const writeTodosToKeyValueStore = (todos: Domain.TodoList) =>
   Effect.gen(function*() {
-    const kv = yield* KeyValueStore.KeyValueStore
-    const schemaStore = KeyValueStore.toSchemaStore(kv, Domain.TodoList)
-    yield* schemaStore.set(TODOS_STORAGE_KEY, todos)
+    const kv = KeyValueStore.toSchemaStore(yield* KeyValueStore.KeyValueStore, Domain.TodoList)
+    yield* kv.set(TODOS_STORAGE_KEY, todos)
   })
 
 const writeTodos = Fx.tapEffect(
@@ -41,8 +39,8 @@ const filterStateLiterals = new Set(Domain.FilterState.members.map((m) => m.lite
 
 const currentFilterState = hashChanges.pipe(
   Fx.map((hash) => {
-    const filter = hash.slice(1)
-    return filterStateLiterals.has(filter as Domain.FilterState) ? filter as Domain.FilterState : "all"
+    const filter = hash.slice(1) as Domain.FilterState
+    return filterStateLiterals.has(filter) ? filter : "all"
   })
 )
 
@@ -52,33 +50,22 @@ export const Live = Layer.unwrap(
 
     const Model = Layer.mergeAll(
       // Ininialize our TodoList from storage
-      App.TodoList.make(getTodos.pipe(
-        Effect.catchCause(() => Effect.succeed([])),
-        Effect.provideServices(services)
-      )),
+      App.TodoList.make(getTodos.pipe(Effect.provideServices(services))),
       // Update our FilterState everytime the current path changes
       App.FilterState.make(currentFilterState),
       // Initialize our TodoText
       App.TodoText.make(Effect.succeed(""))
     )
 
-    const CreateTodo = Layer.sync(App.CreateTodo)(() =>
-    // Create a new Todo with the provided text
-    (text: string) =>
+    const CreateTodo = Layer.sync(App.CreateTodo, () => (text: string) =>
       Effect.sync((): Domain.Todo => ({
         id: Domain.TodoId.makeUnsafe(crypto.randomUUID()),
         text,
         completed: false,
         timestamp: DateTime.makeUnsafe(new Date())
-      }))
-    )
+      })))
 
-    return Layer.mergeAll(
-      CreateTodo,
-      Fx.drainLayer(writeTodos)
-    ).pipe(
-      Layer.provideMerge(Model)
-    )
+    return Layer.mergeAll(CreateTodo, Fx.drainLayer(writeTodos)).pipe(Layer.provideMerge(Model))
   })
 ).pipe(
   Layer.provide(KeyValueStore.layerStorage(() => localStorage))

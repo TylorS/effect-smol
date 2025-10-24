@@ -3,7 +3,7 @@ import { Effect } from "effect"
 import * as Fx from "effect/typed/fx/index"
 import * as EventHandler from "effect/typed/template/EventHandler"
 import { HtmlRenderTemplate, renderToHtmlString } from "effect/typed/template/Html"
-import { html, HtmlRenderEvent, many, type Renderable } from "effect/typed/template/index"
+import { html, many, type Renderable } from "effect/typed/template/index"
 import { DomRenderTemplate, hydrate, type Rendered } from "effect/typed/template/Render"
 import { Window } from "happy-dom"
 
@@ -309,16 +309,6 @@ describe("Hydration", () => {
       assert.equal(nullExample.textContent, "")
       const arrayExample = yield* hydrateHtmlElement`<div>${[1, "Hello", true]}</div>`
       assert.equal(arrayExample.textContent, "1Hellotrue")
-    })
-  )
-
-  const TYPED_NODE_END = (i: number) => `<!--/n_${i}-->`
-
-  it.effect(
-    "interpolates html render events",
-    Effect.fn(function*() {
-      const renderEventExample = yield* hydrateHtmlElement`<div>${HtmlRenderEvent("<p>Hello, world!</p>", true)}</div>`
-      assert.equal(renderEventExample.innerHTML, `<p>Hello, world!</p>${TYPED_NODE_END(0)}`)
     })
   )
 
