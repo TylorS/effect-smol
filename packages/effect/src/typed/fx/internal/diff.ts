@@ -164,10 +164,9 @@ export function getKeyMap<A>(a: ReadonlyArray<A>, getKey: (a: A) => PropertyKey)
   if (keyMap === undefined) {
     keyMap = new Map()
     keysMaps.set(a, keyMap)
-    if (a.length > 0) {
-      a.forEach((a, index) => {
-        keyMap!.set(getKey(a), index)
-      })
+    const len = a.length
+    for (let i = 0; i < len; ++i) {
+      keyMap.set(getKey(a[i]), i)
     }
   }
   return keyMap

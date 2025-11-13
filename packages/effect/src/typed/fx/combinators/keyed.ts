@@ -4,6 +4,7 @@ import * as Exit from "../../../Exit.ts"
 import * as Fiber from "../../../Fiber.js"
 import { type Duration, identity, ServiceMap, SynchronizedRef } from "../../../index.ts"
 import { pipeArguments } from "../../../interfaces/Pipeable.ts"
+import { MaxOpsBeforeYield } from "../../../Scheduler.ts"
 import * as Scope from "../../../Scope.ts"
 import { type Fx } from "../Fx.js"
 import { diffIterator, getKeyMap } from "../internal/diff.ts"
@@ -53,7 +54,9 @@ class Keyed<A, E, R, B extends PropertyKey, C, E2, R2> implements Fx<ReadonlyArr
   }
 
   run<R3>(sink: Sink.Sink<ReadonlyArray<C>, E | E2, R3>) {
-    return Effect.withFiber((fiber) => runKeyed(this.fx, this.options, sink, fiber.id))
+    return Effect.withFiber((fiber) => runKeyed(this.fx, this.options, sink, fiber.id)).pipe(
+      Effect.provideService(MaxOpsBeforeYield, Infinity)
+    )
   }
 
   pipe(this: Keyed<A, E, R, B, C, E2, R2>) {
@@ -82,12 +85,13 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
   id: number
 ): Effect.Effect<unknown, never, Scope.Scope | R | R2 | R3> {
   return withDebounceFork(
-    (forkDebounce, parentScope) => {
+    (forkEmit, parentScope) => {
       const state = emptyKeyedState<A, B, C>()
-      // Uses debounce to avoid glitches
-      const scheduleNextEmit = forkDebounce(Effect.suspend(() => sink.onSuccess(getReadyIndices(state))))
 
       let previousKeyMap: Map<PropertyKey, number> = new Map()
+
+      const emit = Effect.suspend(() => sink.onSuccess(getReadyIndices(state)))
+      const scheduleNextEmit = forkEmit(emit)
 
       function diffAndPatch(values: ReadonlyArray<A>) {
         return Effect.gen(function*() {
@@ -133,7 +137,6 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           if (scheduled || added === false) {
             yield* scheduleNextEmit
           } else {
-            // Allow fibers to begin running if we're adding Fibers
             yield* Effect.sleep(1)
           }
         })
