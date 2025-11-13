@@ -203,7 +203,7 @@ export const insertAt: {
  * @category computed
  */
 export const isEmpty = <A, E, R>(ref: RefArray<A, E, R>): RefSubject.Computed<boolean, E, R> =>
-  RefSubject.map(ref, ReadonlyArray.isEmptyReadonlyArray)
+  RefSubject.map(ref, ReadonlyArray.isReadonlyArrayEmpty)
 
 /**
  * Check to see if a RefArray is non-empty.

@@ -5,7 +5,7 @@ export type { Brand }
 
 /* #region Model */
 
-export const TodoId = Schema.String.pipe(Schema.brand("TodoId"))
+export const TodoId = Schema.String.pipe(Schema.brand<"TodoId">())
 export type TodoId = Schema.Schema.Type<typeof TodoId>
 
 export const Todo = Schema.Struct({
