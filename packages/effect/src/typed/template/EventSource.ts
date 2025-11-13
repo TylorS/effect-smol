@@ -2,12 +2,11 @@ import * as Effect from "../../Effect.ts"
 import * as Fiber from "../../Fiber.ts"
 import * as Scope from "../../Scope.ts"
 import type { EventHandler } from "./EventHandler.js"
-import { getElements, type PersistentDocumentFragment } from "./PersistentDocumentFragment.ts"
+import { getElements, type Rendered } from "./Wire.ts"
 
 type EventName = string
 
 type Handler<Ev extends Event> = EventHandler<Ev>
-type Rendered = Node | Array<Node> | PersistentDocumentFragment
 
 export interface EventSource {
   readonly addEventListener: <Ev extends Event>(

@@ -1,4 +1,4 @@
-import { describe, it } from "@effect/vitest"
+import { assert, describe, it } from "@effect/vitest"
 import { Cause, Effect } from "effect"
 import * as Fx from "effect/typed/fx"
 
@@ -100,4 +100,16 @@ describe("Fx", () => {
     }),
     expected: [[2, 3, 4]]
   })
+
+  it.live(
+    "Fx.callback",
+    Effect.fn(function*() {
+      const fx = Fx.callback<string>((emit) => {
+        const id = setInterval(() => emit.succeed("hello"), 50)
+        return Effect.sync(() => clearInterval(id))
+      })
+      const values = yield* Fx.collectUpTo(fx, 3)
+      assert.deepStrictEqual(values, ["hello", "hello", "hello"])
+    })
+  )
 })

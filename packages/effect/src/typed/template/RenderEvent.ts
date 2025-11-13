@@ -1,5 +1,5 @@
 import { hasProperty } from "../../data/Predicate.ts"
-import { getOuterHtml, type PersistentDocumentFragment } from "./PersistentDocumentFragment.ts"
+import { type Rendered, toHtml } from "./Wire.ts"
 
 export type RenderEvent =
   | DomRenderEvent
@@ -10,16 +10,16 @@ export type RenderEventTypeId = typeof RenderEventTypeId
 
 export interface DomRenderEvent {
   readonly [RenderEventTypeId]: "dom"
-  readonly content: Node | Array<Node> | PersistentDocumentFragment
+  readonly content: Rendered
   readonly toString: () => string
-  readonly valueOf: () => Node | Array<Node> | PersistentDocumentFragment
+  readonly valueOf: () => Rendered
 }
 
-export const DomRenderEvent = (content: Node | Array<Node> | PersistentDocumentFragment): DomRenderEvent => ({
+export const DomRenderEvent = (content: Rendered): DomRenderEvent => ({
   [RenderEventTypeId]: "dom",
   content,
-  toString: () => getOuterHtml(content),
-  valueOf: () => content.valueOf() as Node | Array<Node> | PersistentDocumentFragment
+  toString: () => toHtml(content),
+  valueOf: () => content
 })
 
 export interface HtmlRenderEvent {

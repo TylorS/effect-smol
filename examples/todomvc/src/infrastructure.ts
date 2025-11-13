@@ -11,15 +11,19 @@ import * as Domain from "./domain"
 const TODOS_STORAGE_KEY = `@typed/todomvc/todos`
 
 export const layerKeyValueStore = KeyValueStore.layerStorage(() => localStorage)
+export const getTodosStore = Effect.map(
+  KeyValueStore.KeyValueStore.asEffect(),
+  (kv) => KeyValueStore.toSchemaStore(kv, Domain.TodoList)
+)
 export const getTodos = Effect.gen(function*() {
-  const kv = KeyValueStore.toSchemaStore(yield* KeyValueStore.KeyValueStore, Domain.TodoList)
+  const kv = yield* getTodosStore
   const todos = yield* kv.get(TODOS_STORAGE_KEY)
   return Option.getOrElse(todos, (): Domain.TodoList => [])
 }).pipe(Effect.catchCause(() => Effect.succeed([])))
 
 export const writeTodosToKeyValueStore = (todos: Domain.TodoList) =>
   Effect.gen(function*() {
-    const kv = KeyValueStore.toSchemaStore(yield* KeyValueStore.KeyValueStore, Domain.TodoList)
+    const kv = yield* getTodosStore
     yield* kv.set(TODOS_STORAGE_KEY, todos)
   })
 
@@ -40,6 +44,7 @@ const filterStateLiterals = new Set(Domain.FilterState.members.map((m) => m.lite
 const currentFilterState = hashChanges.pipe(
   Fx.map((hash) => {
     const filter = hash.slice(1) as Domain.FilterState
+    console.log("currentFilterState", filter)
     return filterStateLiterals.has(filter) ? filter : "all"
   })
 )
@@ -47,6 +52,8 @@ const currentFilterState = hashChanges.pipe(
 export const Live = Layer.unwrap(
   Effect.gen(function*() {
     const services = yield* Effect.services<KeyValueStore.KeyValueStore>()
+
+    yield* Effect.addFinalizer(() => Effect.log("stopping live layer"))
 
     const Model = Layer.mergeAll(
       // Ininialize our TodoList from storage

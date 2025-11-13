@@ -702,26 +702,28 @@ export function Service<Self, A, E = never>() {
         )
       }
 
+      // Fx
+      static readonly [Fx.FxTypeId]: Fx.Fx.Variance<A, E, Self> = Variance
+      static readonly run = <RSink>(sink: Sink.Sink<A, E, RSink>) =>
+        Effect.flatMap(service.asEffect(), (ref) => ref.run(sink))
+
+      // Sink
+      static readonly onSuccess = (value: A) => Effect.flatMap(service.asEffect(), (ref) => ref.onSuccess(value))
+      static readonly onFailure = (cause: Cause.Cause<E>) =>
+        Effect.flatMap(service.asEffect(), (ref) => ref.onFailure(cause))
+
       /// Computed
       static readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
       static readonly version = Effect.flatMap(service.asEffect(), (ref) => ref.version)
+
+      // Subject
+      static readonly subscriberCount = Effect.flatMap(service.asEffect(), (ref) => ref.subscriberCount)
+      static readonly interrupt = Effect.flatMap(service.asEffect(), (ref) => ref.interrupt)
 
       // RefSubject
       static readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
       static readonly updates = <B, E2, R2>(f: (ref: GetSetDelete<A, E, never>) => Effect.Effect<B, E2, R2>) =>
         Effect.flatMap(service.asEffect(), (ref) => ref.updates(f))
-
-      // Subject
-      static readonly onSuccess = (value: A) => Effect.flatMap(service.asEffect(), (ref) => ref.onSuccess(value))
-      static readonly onFailure = (cause: Cause.Cause<E>) =>
-        Effect.flatMap(service.asEffect(), (ref) => ref.onFailure(cause))
-      static readonly subscriberCount = Effect.flatMap(service.asEffect(), (ref) => ref.subscriberCount)
-      static readonly interrupt = Effect.flatMap(service.asEffect(), (ref) => ref.interrupt)
-
-      // Fx
-      static readonly [Fx.FxTypeId]: Fx.Fx.Variance<A, E, Self> = Variance
-      static readonly run = <RSink>(sink: Sink.Sink<A, E, RSink>) =>
-        Effect.flatMap(service.asEffect(), (ref) => ref.run(sink))
 
       // Yieldable
       static readonly asEffect = () => Effect.flatMap(service.asEffect(), Effect.fromYieldable)

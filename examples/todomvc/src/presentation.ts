@@ -39,11 +39,9 @@ export const TodoApp = html`<section class="todoapp ${App.FilterState}">
       />
     </form>
   </header>
-
   <section class="main">
     <input class="toggle-all" type="checkbox" ?checked="${App.AllAreCompleted}" ?indeterminate="${App.SomeAreCompleted}" />
     <label for="toggle-all" onclick="${App.toggleAllCompleted}">Mark all as complete</label>
-
     <ul class="todo-list">
       ${many(App.Todos, (todo) => todo.id, TodoItem)}
     </ul>
@@ -117,9 +115,7 @@ function TodoItem(todo: RefSubject.RefSubject<Domain.Todo>, id: Domain.TodoId) {
 }
 
 function FilterLink(filter: Domain.FilterState) {
-  return Fx.gen(function*() {
-    const isSelected = Fx.map(App.FilterState, (state) => state === filter)
-    const classes = Fx.when(isSelected, { onTrue: "selected", onFalse: "" })
-    return html`<li><a href="/#/${filter}" class="${classes}">${capitalize(filter)}</a></li>`
-  })
+  const isSelected = Fx.map(App.FilterState, (state) => state === filter)
+  const classes = Fx.when(isSelected, { onTrue: "selected", onFalse: "" })
+  return html`<li><a href="/#${filter}" class="${classes}">${capitalize(filter)}</a></li>`
 }

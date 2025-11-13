@@ -1,10 +1,12 @@
 /// <reference types="./udomdiff.d.ts" />
 
 import udomdiff from "udomdiff"
-import { isNullish } from "../../../data/Predicate.ts"
+import { isNullish, isObject } from "../../../data/Predicate.ts"
+import * as Effect from "../../../Effect.ts"
 import { CouldNotFindCommentError } from "../errors.ts"
-import { diffable } from "../PersistentDocumentFragment.ts"
+import { type EventHandler, fromEffectOrEventHandler, isEventHandler } from "../EventHandler.ts"
 import { isRenderEvent, RenderEventTypeId } from "../RenderEvent.ts"
+import { diffable } from "../Wire.ts"
 import { renderToString } from "./encoding.ts"
 
 export function makeTextContentUpdater(element: Node) {
@@ -15,12 +17,12 @@ export function makeTextContentUpdater(element: Node) {
 
 export function makeAttributeValueUpdater(element: HTMLElement | SVGElement, attr: Attr) {
   let isSet = false
-  const setValue = (value: unknown) => {
+  const setValue = (value: string | null | undefined) => {
     if (isNullish(value)) {
       element.removeAttribute(attr.name)
       isSet = false
     } else {
-      attr.value = renderToString(value, "")
+      attr.value = value
       if (isSet === false) {
         element.setAttributeNode(attr)
         isSet = true
@@ -36,8 +38,7 @@ export function makeClassListUpdater(element: HTMLElement | SVGElement) {
   // Other DOM-based libraries might have additional classes in the classList, so we need to allow them to exist
   // outside of our control.
   let classList: ReadonlyArray<string> = Array.from(element.classList)
-  return (value: unknown) => {
-    const classNames = getClassList(value)
+  return (classNames: ReadonlyArray<string>) => {
     const { added, removed } = diffStrings(classList, classNames)
     if (added.length > 0) {
       element.classList.add(...added)
@@ -298,13 +299,10 @@ export function makeNodeUpdater(
     }
 
     text.textContent = renderToString(value, "")
-    nodes = diffChildren(comment, nodes, [text, comment], document)
+    nodes = diffChildren(comment, nodes, [text], document)
   }
 
   const updateNodes = (updatedNodes: Array<Node>) => {
-    if (updatedNodes[updatedNodes.length - 1] !== comment) {
-      updatedNodes.push(comment)
-    }
     nodes = diffChildren(comment, nodes, updatedNodes, document)
   }
 
@@ -314,7 +312,28 @@ export function makeNodeUpdater(
 }
 
 export function makeBooleanUpdater(element: HTMLElement | SVGElement, name: string) {
-  return (value: unknown) => {
-    element.toggleAttribute(name, !!value)
+  return (value: boolean) => {
+    element.toggleAttribute(name, value)
   }
+}
+
+export function getAttributeValue(value: unknown): string | null | undefined {
+  if (isNullish(value)) return null
+  return renderToString(value, "")
+}
+
+export function getBooleanValue(value: unknown): boolean {
+  return !!value
+}
+
+export function getDatasetValue(value: unknown): Record<string, string | undefined> | null | undefined {
+  if (isNullish(value)) return null
+  if (isObject(value)) return value as Record<string, string | undefined>
+  return null
+}
+
+export function getEventHandlerValue<E, R>(value: unknown): EventHandler<Event, E, R> | null | undefined {
+  if (isNullish(value)) return null
+  if (isEventHandler(value) || Effect.isEffect(value)) return fromEffectOrEventHandler(value)
+  return null
 }

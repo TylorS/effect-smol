@@ -13,10 +13,11 @@ import * as Sink from "../fx/sink/index.js"
 import { CouldNotFindCommentError, isHydrationError } from "./errors.ts"
 import * as EventHandler from "./EventHandler.js"
 import { type EventSource, makeEventSource } from "./EventSource.ts"
-import { HydrateContext } from "./HydrateContext.ts"
+import { HydrateContext, makeHydrateContext } from "./HydrateContext.ts"
 import { buildTemplateFragment } from "./internal/buildTemplateFragement.ts"
 import {
   findHoleComment,
+  getClassList,
   makeAttributeValueUpdater,
   makeBooleanUpdater,
   makeClassListUpdater,
@@ -31,18 +32,17 @@ import {
   findHydrationHole,
   findHydrationTemplateByHash,
   getChildNodes,
-  getHydrationRoot,
   getRendered
 } from "./internal/hydration.js"
 import { keyToPartType } from "./internal/keyToPartType.ts"
 import { findPath } from "./internal/ParentChildNodes.ts"
 import { parse } from "./internal/Parser.ts"
-import { getAllSiblingsBetween, isText, PersistentDocumentFragment } from "./PersistentDocumentFragment.ts"
 import type { Renderable } from "./Renderable.ts"
 import { DomRenderEvent, type RenderEvent } from "./RenderEvent.ts"
 import * as RQ from "./RenderQueue.js"
 import { RenderTemplate } from "./RenderTemplate.ts"
 import * as Template from "./Template.js"
+import { getAllSiblingsBetween, isText, persistent, type Rendered } from "./Wire.ts"
 
 // Can be utilized to override the document for rendering
 export const RenderDocument = ServiceMap.Reference<Document>("RenderDocument", {
@@ -73,18 +73,14 @@ export const DomRenderTemplate = Object.assign(
       }
       const entries = new WeakMap<TemplateStringsArray, {
         template: Template.Template
-        firstChild: Comment
         fragment: DocumentFragment
-        lastChild: Comment
       }>()
       const getEntry = (templateStrings: TemplateStringsArray) => {
         let entry = entries.get(templateStrings)
         if (entry === undefined) {
           const template = getTemplate(templateStrings)
           const fragment = buildTemplateFragment(document, template)
-          const firstChild = document.createComment(`t_${template.hash}`)
-          const lastChild = document.createComment(`/t_${template.hash}`)
-          entry = { template, firstChild, fragment, lastChild }
+          entry = { template, fragment }
           entries.set(templateStrings, entry)
         }
         return entry
@@ -105,7 +101,7 @@ export const DomRenderTemplate = Object.assign(
             return Effect.gen(
               function*() {
                 const entry = getEntry(templateStrings)
-                const { firstChild, lastChild, template } = entry
+                const template = entry.template
                 const fragment = document.importNode(entry.fragment, true)
                 const ctx = yield* makeTemplateContext<Values, RSink>(document, values, sink.onFailure)
 
@@ -146,16 +142,14 @@ export const DomRenderTemplate = Object.assign(
                   if (rendered === undefined) {
                     // If we have more than one child, we need to wrap them in a PersistentDocumentFragment
                     // so they can be diffed within other templates more than once.
-                    rendered = fragment.childNodes.length > 1
-                      ? new PersistentDocumentFragment(firstChild, fragment, lastChild)
-                      : fragment.childNodes[0] as Node
+                    rendered = persistent(document, template.hash, fragment)
                   }
 
                   // Setup our event listeners for our rendered content.
                   yield* ctx.eventSource.setup(rendered, ctx.scope)
 
                   // If we're hydrating, we need to mark this part of the stack as hydrated
-                  if (hydration) {
+                  if (hydration !== undefined) {
                     hydration.hydrateCtx.hydrate = false
                   }
 
@@ -189,8 +183,6 @@ export const DomRenderTemplate = Object.assign(
   } as const
 )
 
-export type Rendered = Node | Array<Node> | PersistentDocumentFragment
-
 export type ToRendered<T extends RenderEvent | null> = Rendered | (T extends null ? null : never)
 
 export const render: {
@@ -201,28 +193,13 @@ export const render: {
     fx: Fx.Fx<A, E, R>,
     where: HTMLElement
   ): Fx.Fx<ToRendered<A>, E, R>
-} = dual(2, function render<A extends RenderEvent | null, E, R>(
-  fx: Fx.Fx<A, E, R>,
-  where: HTMLElement
-): Fx.Fx<ToRendered<A>, E, R> {
-  return Fx.mapEffect(fx, (event) => attachRoot(where, event))
-})
-
-export const hydrate: {
-  (where: HTMLElement): <A extends RenderEvent | null, E, R>(
-    fx: Fx.Fx<A, E, R>
-  ) => Fx.Fx<ToRendered<A>, E, R>
-  <A extends RenderEvent | null, E, R>(
-    fx: Fx.Fx<A, E, R>,
-    where: HTMLElement
-  ): Fx.Fx<ToRendered<A>, E, R>
-} = dual(2, function hydrate<T extends RenderEvent | null, R, E>(
+} = dual(2, function render<T extends RenderEvent | null, R, E>(
   rendered: Fx.Fx<T, E, R>,
   rootElement: HTMLElement
 ): Fx.Fx<ToRendered<T>, E, R> {
   return Fx.provide(
     Fx.mapEffect(rendered, (what) => attachRoot(rootElement, what)),
-    Layer.syncServices(() => HydrateContext.serviceMap({ where: getHydrationRoot(rootElement), hydrate: true }))
+    Layer.syncServices(() => makeHydrateContext(rootElement))
   )
 })
 
@@ -319,19 +296,24 @@ function setupRenderPart<E = never, R = never>(
     }
     case "attr": {
       const element = node as HTMLElement | SVGElement
+      const setAttr = makeAttributeValueUpdater(
+        element,
+        element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
+      )
       return renderValue(
         ctx,
         part.index,
-        makeAttributeValueUpdater(
-          element,
-          element.getAttributeNode(part.name) ?? ctx.document.createAttribute(part.name)
-        )
+        (value) => setAttr(renderToString(value, ""))
       )
     }
-    case "boolean-part":
-      return renderValue(ctx, part.index, makeBooleanUpdater(node as HTMLElement | SVGElement, part.name))
-    case "className-part":
-      return renderValue(ctx, part.index, makeClassListUpdater(node as HTMLElement | SVGElement))
+    case "boolean-part": {
+      const updater = makeBooleanUpdater(node as HTMLElement | SVGElement, part.name)
+      return renderValue(ctx, part.index, (value) => updater(!!value))
+    }
+    case "className-part": {
+      const updater = makeClassListUpdater(node as HTMLElement | SVGElement)
+      return renderValue(ctx, part.index, (value) => updater(getClassList(value)))
+    }
     case "comment-part":
       return renderValue(ctx, part.index, makeTextContentUpdater(node as Comment))
     case "data":
@@ -356,12 +338,13 @@ function setupRenderPart<E = never, R = never>(
       )
     }
     case "sparse-class-name": {
-      return renderSparseTextContent(
-        node as HTMLElement | SVGElement,
+      const updater = makeClassListUpdater(node as HTMLElement | SVGElement)
+      return renderSparsePart(
         part.nodes,
         ++ctx.dynamicIndex,
         ctx,
-        makeClassListUpdater(node as HTMLElement | SVGElement)
+        (classNames) => updater(getClassList(classNames)),
+        (value) => value
       )
     }
     case "sparse-comment":
@@ -452,11 +435,11 @@ function renderValue<E, R, X>(
     Primitive: f,
     Effect: (effect) => {
       ctx.expected++
-      return effect.pipe(Effect.tap((value) => withCurrentRenderPriority(value, index, ctx, () => f(value))))
+      return effect.pipe(Effect.tap((value) => withCurrentRenderPriority(f, index, ctx, () => f(value))))
     },
     Fx: (fx) => {
       ctx.expected++
-      return fx.run(Sink.make(ctx.onCause, (value) => withCurrentRenderPriority(value, index, ctx, () => f(value))))
+      return fx.run(Sink.make(ctx.onCause, (value) => withCurrentRenderPriority(f, index, ctx, () => f(value))))
     }
   })
 }
@@ -526,7 +509,7 @@ function makePropertiesPart([partType, partName]: PartType, index: number) {
   }
 }
 
-type TemplateContext<R = never> = {
+export type TemplateContext<R = never> = {
   readonly document: Document
   readonly renderQueue: RQ.RenderQueue
   readonly disposables: Set<Disposable>
@@ -534,7 +517,7 @@ type TemplateContext<R = never> = {
   readonly refCounter: IndexRefCounter
   readonly scope: Scope.Closeable
   readonly values: ArrayLike<Renderable<any, any, any>>
-  readonly services: ServiceMap.ServiceMap<R>
+  readonly services: ServiceMap.ServiceMap<R | Scope.Scope>
   readonly onCause: (cause: Cause.Cause<any>) => Effect.Effect<unknown>
 
   /**

@@ -4,7 +4,8 @@ import * as Fx from "effect/typed/fx/index"
 import * as EventHandler from "effect/typed/template/EventHandler"
 import { HtmlRenderTemplate, renderToHtmlString } from "effect/typed/template/Html"
 import { html, many, type Renderable } from "effect/typed/template/index"
-import { DomRenderTemplate, hydrate, type Rendered } from "effect/typed/template/Render"
+import { DomRenderTemplate, render } from "effect/typed/template/Render"
+import type { Rendered } from "effect/typed/template/Wire"
 import { Window } from "happy-dom"
 
 describe("Hydration", () => {
@@ -345,6 +346,10 @@ describe("Hydration", () => {
         expect(node).toBe(originalNode)
         expect(node.textContent).toBe(originalNode.textContent)
       }
+
+      expect(current.innerHTML).toMatchInlineSnapshot(
+        `"<!--n_0--><!--t_KwZ/fKKViAs=--><p><!--n_0-->1<!--/n_0--></p><!--/t_KwZ/fKKViAs=--><!--/m_1--><!--t_KwZ/fKKViAs=--><p><!--n_0-->2<!--/n_0--></p><!--/t_KwZ/fKKViAs=--><!--/m_2--><!--t_KwZ/fKKViAs=--><p><!--n_0-->3<!--/n_0--></p><!--/t_KwZ/fKKViAs=--><!--/m_3--><!--/n_0-->"`
+      )
     })
   )
 })
@@ -409,7 +414,7 @@ function hydrateTemplate<Values extends ReadonlyArray<Renderable.Any>, T extends
 
     assertion(initial as Node, window)
 
-    const [example] = yield* hydrate(fx, body).pipe(
+    const [example] = yield* render(fx, body).pipe(
       Fx.provide(layer),
       Fx.take(1),
       Fx.collectUpTo(1)

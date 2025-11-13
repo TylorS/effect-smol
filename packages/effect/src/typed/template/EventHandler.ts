@@ -84,7 +84,9 @@ export function fromEffectOrEventHandler<Ev extends Event, E = never, R = never>
   return make(() => handler as Effect.Effect<unknown, E, R>)
 }
 
-function isEventHandler<Ev extends Event, E = never, R = never>(handler: unknown): handler is EventHandler<Ev, E, R> {
+export function isEventHandler<Ev extends Event, E = never, R = never>(
+  handler: unknown
+): handler is EventHandler<Ev, E, R> {
   return hasProperty(handler, EventHandlerTypeId)
 }
 

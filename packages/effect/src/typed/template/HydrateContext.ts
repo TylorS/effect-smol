@@ -1,5 +1,5 @@
 import { ServiceMap } from "../../index.ts"
-import type { HydrationNode } from "./internal/hydration.ts"
+import { getHydrationRoot, type HydrationNode } from "./internal/hydration.ts"
 
 /**
  * Used Internally to pass context down to components for hydration
@@ -20,3 +20,12 @@ export type HydrateContext = {
  * @internal
  */
 export const HydrateContext = ServiceMap.Service<HydrateContext>("@typed/html/HydrateContext")
+
+export const makeHydrateContext = (rootElement: HTMLElement): ServiceMap.ServiceMap<never> => {
+  try {
+    const where = getHydrationRoot(rootElement)
+    return HydrateContext.serviceMap({ where, hydrate: true })
+  } catch {
+    return ServiceMap.empty()
+  }
+}

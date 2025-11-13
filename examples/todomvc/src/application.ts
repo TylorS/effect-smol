@@ -60,7 +60,7 @@ export const createTodo: Effect.Effect<Option.Option<Domain.Todo>, never, Create
 
 export const editTodo = (id: Domain.TodoId, text: string): Effect.Effect<Domain.TodoList, never, TodoList> =>
   text.trim() === ""
-    ? RefSubject.update(TodoList, Domain.deleteTodo(id))
+    ? deleteTodo(id)
     : RefSubject.update(TodoList, Domain.editText(id, text))
 
 export const toggleTodoCompleted: (id: Domain.TodoId) => Effect.Effect<Domain.TodoList, never, TodoList> = (id) =>

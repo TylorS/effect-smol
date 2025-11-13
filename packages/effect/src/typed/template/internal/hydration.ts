@@ -1,7 +1,7 @@
 import { type Inspectable, NodeInspectSymbol } from "../../../interfaces/Inspectable.ts"
 import { CouldNotFindRootElement, CouldNotFindTemplateEndError } from "../errors.ts"
 import type { HydrateContext } from "../HydrateContext.ts"
-import { getOuterHtml, isComment, isElement } from "../PersistentDocumentFragment.ts"
+import { isComment, isElement, toHtml } from "../Wire.ts"
 
 const TYPED_TEMPLATE_PREFIX = `t_`
 const TYPED_TEMPLATE_END_PREFIX = `/t_`
@@ -129,7 +129,7 @@ export class HydrationElement implements Inspectable {
   toJSON(): unknown {
     return {
       _tag: this._tag,
-      parentNode: getOuterHtml(this.parentNode),
+      parentNode: toHtml(this.parentNode),
       childNodes: this.childNodes.map((n) => n.toJSON())
     }
   }
@@ -245,7 +245,7 @@ export class HydrationLiteral implements Inspectable {
   toJSON(): unknown {
     return {
       _tag: this._tag,
-      node: getOuterHtml(this.node)
+      node: toHtml(this.node)
     }
   }
 

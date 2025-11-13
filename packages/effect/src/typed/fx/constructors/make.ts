@@ -66,7 +66,7 @@ export const callback = <A, E = never, R = never>(
             }
 
             const effect = run(emit)
-            if (effect) return yield* Scope.addFinalizer(scope, Effect.provideServices(effect, services))
+            if (effect) yield* Scope.addFinalizer(scope, Effect.provideServices(effect, services))
             return yield* Effect.never
           })
         ),
