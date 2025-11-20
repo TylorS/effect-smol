@@ -1,4 +1,4 @@
-import { hasProperty } from "../../data/Predicate.ts"
+import { hasProperty } from "effect/data/Predicate"
 import { type Rendered, toHtml } from "./Wire.ts"
 
 export type RenderEvent =

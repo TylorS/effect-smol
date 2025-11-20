@@ -1,28 +1,28 @@
-import type * as Cause from "../../../Cause.ts"
-import * as Option from "../../../data/Option.ts"
-import * as Effect from "../../../Effect.ts"
-import * as Exit from "../../../Exit.ts"
-import * as Fiber from "../../../Fiber.ts"
-import { dual, identity } from "../../../Function.ts"
-import { pipeArguments } from "../../../interfaces/Pipeable.ts"
-import * as MutableRef from "../../../MutableRef.ts"
-import * as Scope from "../../../Scope.ts"
-import type * as ServiceMap from "../../../ServiceMap.ts"
-import type { Fx } from "../Fx.ts"
-import { RingBuffer } from "../internal/ring-buffer.ts"
-import { awaitScopeClose, withExtendedScope } from "../internal/scope.ts"
-import type { Sink } from "../sink/Sink.ts"
-import { FxTypeId } from "../TypeId.ts"
+import type * as Cause from "effect/Cause"
+import * as Option from "effect/data/Option"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
+import { dual, identity } from "effect/Function"
+import { pipeArguments } from "effect/interfaces/Pipeable"
+import * as MutableRef from "effect/MutableRef"
+import * as Scope from "effect/Scope"
+import type * as ServiceMap from "effect/ServiceMap"
+import type * as Fx from "../core/index.ts"
+import { RingBuffer } from "../core/internal/ring-buffer.ts"
+import { awaitScopeClose, withExtendedScope } from "../core/internal/scope.ts"
+import { FxTypeId } from "../core/TypeId.ts"
+import type * as Sink from "../Sink/Sink.ts"
 
-export interface Subject<A, E = never, R = never> extends Fx<A, E, R | Scope.Scope>, Sink<A, E, R> {
+export interface Subject<A, E = never, R = never> extends Fx.Fx<A, E, R | Scope.Scope>, Sink.Sink<A, E, R> {
   readonly subscriberCount: Effect.Effect<number, never, R>
   readonly interrupt: Effect.Effect<void, never, R>
 }
 
 export function share<A, E, R, R2>(
-  fx: Fx<A, E, R>,
+  fx: Fx.Fx<A, E, R>,
   subject: Subject<A, E, R2>
-): Fx<A, E, R | R2 | Scope.Scope> {
+): Fx.Fx<A, E, R | R2 | Scope.Scope> {
   return new Share(fx, subject)
 }
 
@@ -38,23 +38,23 @@ class RefCounter {
   }
 }
 
-const VARIANCE: Fx.Variance<any, any, any> = {
+const VARIANCE: Fx.Fx.Variance<any, any, any> = {
   _A: identity,
   _E: identity,
   _R: identity
 }
 
-export class Share<A, E, R, R2> implements Fx<A, E, R | R2 | Scope.Scope> {
-  readonly [FxTypeId]: Fx.Variance<A, E, R | R2 | Scope.Scope> = VARIANCE
+export class Share<A, E, R, R2> implements Fx.Fx<A, E, R | R2 | Scope.Scope> {
+  readonly [FxTypeId]: Fx.Fx.Variance<A, E, R | R2 | Scope.Scope> = VARIANCE
 
   _FxFiber: MutableRef.MutableRef<Option.Option<Fiber.Fiber<unknown>>> = MutableRef.make(Option.none())
   _RefCount = new RefCounter()
 
-  readonly i0: Fx<A, E, R>
+  readonly i0: Fx.Fx<A, E, R>
   readonly i1: Subject<A, E, R2>
 
   constructor(
-    i0: Fx<A, E, R>,
+    i0: Fx.Fx<A, E, R>,
     i1: Subject<A, E, R2>
   ) {
     this.i0 = i0
@@ -65,7 +65,7 @@ export class Share<A, E, R, R2> implements Fx<A, E, R | R2 | Scope.Scope> {
     return pipeArguments(this, arguments)
   }
 
-  run<R3>(sink: Sink<A, E, R3>): Effect.Effect<unknown, never, R | R2 | R3 | Scope.Scope> {
+  run<R3>(sink: Sink.Sink<A, E, R3>): Effect.Effect<unknown, never, R | R2 | R3 | Scope.Scope> {
     return Effect.flatMap(
       this.initialize(),
       () => Effect.onExit(this.i1.run(sink), () => this._RefCount.decrement() === 0 ? this.interrupt() : Effect.void)
@@ -101,24 +101,24 @@ export class Share<A, E, R, R2> implements Fx<A, E, R | R2 | Scope.Scope> {
 }
 
 export function multicast<A, E, R>(
-  fx: Fx<A, E, R>
-): Fx<A, E, R | Scope.Scope> {
+  fx: Fx.Fx<A, E, R>
+): Fx.Fx<A, E, R | Scope.Scope> {
   return new Share(fx, unsafeMake<A, E>(0))
 }
 
 export function hold<A, E, R>(
-  fx: Fx<A, E, R>
-): Fx<A, E, R | Scope.Scope> {
+  fx: Fx.Fx<A, E, R>
+): Fx.Fx<A, E, R | Scope.Scope> {
   return new Share(fx, unsafeMake<A, E>(1))
 }
 
 export const replay: {
-  (capacity: number): <A, E, R>(fx: Fx<A, E, R>) => Fx<A, E, R>
-  <A, E, R>(fx: Fx<A, E, R>, capacity: number): Fx<A, E, R>
+  (capacity: number): <A, E, R>(fx: Fx.Fx<A, E, R>) => Fx.Fx<A, E, R>
+  <A, E, R>(fx: Fx.Fx<A, E, R>, capacity: number): Fx.Fx<A, E, R>
 } = dual(2, function replay<A, E, R>(
-  fx: Fx<A, E, R>,
+  fx: Fx.Fx<A, E, R>,
   capacity: number
-): Fx<A, E, R | Scope.Scope> {
+): Fx.Fx<A, E, R | Scope.Scope> {
   return new Share(fx, unsafeMake<A, E>(capacity))
 })
 
@@ -128,8 +128,8 @@ const DISCARD = { discard: true } as const
  * @internal
  */
 export class SubjectImpl<A, E> implements Subject<A, E> {
-  readonly [FxTypeId]: Fx.Variance<A, E, Scope.Scope> = VARIANCE
-  protected sinks: Set<readonly [Sink<A, E, any>, ServiceMap.ServiceMap<any>, Scope.Closeable]> = new Set()
+  readonly [FxTypeId]: Fx.Fx.Variance<A, E, Scope.Scope> = VARIANCE
+  protected sinks: Set<readonly [Sink.Sink<A, E, any>, ServiceMap.ServiceMap<any>, Scope.Closeable]> = new Set()
 
   constructor() {
     this.onFailure = this.onFailure.bind(this)
@@ -140,7 +140,7 @@ export class SubjectImpl<A, E> implements Subject<A, E> {
     return pipeArguments(this, arguments)
   }
 
-  run<R2>(sink: Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {
+  run<R2>(sink: Sink.Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {
     return this.addSink(sink, awaitScopeClose)
   }
 
@@ -159,7 +159,7 @@ export class SubjectImpl<A, E> implements Subject<A, E> {
   readonly interrupt = this.interruptScopes
 
   protected addSink<R, B, R2>(
-    sink: Sink<A, E, R>,
+    sink: Sink.Sink<A, E, R>,
     f: (scope: Scope.Scope) => Effect.Effect<B, never, R2>
   ): Effect.Effect<B, never, R2 | Scope.Scope> {
     return withExtendedScope(
@@ -210,7 +210,7 @@ export class SubjectImpl<A, E> implements Subject<A, E> {
 }
 
 function runSinkEvent<A, E>(
-  sink: Sink<A, E, any>,
+  sink: Sink.Sink<A, E, any>,
   ctx: ServiceMap.ServiceMap<any>,
   a: A
 ): Effect.Effect<void, never, never> {
@@ -218,7 +218,7 @@ function runSinkEvent<A, E>(
 }
 
 function runSinkCause<A, E>(
-  sink: Sink<A, E, any>,
+  sink: Sink.Sink<A, E, any>,
   ctx: ServiceMap.ServiceMap<any>,
   scope: Scope.Closeable,
   cause: Cause.Cause<E>
@@ -252,7 +252,7 @@ export class HoldSubjectImpl<A, E> extends SubjectImpl<A, E> implements Subject<
     })
   }
 
-  override run<R2>(sink: Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {
+  override run<R2>(sink: Sink.Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {
     return this.addSink(sink, (scope) =>
       Option.match(MutableRef.get(this.lastValue), {
         onNone: () => awaitScopeClose(scope),
@@ -291,7 +291,7 @@ export class ReplaySubjectImpl<A, E> extends SubjectImpl<A, E> {
       return this.onCause(cause)
     })
 
-  override run<R2>(sink: Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {
+  override run<R2>(sink: Sink.Sink<A, E, R2>): Effect.Effect<unknown, never, R2 | Scope.Scope> {
     return this.addSink(
       sink,
       (scope) => Effect.flatMap(this.buffer.forEach(Exit.match(sink)), () => awaitScopeClose(scope))

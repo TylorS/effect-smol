@@ -483,6 +483,7 @@ function templateWithParts(template: ReadonlyArray<string>): string {
   const length = template.length
   if (length === 0) return ""
 
+  // oxlint-disable-next-line no-new-array
   const parts: Array<string> = new Array(length + length - 1)
 
   let j = 0
