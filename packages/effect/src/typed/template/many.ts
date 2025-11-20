@@ -1,10 +1,10 @@
-import * as Option from "../../data/Option.ts"
-import { isSome } from "../../data/Option.ts"
-import * as Effect from "../../Effect.ts"
-import { Layer, ServiceMap } from "../../index.ts"
-import type { Scope } from "../../Scope.ts"
-import * as Fx from "../fx/index.ts"
-import * as RefSubject from "../fx/ref-subject/RefSubject.ts"
+import * as Option from "effect/data/Option"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import type { Scope } from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
+import * as Fx from "effect/typed/fx"
+import * as RefSubject from "effect/typed/fx/RefSubject"
 import { HydrateContext } from "./HydrateContext.ts"
 import { renderToString } from "./internal/encoding.ts"
 import { HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } from "./RenderEvent.ts"
@@ -20,7 +20,7 @@ export function many<A, E, R, B extends PropertyKey, R2, E2>(
       const services = yield* Effect.services<never>()
       const hydrateContext = ServiceMap.getOption(services, HydrateContext)
       // If we're hydrating, attempt to provide the correct HydrateContext to rendering Fx
-      if (isSome(hydrateContext) && hydrateContext.value.hydrate) {
+      if (Option.isSome(hydrateContext) && hydrateContext.value.hydrate) {
         return Fx.keyed(values, {
           getKey,
           onValue: (ref, key) =>

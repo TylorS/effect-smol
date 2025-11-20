@@ -1,9 +1,9 @@
-import type * as Cause from "../../Cause.js"
-import { hasProperty } from "../../data/Predicate.ts"
-import * as Effect from "../../Effect.js"
-import { dual } from "../../Function.ts"
-import type { ServiceMap } from "../../index.ts"
-import { type Pipeable, pipeArguments } from "../../interfaces/Pipeable.ts"
+import type * as Cause from "effect/Cause"
+import { hasProperty } from "effect/data/Predicate"
+import * as Effect from "effect/Effect"
+import { dual } from "effect/Function"
+import { type Pipeable, pipeArguments } from "effect/interfaces/Pipeable"
+import type * as ServiceMap from "effect/ServiceMap"
 
 export const EventHandlerTypeId = Symbol.for("@typed/template/EventHandler")
 export type EventHandlerTypeId = typeof EventHandlerTypeId

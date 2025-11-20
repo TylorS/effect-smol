@@ -1,8 +1,8 @@
-import { map } from "../../Effect.ts"
-import type { Scope } from "../../Scope.ts"
-import * as ServiceMap from "../../ServiceMap.ts"
-import type { Fx } from "../fx/Fx.ts"
-import { unwrap } from "../fx/index.ts"
+import { map } from "effect/Effect"
+import type { Scope } from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
+import type { Fx } from "effect/typed/fx"
+import { unwrap } from "effect/typed/fx"
 import type { Renderable } from "./Renderable.ts"
 import type { RenderEvent } from "./RenderEvent.ts"
 

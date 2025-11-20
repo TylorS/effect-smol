@@ -1,6 +1,6 @@
-import * as Effect from "../../Effect.ts"
-import * as Fiber from "../../Fiber.ts"
-import * as Scope from "../../Scope.ts"
+import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import * as Scope from "effect/Scope"
 import type { EventHandler } from "./EventHandler.ts"
 import { getElements, type Rendered } from "./Wire.ts"
 
