@@ -15,7 +15,7 @@ import * as RefSubject from "../../RefSubject/RefSubject.ts"
 import * as Sink from "../../Sink/Sink.ts"
 import { type Fx } from "../Fx.ts"
 import type { Add, Moved, Remove, Update } from "../internal/diff.ts"
-import { diffIterator, getKeyMap } from "../internal/diff.ts"
+import { diff, getKeyMap } from "../internal/diff.ts"
 import { withScopedFork } from "../internal/scope.ts"
 import { FxTypeId } from "../TypeId.ts"
 
@@ -116,7 +116,7 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           const keyMap = getKeyMap(values, options.getKey)
 
           for (
-            const patch of diffIterator<A, B>(previous, values, { getKey: options.getKey, previousKeyMap, keyMap })
+            const patch of diff<A, B>(previous, values, { getKey: options.getKey, previousKeyMap, keyMap })
           ) {
             if (patch._tag === "Remove") {
               changed = true
@@ -143,23 +143,15 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           if (changed) {
             yield* scheduleNextEmit
           } else {
-            const services = yield* Effect.services<never>()
-            const clock = ServiceMap.get(services, Clock.Clock) as Clock.Clock | TestClock.TestClock
-            if ("adjust" in clock) {
-              yield* clock.adjust(Duration.millis(1))
-            } else {
-              yield* clock.sleep(Duration.millis(1))
-            }
+            yield* adjustTime()
           }
         })
       }
 
       return fx.run(
         Sink.make<ReadonlyArray<A>, E | E2, R2 | R3 | Scope.Scope>(
-          (cause) => sink.onFailure(cause),
-          // Use exhaust to ensure only 1 diff is running at a time
-          // Skipping any intermediate changes that occur while diffing
-          (values) => diffAndPatch(values)
+          sink.onFailure,
+          diffAndPatch
         )
       )
     },
@@ -210,7 +202,7 @@ function getReadyIndices<A, B extends PropertyKey, C>(
   return output
 }
 
-function addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
+function* addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
   { entries, indices }: KeyedState<A, B, C>,
   values: ReadonlyArray<A>,
   patch: Add<A, B>,
@@ -220,36 +212,34 @@ function addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
   sink: Sink.Sink<ReadonlyArray<C>, E | E2, R2 | R3>,
   scheduleNextEmit: Effect.Effect<D, never, R3>
 ) {
-  return Effect.gen(function*() {
-    const value = values[patch.index]
-    const childScope = yield* Scope.fork(parentScope, "sequential")
-    const ref = yield* RefSubject.make(Effect.sync<A>(() => entry.value)).pipe(
-      Effect.provideService(Scope.Scope, childScope)
-    )
+  const value = values[patch.index]
+  const childScope = yield* Scope.fork(parentScope, "sequential")
+  const ref = yield* RefSubject.make(Effect.sync<A>(() => entry.value)).pipe(
+    Effect.provideService(Scope.Scope, childScope)
+  )
 
-    const entry: KeyedEntry<A, C> = new KeyedEntry<A, C>(
-      value,
-      patch.index,
-      Option.none(),
-      ref,
-      Scope.close(childScope, Exit.interrupt(id))
-    )
+  const entry: KeyedEntry<A, C> = new KeyedEntry<A, C>(
+    value,
+    patch.index,
+    Option.none(),
+    ref,
+    Scope.close(childScope, Exit.interrupt(id))
+  )
 
-    entries.set(patch.key, entry)
-    indices.set(patch.index, patch.key)
+  entries.set(patch.key, entry)
+  indices.set(patch.index, patch.key)
 
-    yield* Effect.forkIn(
-      options.onValue(ref, patch.key).run(Sink.make(
-        (cause) => sink.onFailure(cause),
-        (output) => {
-          entry.output = Option.some(output)
+  yield* Effect.forkIn(
+    options.onValue(ref, patch.key).run(Sink.make(
+      (cause) => sink.onFailure(cause),
+      (output) => {
+        entry.output = Option.some(output)
 
-          return scheduleNextEmit
-        }
-      )).pipe(Effect.provideService(Scope.Scope, childScope)),
-      parentScope
-    )
-  })
+        return scheduleNextEmit
+      }
+    )).pipe(Effect.provideService(Scope.Scope, childScope)),
+    parentScope
+  )
 }
 
 function removeValue<A, B extends PropertyKey, C>(
@@ -324,4 +314,14 @@ function withDebounceFork<A, E, R>(
       ),
     "sequential"
   )
+}
+
+function* adjustTime() {
+  const services = yield* Effect.services<never>()
+  const clock = ServiceMap.get(services, Clock.Clock) as Clock.Clock | TestClock.TestClock
+  if ("adjust" in clock) {
+    yield* clock.adjust(Duration.millis(1))
+  } else {
+    yield* clock.sleep(Duration.millis(1))
+  }
 }
