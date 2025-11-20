@@ -24,6 +24,11 @@ class Todos extends ServiceMap.Service<Todos>()("TodosService", {
       Effect.catchCause((cause) => Effect.logError("Failed to write todos to key value store", cause))
     )
 
+  static readonly replicateToStorage = App.TodoList.pipe(
+    Fx.tap(Todos.set),
+    Fx.drainLayer
+  )
+
   static readonly local = Layer.effect(
     Todos,
     Effect.gen(function*() {
@@ -68,13 +73,7 @@ const CreateTodo = Layer.sync(App.CreateTodo, () => (text: string) =>
     timestamp: DateTime.makeUnsafe(new Date())
   })))
 
-export const Services = Layer.mergeAll(
-  CreateTodo,
-  App.TodoList.pipe(
-    Fx.tap(Todos.set),
-    Fx.drainLayer
-  )
-).pipe(
+export const Services = Layer.mergeAll(CreateTodo, Todos.replicateToStorage).pipe(
   Layer.provideMerge(Model),
   Layer.provideMerge(Todos.local)
 )
