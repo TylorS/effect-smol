@@ -1,4 +1,4 @@
-import { constVoid } from "../../Function.ts"
+import { constVoid } from "effect/Function"
 
 export const RenderQueueTypeId = "@typed/template/RenderQueue"
 export type RenderQueueTypeId = typeof RenderQueueTypeId

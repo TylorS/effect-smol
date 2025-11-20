@@ -1,11 +1,12 @@
-import { none, type Option, some } from "../../data/Option.ts"
-import { isNullish, isObject } from "../../data/Predicate.ts"
-import { map as mapRecord } from "../../data/Record.ts"
-import { Effect, Layer, ServiceMap } from "../../index.ts"
-import type { Scope } from "../../Scope.ts"
-import { delimit } from "../fx/combinators/continueWith.ts"
-import * as Fx from "../fx/index.ts"
-import { CurrentComputedBehavior } from "../fx/ref-subject/RefSubject.ts"
+import { none, type Option, some } from "effect/data/Option"
+import { isNullish, isObject } from "effect/data/Predicate"
+import { map as mapRecord } from "effect/data/Record"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import type { Scope } from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
+import * as Fx from "effect/typed/fx"
+import * as RefSubject from "effect/typed/fx/RefSubject"
 import {
   addTemplateHash,
   type HtmlChunk,
@@ -77,7 +78,7 @@ export const HtmlRenderTemplate = Layer.effect(
       )
   })
 ).pipe(
-  Layer.provideMerge(Layer.succeed(CurrentComputedBehavior, "one"))
+  Layer.provideMerge(Layer.succeed(RefSubject.CurrentComputedBehavior, "one"))
 )
 
 export const StaticHtmlRenderTemplate = HtmlRenderTemplate.pipe(
@@ -123,7 +124,7 @@ function renderPart<E, R>(
     const setup = (props: unknown) =>
       setupProperties<E, R>(props as Record<string, Renderable<any, E, R>>, isStatic, last, render)
     if (isObject(renderable)) return setup(renderable)
-    return Fx.switchMap(liftRenderableToFx<E, R>(renderable, isStatic, last), (props) => {
+    return Fx.switchMap(liftRenderableToFx<E, R>(renderable, isStatic), (props) => {
       if (isObject(props)) return setup(props)
       return Fx.empty
     })
@@ -131,7 +132,7 @@ function renderPart<E, R>(
 
   // Otherwise we're going to coerce to a string
   return Fx.filterMap(
-    liftRenderableToFx<E, R>(renderable, isStatic, last),
+    liftRenderableToFx<E, R>(renderable, isStatic),
     (value) => {
       const s = render(value)
       return s ? some(HtmlRenderEvent(s, last)) : none()
@@ -154,7 +155,7 @@ function setupProperties<E, R>(
     ...entries.map(
       ([key, renderable], i) => {
         return Fx.filterMap(
-          liftRenderableToFx<E, R>(renderable, isStatic, last && i === lastIndex),
+          liftRenderableToFx<E, R>(renderable, isStatic),
           (value) => {
             const s = render({ [key]: value })
             return s ? some(HtmlRenderEvent(s, last && i === lastIndex)) : none()
@@ -171,7 +172,7 @@ function renderNode<E, R>(
   isStatic: boolean,
   last: boolean
 ) {
-  let node = liftRenderableToFx<E, R>(renderable, isStatic, last).pipe(
+  let node = liftRenderableToFx<E, R>(renderable, isStatic).pipe(
     Fx.map((x) => isHtmlRenderEvent(x) ? x : HtmlRenderEvent(renderToString(x, ""), last))
   )
   if (!isStatic) {
@@ -188,7 +189,7 @@ function addNodePlaceholders<E, R>(
 ): Fx.Fx<HtmlRenderEvent, E, R> {
   return fx.pipe(
     Fx.map((event) => isHtmlRenderEvent(event) ? HtmlRenderEvent(event.html, false) : event),
-    delimit(HtmlRenderEvent(TYPED_NODE_START(index), false), HtmlRenderEvent(TYPED_NODE_END(index), true))
+    Fx.delimit(HtmlRenderEvent(TYPED_NODE_START(index), false), HtmlRenderEvent(TYPED_NODE_END(index), true))
   )
 }
 
@@ -200,9 +201,9 @@ function renderSparsePart<E, R>(
 ): Fx.Fx<HtmlRenderEvent, E, R> {
   const { node, render } = chunk
   return Fx.tuple(
-    ...node.nodes.map((node, i, nodes) => {
+    ...node.nodes.map((node) => {
       if (node._tag === "text") return Fx.succeed(node.value)
-      return liftRenderableToFx<E, R>(values[node.index], isStatic, i === nodes.length - 1)
+      return liftRenderableToFx<E, R>(values[node.index], isStatic)
     })
   ).pipe(
     Fx.take(1),
@@ -212,8 +213,7 @@ function renderSparsePart<E, R>(
 
 function liftRenderableToFx<E, R>(
   renderable: Renderable<any, E, R>,
-  isStatic: boolean,
-  last: boolean
+  isStatic: boolean
 ): Fx.Fx<any, E, R> {
   switch (typeof renderable) {
     case "undefined":
@@ -223,17 +223,17 @@ function liftRenderableToFx<E, R>(
         return isStatic ? Fx.empty : Fx.succeed(HtmlRenderEvent(TEXT_START, true))
       } else if (Array.isArray(renderable)) {
         return Fx.mergeOrdered(
-          ...renderable.map((r, i, rr) => liftRenderableToFx<E, R>(r, isStatic, i === rr.length - 1))
+          ...renderable.map((r) => liftRenderableToFx<E, R>(r, isStatic))
         )
       } else if (Fx.isFx(renderable)) {
         return takeOneIfNotRenderEvent(renderable)
       } else if (Effect.isEffect(renderable)) {
         return Fx.unwrap(
-          Effect.map(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic, last))
+          Effect.map(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic))
         )
       } else if (isHtmlRenderEvent(renderable)) {
         return Fx.succeed(renderable)
-      } else return Fx.take(Fx.struct(mapRecord(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic, last))), 1)
+      } else return Fx.take(Fx.struct(mapRecord(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic))), 1)
     }
     default:
       return Fx.succeed(renderable)

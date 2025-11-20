@@ -1,6 +1,6 @@
-import type * as Effect from "../../Effect.ts"
-import type { Stream } from "../../stream/index.ts"
-import type { Fx } from "../fx/Fx.ts"
+import type * as Effect from "effect/Effect"
+import type { Stream } from "effect/stream"
+import type { Fx } from "effect/typed/fx"
 import type { RenderEvent } from "./RenderEvent.ts"
 
 export type Renderable<A, E = never, R = never> =

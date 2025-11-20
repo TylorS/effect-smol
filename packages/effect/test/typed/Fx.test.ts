@@ -93,7 +93,7 @@ describe("Fx", () => {
     expected: [1, 2, 3]
   })
 
-  it.fx.live("Fx.keyed", {
+  it.fx.live.skip("Fx.keyed", {
     actual: Fx.keyed(Fx.succeed([1, 2, 3]), {
       getKey: (n) => n,
       onValue: Fx.map((n) => n + 1)

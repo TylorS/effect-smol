@@ -2,15 +2,15 @@
  * Push is a type of Fx that can be used to push values to a sink.
  */
 
-import type { Cause } from "../../../Cause.ts"
-import type * as Option from "../../../data/Option.ts"
-import type * as Effect from "../../../Effect.ts"
-import { dual, identity } from "../../../Function.ts"
-import { pipeArguments } from "../../../interfaces/Pipeable.ts"
-import type * as Scope from "../../../Scope.ts"
-import * as Fx from "../index.ts"
-import * as Sink from "../sink/index.ts"
-import { FxTypeId } from "../TypeId.ts"
+import type { Cause } from "effect/Cause"
+import type * as Option from "effect/data/Option"
+import type * as Effect from "effect/Effect"
+import { dual, identity } from "effect/Function"
+import { pipeArguments } from "effect/interfaces/Pipeable"
+import type * as Scope from "effect/Scope"
+import * as Fx from "../core/index.ts"
+import { FxTypeId } from "../core/TypeId.ts"
+import * as Sink from "../Sink/index.ts"
 
 /**
  * Push is an abstract type which represents a Type which is both an Fx and a Sink. The type parameters

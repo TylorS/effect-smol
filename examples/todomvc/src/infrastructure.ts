@@ -1,8 +1,5 @@
-import * as Option from "effect/data/Option"
-import * as DateTime from "effect/DateTime"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as ServiceMap from "effect/ServiceMap"
+import { DateTime, Effect, Layer, ServiceMap } from "effect"
+import { Option } from "effect/data"
 import * as Fx from "effect/typed/fx"
 import * as KeyValueStore from "effect/unstable/persistence/KeyValueStore"
 import * as App from "./application"
@@ -26,12 +23,6 @@ class Todos extends ServiceMap.Service<Todos>()("TodosService", {
     Effect.flatMap(Todos.asEffect(), (service) => service.set(TODOS_STORAGE_KEY, todos)).pipe(
       Effect.catchCause((cause) => Effect.logError("Failed to write todos to key value store", cause))
     )
-
-  // Persist any updates
-  static readonly write = App.TodoList.pipe(
-    Fx.tapEffect(Todos.set),
-    Fx.drainLayer
-  )
 
   static readonly local = Layer.effect(
     Todos,
@@ -77,7 +68,13 @@ const CreateTodo = Layer.sync(App.CreateTodo, () => (text: string) =>
     timestamp: DateTime.makeUnsafe(new Date())
   })))
 
-export const Services = Layer.mergeAll(CreateTodo, Todos.write).pipe(
+export const Services = Layer.mergeAll(
+  CreateTodo,
+  App.TodoList.pipe(
+    Fx.tap(Todos.set),
+    Fx.drainLayer
+  )
+).pipe(
   Layer.provideMerge(Model),
   Layer.provideMerge(Todos.local)
 )

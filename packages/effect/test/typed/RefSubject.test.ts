@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Effect, Fiber } from "effect"
 import { TestClock } from "effect/testing"
 import * as Fx from "effect/typed/fx"
-import * as RefSubject from "effect/typed/fx/ref-subject"
+import * as RefSubject from "effect/typed/fx/RefSubject"
 
 describe("RefSubject", () => {
   it.effect("tracks an initial value", () => {

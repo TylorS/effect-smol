@@ -5,18 +5,20 @@
  * @since 1.0.0
  */
 
-import * as Option from "../../../data/Option.ts"
-import * as Effect from "../../../Effect.ts"
-import * as Exit from "../../../Exit.ts"
-import { dual, flow } from "../../../Function.ts"
-import type { Layer } from "../../../Layer.ts"
-import { sum } from "../../../Number.ts"
-import type * as Scope from "../../../Scope.ts"
-import * as Fx from "../index.ts"
-import { MulticastEffect } from "../internal/multicast.ts"
-import { YieldableFx } from "../internal/yieldable.ts"
-import type { Sink } from "../sink/Sink.ts"
-import * as Subject from "../subject/Subject.ts"
+import * as Option from "effect/data/Option"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import { dual, flow } from "effect/Function"
+import type { Layer } from "effect/Layer"
+import { sum } from "effect/Number"
+import type * as Scope from "effect/Scope"
+import * as FxCombinators from "../core/combinators/index.ts"
+import * as FxCtor from "../core/constructors/index.ts"
+import type * as Fx from "../core/Fx.ts"
+import { MulticastEffect } from "../core/internal/multicast.ts"
+import { YieldableFx } from "../core/internal/yieldable.ts"
+import type { Sink } from "../Sink/Sink.ts"
+import * as Subject from "../Subject/Subject.ts"
 
 // TODO: dualize
 // TODO: context abstraction
@@ -199,7 +201,7 @@ export const map: {
     onEffect: (b: B) => D
   }
 ): Versioned<never, never, C, E, R, D, E0 | E2, R0 | R2> {
-  return transform(versioned, (fx) => Fx.map(fx, options.onFx), Effect.map(options.onEffect))
+  return transform(versioned, (fx) => FxCombinators.map(fx, options.onFx), Effect.map(options.onEffect))
 })
 
 /**
@@ -225,7 +227,7 @@ export const mapEffect: {
     onEffect: (b: B) => Effect.Effect<D, E4, R4>
   }
 ): Versioned<never, never, C, E | E3, R | R3, D, E0 | E2 | E4, R0 | R2 | R4> {
-  return transform(versioned, (fx) => Fx.mapEffect(fx, options.onFx), Effect.flatMap(options.onEffect))
+  return transform(versioned, (fx) => FxCombinators.mapEffect(fx, options.onFx), Effect.flatMap(options.onEffect))
 })
 
 /**
@@ -245,7 +247,7 @@ export function tuple<const VS extends ReadonlyArray<Versioned<any, any, any, an
 > {
   return make(
     Effect.map(Effect.all(versioneds.map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
-    Fx.tuple(...versioneds),
+    FxCombinators.tuple(...versioneds),
     Effect.all(versioneds.map((v) => v.asEffect()), { concurrency: "unbounded" })
   ) as any
 }
@@ -267,7 +269,7 @@ export function struct<const VS extends Readonly<Record<string, Versioned<any, a
 > {
   return make(
     Effect.map(Effect.all(Object.values(versioneds).map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
-    Fx.struct(versioneds),
+    FxCombinators.struct(versioneds),
     Effect.all(mapRecord(versioneds, (v) => v.asEffect()), { concurrency: "unbounded" }) as any
   )
 }
@@ -281,7 +283,7 @@ export const provide = <R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
 ): Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>> => {
   return make(
     Effect.provide(versioned.version, layer),
-    Fx.provide(versioned, layer),
+    FxCombinators.provide(versioned, layer),
     Effect.provide(versioned.asEffect(), layer)
   )
 }
@@ -291,7 +293,7 @@ function mapRecord<K extends string, V, R>(record: Record<K, V>, f: (v: V, k: K)
 }
 
 export function of<A>(value: A): Versioned<never, never, A, never, never, A, never, never> {
-  return make(Effect.succeed(1), Fx.succeed(value), Effect.succeed(value))
+  return make(Effect.succeed(1), FxCtor.succeed(value), Effect.succeed(value))
 }
 
 export function hold<R0, E0, A, E, R, B, E2, R2>(

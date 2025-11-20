@@ -1,4 +1,4 @@
-import { type Inspectable, NodeInspectSymbol } from "../../interfaces/Inspectable.ts"
+import { type Inspectable, NodeInspectSymbol } from "effect/interfaces/Inspectable"
 
 export class Template implements Inspectable {
   readonly _tag = "template"

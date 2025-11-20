@@ -1,6 +1,6 @@
-import type * as Cause from "../../../Cause.ts"
-import type * as Effect from "../../../Effect.ts"
-import type * as Ref from "../../../Ref.ts"
+import type * as Cause from "effect/Cause"
+import type * as Effect from "effect/Effect"
+import type * as Ref from "effect/Ref"
 
 export interface Sink<A, E = never, R = never> {
   readonly onSuccess: (value: A) => Effect.Effect<unknown, never, R>

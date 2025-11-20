@@ -1,8 +1,8 @@
 import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
 import * as ServiceMap from "effect/ServiceMap"
-import * as RefArray from "effect/typed/fx/ref-subject/RefArray"
-import * as RefSubject from "effect/typed/fx/ref-subject/RefSubject"
+import * as RefSubject from "effect/typed/fx/RefSubject"
+import * as RefArray from "effect/typed/fx/RefSubject/RefArray"
 import * as Domain from "./domain"
 
 /* #region Services */

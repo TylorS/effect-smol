@@ -1,15 +1,14 @@
-import * as Cause from "../../Cause.js"
-import { getOrUndefined, isNone, isOption } from "../../data/Option.ts"
-import { isFunction, isNullish, isObject } from "../../data/Predicate.ts"
-import { map as mapRecord } from "../../data/Record.ts"
-import * as Effect from "../../Effect.ts"
-import { constVoid, dual, flow, identity } from "../../Function.ts"
-import * as Layer from "../../Layer.ts"
-import * as Scope from "../../Scope.js"
-import * as ServiceMap from "../../ServiceMap.ts"
-import * as Fx from "../fx/index.ts"
-import { type IndexRefCounter, makeRefCounter } from "../fx/internal/IndexRefCounter.ts"
-import * as Sink from "../fx/sink/index.ts"
+import * as Cause from "effect/Cause"
+import { getOrUndefined, isNone, isOption } from "effect/data/Option"
+import { isFunction, isNullish, isObject } from "effect/data/Predicate"
+import { map as mapRecord } from "effect/data/Record"
+import * as Effect from "effect/Effect"
+import { constVoid, dual, flow, identity } from "effect/Function"
+import * as Layer from "effect/Layer"
+import * as Scope from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
+import * as Fx from "effect/typed/fx"
+import * as Sink from "effect/typed/fx/Sink"
 import { CouldNotFindCommentError, isHydrationError } from "./errors.ts"
 import * as EventHandler from "./EventHandler.ts"
 import { type EventSource, makeEventSource } from "./EventSource.ts"
@@ -34,6 +33,7 @@ import {
   getChildNodes,
   getRendered
 } from "./internal/hydration.ts"
+import { type IndexRefCounter, makeRefCounter } from "./internal/IndexRefCounter.ts"
 import { keyToPartType } from "./internal/keyToPartType.ts"
 import { findPath } from "./internal/ParentChildNodes.ts"
 import { parse } from "./internal/Parser.ts"
@@ -45,11 +45,11 @@ import * as Template from "./Template.ts"
 import { getAllSiblingsBetween, isText, persistent, type Rendered } from "./Wire.ts"
 
 // Can be utilized to override the document for rendering
-export const RenderDocument = ServiceMap.Reference<Document>("RenderDocument", {
+export const CurrentRenderDocument = ServiceMap.Reference<Document>("RenderDocument", {
   defaultValue: () => document
 })
 
-export const RenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQueue", {
+export const CurrentRenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQueue", {
   defaultValue: () => new RQ.MixedRenderQueue()
 })
 
@@ -61,7 +61,7 @@ export const DomRenderTemplate = Object.assign(
   Layer.effect(
     RenderTemplate,
     Effect.gen(function*() {
-      const document = yield* RenderDocument
+      const document = yield* CurrentRenderDocument
       const templateCache = new WeakMap<TemplateStringsArray, Template.Template>()
       const getTemplate = (templateStrings: TemplateStringsArray) => {
         let template = templateCache.get(templateStrings)
@@ -179,7 +179,7 @@ export const DomRenderTemplate = Object.assign(
     })
   ),
   {
-    using: (document: Document) => DomRenderTemplate.pipe(Layer.provide(Layer.succeed(RenderDocument, document)))
+    using: (document: Document) => DomRenderTemplate.pipe(Layer.provide(Layer.succeed(CurrentRenderDocument, document)))
   } as const
 )
 
@@ -538,7 +538,7 @@ const makeTemplateContext = Effect.fn(
     values: Values,
     onCause: (cause: Cause.Cause<Renderable.Error<Values[number]>>) => Effect.Effect<unknown, never, RSink>
   ) {
-    const renderQueue: RQ.RenderQueue = yield* RenderQueue
+    const renderQueue: RQ.RenderQueue = yield* CurrentRenderQueue
     const services: ServiceMap.ServiceMap<Renderable.Services<Values[number]> | RSink | Scope.Scope> = yield* Effect
       .services<Renderable.Services<Values[number]> | RSink | Scope.Scope>()
     const refCounter: IndexRefCounter = yield* makeRefCounter

@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Fx from "effect/typed/fx"
-import * as Subject from "effect/typed/fx/subject"
+import * as Subject from "effect/typed/fx/Subject"
 
 describe("Subject", () => {
   it.effect(
