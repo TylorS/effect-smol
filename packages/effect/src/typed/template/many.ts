@@ -12,7 +12,7 @@ import { HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } from "./RenderEv
 export function many<A, E, R, B extends PropertyKey, R2, E2>(
   values: Fx.Fx<ReadonlyArray<A>, E, R>,
   getKey: (a: A) => B,
-  render: (value: RefSubject.RefSubject<A>, key: B) => Fx.Fx<RenderEvent, E2, R2>
+  render: (value: RefSubject.RefSubject<A>, key: B) => Fx.Fx<RenderEvent, E2, R2 | Scope>
 ): Fx.Fx<RenderEvent | ReadonlyArray<RenderEvent> | null, E | E2, R | R2 | Scope> {
   return Fx.gen(function*() {
     const behavior = yield* RefSubject.CurrentComputedBehavior
@@ -49,7 +49,7 @@ export function many<A, E, R, B extends PropertyKey, R2, E2>(
 function renderValue<A, E, R, B extends PropertyKey, R2, E2>(
   value: A,
   getKey: (a: A) => B,
-  render: (value: RefSubject.RefSubject<A>, key: B) => Fx.Fx<RenderEvent, E2, R2>,
+  render: (value: RefSubject.RefSubject<A>, key: B) => Fx.Fx<RenderEvent, E2, R2 | Scope>,
   last: boolean
 ): Fx.Fx<RenderEvent, E | E2, R | R2 | Scope> {
   return Fx.unwrap(Effect.map(RefSubject.make(value), (ref) => {
