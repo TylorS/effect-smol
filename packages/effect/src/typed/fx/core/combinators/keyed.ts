@@ -1,16 +1,14 @@
-import * as Clock from "effect/Clock"
 import * as Option from "effect/data/Option"
 import type * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
-import { identity } from "effect/Function"
+import { dual, identity } from "effect/Function"
 import { pipeArguments } from "effect/interfaces/Pipeable"
 import { MaxOpsBeforeYield } from "effect/Scheduler"
 import * as Scope from "effect/Scope"
 import * as ServiceMap from "effect/ServiceMap"
 import * as SynchronizedRef from "effect/SynchronizedRef"
-import type * as TestClock from "effect/testing/TestClock"
 import * as RefSubject from "../../RefSubject/RefSubject.ts"
 import * as Sink from "../../Sink/Sink.ts"
 import { type Fx } from "../Fx.ts"
@@ -25,12 +23,20 @@ export interface KeyedOptions<A, B, C, E2, R2> {
   readonly debounce?: Duration.DurationInput
 }
 
-export function keyed<A, E, R, B extends PropertyKey, C, E2, R2>(
+export const keyed: {
+  <A, B extends PropertyKey, C, E2, R2>(
+    options: KeyedOptions<A, B, C, E2, R2>
+  ): <E, R>(fx: Fx<ReadonlyArray<A>, E, R>) => Fx<ReadonlyArray<C>, E | E2, R | R2 | Scope.Scope>
+  <A, E, R>(
+    fx: Fx<ReadonlyArray<A>, E, R>,
+    options: KeyedOptions<A, PropertyKey, A, E, R>
+  ): Fx<ReadonlyArray<A>, E, R>
+} = dual(2, function keyed<A, E, R, B extends PropertyKey, C, E2, R2>(
   fx: Fx<ReadonlyArray<A>, E, R>,
   options: KeyedOptions<A, B, C, E2, R2>
 ): Fx<ReadonlyArray<C>, E | E2, R | R2 | Scope.Scope> {
   return new Keyed(fx, options)
-}
+})
 
 type StateContext<A, C> = {
   entry: KeyedEntry<A, C>
@@ -108,17 +114,51 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           let done = false
 
           const keyMap = getKeyMap(values, options.getKey)
+
+          // Collect patches to enable intelligent reuse
+          const removes: Array<Remove<A, B>> = []
+          const adds: Array<Add<A, B>> = []
+          const updates: Array<Update<A, B> | Moved<A, B>> = []
+
           for (
             const patch of diffIterator<A, B>(previous, values, { getKey: options.getKey, previousKeyMap, keyMap })
           ) {
             if (patch._tag === "Remove") {
-              yield* removeValue(state, patch)
+              removes.push(patch)
             } else if (patch._tag === "Add") {
+              adds.push(patch)
               added = true
+            } else {
+              updates.push(patch)
+            }
+          }
+
+          // Match removes with adds to reuse entries
+          const reusableEntries: Array<{ entry: KeyedEntry<A, C>; removeKey: B }> = Array.from(
+            removes,
+            (remove) => ({ entry: state.entries.get(remove.key)!, removeKey: remove.key })
+          )
+          const reusedEntries = new Set<KeyedEntry<A, C>>()
+
+          // Process adds: reuse entries when possible, create new ones otherwise
+          let reusableIndex = 0
+          for (const add of adds) {
+            // Reuse an existing entry
+            if (reusableIndex < reusableEntries.length) {
+              const { entry: reusableEntry, removeKey } = reusableEntries[reusableIndex++]
+              reusedEntries.add(reusableEntry)
+              yield* reuseEntryForAdd(
+                state,
+                values,
+                add,
+                reusableEntry,
+                removeKey
+              )
+            } else { // Create a new entry
               yield* addValue(
                 state,
                 values,
-                patch,
+                add,
                 id,
                 parentScope,
                 options,
@@ -131,24 +171,30 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
                   return scheduleNextEmit
                 })
               )
-            } else {
-              yield* updateValue(state, values, patch)
+            }
+          }
+
+          // Process updates
+          for (const update of updates) {
+            yield* updateValue(state, values, update)
+          }
+
+          // Remove entries that weren't reused
+          for (let i = reusedEntries.size; i < removes.length; i++) {
+            const remove = removes[i]
+            const entry = state.entries.get(remove.key)
+            if (entry !== undefined && !reusedEntries.has(entry)) {
+              yield* removeValue(state, remove)
             }
           }
 
           done = true
           previousKeyMap = keyMap
 
-          if (scheduled || added === false) {
+          // Always emit if items were added (they may produce output asynchronously)
+          // or if nothing was added (to emit current state)
+          if (added || scheduled) {
             yield* scheduleNextEmit
-          } else {
-            const services = yield* Effect.services<never>()
-            const clock = ServiceMap.get(services, Clock.Clock) as Clock.Clock | TestClock.TestClock
-            if ("adjust" in clock) {
-              yield* clock.adjust(1)
-            } else {
-              yield* Effect.sleep(1)
-            }
           }
         })
       }
@@ -209,6 +255,39 @@ function getReadyIndices<A, B extends PropertyKey, C>(
   return output
 }
 
+function reuseEntryForAdd<A, B extends PropertyKey, C>(
+  { entries, indices }: KeyedState<A, B, C>,
+  values: ReadonlyArray<A>,
+  patch: Add<A, B>,
+  reusableEntry: KeyedEntry<A, C>,
+  oldKey: B
+) {
+  return Effect.gen(function*() {
+    const value = values[patch.index]
+
+    // Update entry with new value and index
+    reusableEntry.value = value
+    reusableEntry.index = patch.index
+    reusableEntry.output = Option.none()
+
+    // Update the ref with new value
+    yield* RefSubject.set(reusableEntry.ref, value)
+
+    if (oldKey !== patch.key) {
+      entries.delete(oldKey)
+      entries.set(patch.key, reusableEntry)
+    }
+    // Clean up old index mapping
+    for (const [index, key] of indices.entries()) {
+      if (key === oldKey) {
+        indices.delete(index)
+        break
+      }
+    }
+    indices.set(patch.index, patch.key)
+  })
+}
+
 function addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
   { entries, indices }: KeyedState<A, B, C>,
   values: ReadonlyArray<A>,
@@ -222,7 +301,7 @@ function addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
   return Effect.gen(function*() {
     const value = values[patch.index]
     const childScope = yield* Scope.fork(parentScope, "sequential")
-    const ref = yield* RefSubject.make(Effect.sync<A>(() => entry.value)).pipe(
+    const ref = yield* RefSubject.make(Effect.succeed(value)).pipe(
       Effect.provideService(Scope.Scope, childScope)
     )
 
