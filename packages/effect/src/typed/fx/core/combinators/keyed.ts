@@ -21,7 +21,7 @@ import { FxTypeId } from "../TypeId.ts"
 
 export interface KeyedOptions<A, B, C, E2, R2> {
   readonly getKey: (a: A) => B
-  readonly onValue: (ref: RefSubject.RefSubject<A>, key: B) => Fx<C, E2, R2>
+  readonly onValue: (ref: RefSubject.RefSubject<A>) => Fx<C, E2, R2>
   readonly debounce?: Duration.DurationInput
 }
 
@@ -261,7 +261,7 @@ function addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
     indices.set(patch.index, patch.key)
 
     yield* Effect.forkIn(
-      options.onValue(ref, patch.key).run(Sink.make(
+      options.onValue(ref).run(Sink.make(
         (cause) => sink.onFailure(cause),
         (output) => {
           entry.output = Option.some(output)
