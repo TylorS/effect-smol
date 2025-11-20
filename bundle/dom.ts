@@ -1,13 +1,12 @@
-import * as Fx from "#dist/@typed/fx/index"
-import { DomRenderTemplate, html, render } from "#dist/@typed/template/index"
 import * as Effect from "#dist/effect/Effect"
+import * as Layer from "#dist/effect/Layer"
+import * as Fx from "#dist/effect/typed/fx/core/index"
+import { DomRenderTemplate, html, render } from "#dist/effect/typed/template/index"
 
-const start = performance.now()
-const [output] = await html`<div>Hello, world!</div>`.pipe(
+await html`<div>Hello, world!</div>`.pipe(
   render(document.body),
-  Fx.provide(DomRenderTemplate),
-  Fx.collectUpTo(1),
+  Fx.drainLayer,
+  Layer.provide(DomRenderTemplate),
+  Layer.launch,
   Effect.runPromise
 )
-console.log(`render: ${performance.now() - start}ms`)
-console.log(output)
