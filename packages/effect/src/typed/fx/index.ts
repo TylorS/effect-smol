@@ -45,7 +45,7 @@ export {
   switchMapEffect,
   take,
   takeUntil,
-  tapEffect,
+  tap,
   tuple,
   unwrap,
   unwrapScoped,
