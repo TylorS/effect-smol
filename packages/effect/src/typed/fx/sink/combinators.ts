@@ -453,23 +453,22 @@ class FilterMapLoopEffectSink<A, E, R, B, R2, C> implements Sink<A, E, R | R2> {
 }
 
 export const loopCauseEffect: {
-  <B, A, E2, R2, C>(
+  <A, E, R2, B, C>(
     seed: B,
-    f: (acc: B, a: Cause.Cause<A>) => Effect.Effect<readonly [Cause.Cause<C>, B], E2, R2>
-  ): <E, R>(
-    sink: Sink<A, E | C, R>
-  ) => Sink<A, E, R>
-  <A, E, R, B, C>(
+    f: (acc: B, a: Cause.Cause<E>) => Effect.Effect<readonly [Cause.Cause<C>, B], E, R2>
+  ): <R>(sink: Sink<A, E | C, R>) => Sink<A, E, R | R2>
+
+  <A, E, R, B, C, R2>(
     sink: Sink<A, E | C, R>,
     seed: B,
-    f: (acc: B, a: Cause.Cause<E>) => Effect.Effect<readonly [Cause.Cause<C>, B], E, R>
-  ): Sink<A, E, R>
-} = dual(3, function loopCauseEffect<A, E, R, B, C>(
+    f: (acc: B, a: Cause.Cause<E>) => Effect.Effect<readonly [Cause.Cause<C>, B], E, R2>
+  ): Sink<A, E, R | R2>
+} = dual(3, function loopCauseEffect<A, E, R, B, C, R2>(
   sink: Sink<A, E | C, R>,
   seed: B,
-  f: (acc: B, a: Cause.Cause<E>) => Effect.Effect<readonly [Cause.Cause<C>, B], E, R>
-): Sink<A, E, R> {
-  return new LoopCauseEffectSink(sink, seed, f)
+  f: (acc: B, a: Cause.Cause<E>) => Effect.Effect<readonly [Cause.Cause<C>, B], E, R2>
+): Sink<A, E, R | R2> {
+  return new LoopCauseEffectSink<A, E, R | R2, B, C>(sink, seed, f)
 })
 
 class LoopCauseEffectSink<A, E, R, B, C> implements Sink<A, E, R> {
