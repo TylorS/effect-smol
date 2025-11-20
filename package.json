@@ -24,6 +24,16 @@
     "changeset-version": "changeset version",
     "changeset-publish": "pnpm codemod && pnpm build && changeset publish"
   },
+  "imports": {
+    "#dist/effect": "./packages/effect/dist/index.js",
+    "#dist/effect/*": "./packages/effect/dist/*.js",
+    "#dist/typed/fx": "./packages/effect/dist/typed/fx/index.js",
+    "#dist/typed/fx/*": "./packages/effect/dist/typed/fx/*.js",
+    "#dist/typed/template": "./packages/effect/dist/typed/template/index.js",
+    "#dist/typed/template/*": "./packages/effect/dist/typed/template/*.js",
+    "#dist/effect-platform-node": "./packages/platform-node/dist/index.js",
+    "#dist/effect-platform-node/*": "./packages/platform-node/dist/*.js"
+  },
   "devDependencies": {
     "@babel/cli": "^7.28.3",
     "@babel/core": "^7.28.5",
