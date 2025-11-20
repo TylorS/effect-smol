@@ -13,11 +13,14 @@ import * as Domain from "./domain"
 
 const onSubmit = EventHandler.make(() => App.createTodo, { preventDefault: true })
 
-const onInput = EventHandler.make((ev: InputEvent & { target: HTMLInputElement }) => {
-  return RefSubject.set(App.TodoText, ev.target.value)
-})
+const onInput = EventHandler.make((ev: InputEvent & { target: HTMLInputElement }) =>
+  RefSubject.set(App.TodoText, ev.target.value)
+)
 
-const plural = RefSubject.map((c: number) => (c === 1 ? "" : "s"))
+const plural = <E, R>(count: RefSubject.Computed<number, E, R>, options: {
+  one: string
+  many: string
+}) => RefSubject.map(count, (c) => (c === 1 ? options.one : options.many))
 
 const clearCompleted = Fx.if(
   App.SomeAreCompleted,
@@ -48,13 +51,11 @@ export const TodoApp = html`<section class="todoapp ${App.FilterState}">
 
     <footer class="footer">
       <span class="todo-count">
-        ${App.ActiveCount} item${plural(App.ActiveCount)} left
+        ${App.ActiveCount} ${plural(App.ActiveCount, { one: "item", many: "items" })} left
       </span>
 
       <ul class="filters">
-        ${FilterLink("all")}
-        ${FilterLink("active")}
-        ${FilterLink("completed")}
+        ${Domain.FilterState.members.map((filter) => FilterLink(filter.literal))}
       </ul>
 
       ${clearCompleted}
