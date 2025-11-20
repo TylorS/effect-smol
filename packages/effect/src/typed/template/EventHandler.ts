@@ -100,3 +100,21 @@ export function handleEventOptions<Ev extends Event>(
 
   return true
 }
+
+export function preventDefault<Ev extends Event, E = never, R = never>(
+  handler: EventHandler<Ev, E, R>
+): EventHandler<Ev, E, R> {
+  return make(handler.handler, { ...handler.options, preventDefault: true })
+}
+
+export function stopPropagation<Ev extends Event, E = never, R = never>(
+  handler: EventHandler<Ev, E, R>
+): EventHandler<Ev, E, R> {
+  return make(handler.handler, { ...handler.options, stopPropagation: true })
+}
+
+export function stopImmediatePropagation<Ev extends Event, E = never, R = never>(
+  handler: EventHandler<Ev, E, R>
+): EventHandler<Ev, E, R> {
+  return make(handler.handler, { ...handler.options, stopImmediatePropagation: true })
+}
