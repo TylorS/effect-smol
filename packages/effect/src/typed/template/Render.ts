@@ -36,7 +36,7 @@ import {
 import { type IndexRefCounter, makeRefCounter } from "./internal/IndexRefCounter.ts"
 import { keyToPartType } from "./internal/keyToPartType.ts"
 import { findPath } from "./internal/ParentChildNodes.ts"
-import { parse } from "./internal/Parser.ts"
+import { parse } from "./Parser.ts"
 import type { Renderable } from "./Renderable.ts"
 import { DomRenderEvent, type RenderEvent } from "./RenderEvent.ts"
 import * as RQ from "./RenderQueue.ts"

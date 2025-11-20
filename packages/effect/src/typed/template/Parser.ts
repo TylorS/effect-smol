@@ -2,11 +2,11 @@
 
 import type { IToken } from "html5parser"
 import { tokenize } from "html5parser"
-import * as Template from "../Template.ts"
-import { keyToPartType } from "./keyToPartType.ts"
-import { PART_REGEX, PART_STRING } from "./meta.ts"
-import { PathStack } from "./PathStack.ts"
-import { templateHash } from "./templateHash.ts"
+import { keyToPartType } from "./internal/keyToPartType.ts"
+import { PART_REGEX, PART_STRING } from "./internal/meta.ts"
+import { PathStack } from "./internal/PathStack.ts"
+import { templateHash } from "./internal/templateHash.ts"
+import * as Template from "./Template.ts"
 
 let parser: Parser | undefined
 export function parse(template: ReadonlyArray<string>): Template.Template {

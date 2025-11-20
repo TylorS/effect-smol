@@ -1,6 +1,6 @@
 import * as Clock from "effect/Clock"
 import * as Option from "effect/data/Option"
-import type * as Duration from "effect/Duration"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -21,7 +21,7 @@ import { FxTypeId } from "../TypeId.ts"
 
 export interface KeyedOptions<A, B, C, E2, R2> {
   readonly getKey: (a: A) => B
-  readonly onValue: (ref: RefSubject.RefSubject<A>) => Fx<C, E2, R2>
+  readonly onValue: (ref: RefSubject.RefSubject<A>, key: B) => Fx<C, E2, R2 | Scope.Scope>
   readonly debounce?: Duration.DurationInput
 }
 
@@ -111,66 +111,44 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           const previous = state.previousValues
           state.previousValues = values
 
-          let scheduled = false
-          let done = false
-          let reused = 0
+          let changed = false
 
           const keyMap = getKeyMap(values, options.getKey)
 
-          const removedEntries: Array<{ entry: KeyedEntry<A, C>; patch: Remove<A, B> }> = []
-          const adds: Array<Add<A, B>> = []
           for (
             const patch of diffIterator<A, B>(previous, values, { getKey: options.getKey, previousKeyMap, keyMap })
           ) {
             if (patch._tag === "Remove") {
-              removedEntries.push({ entry: state.entries.get(patch.key)!, patch })
+              changed = true
+              yield* removeValue(state, patch, state.entries.get(patch.key)!)
             } else if (patch._tag === "Add") {
-              adds.push(patch)
+              changed = true
+              yield* addValue(
+                state,
+                values,
+                patch,
+                id,
+                parentScope,
+                options,
+                sink,
+                scheduleNextEmit
+              )
             } else {
               yield* updateValue(state, values, patch)
             }
           }
 
-          for (const add of adds) {
-            if (reused < removedEntries.length) {
-              const { entry, patch } = removedEntries[reused++]
-              yield* reuseEntryForAdd(state, values, add, entry, patch)
-            } else {
-              yield* addValue(
-                state,
-                values,
-                add,
-                id,
-                parentScope,
-                options,
-                sink,
-                Effect.suspend(() => {
-                  if (done === false) {
-                    scheduled = true
-                    return Effect.void
-                  }
-                  return scheduleNextEmit
-                })
-              )
-            }
-          }
-
-          for (let i = reused; i < removedEntries.length; i++) {
-            yield* removeValue(state, removedEntries[i].patch, removedEntries[i].entry)
-          }
-
-          done = true
           previousKeyMap = keyMap
 
-          if (scheduled || adds.length > reused || removedEntries.length > reused) {
+          if (changed) {
             yield* scheduleNextEmit
           } else {
             const services = yield* Effect.services<never>()
             const clock = ServiceMap.get(services, Clock.Clock) as Clock.Clock | TestClock.TestClock
             if ("adjust" in clock) {
-              yield* clock.adjust(1)
+              yield* clock.adjust(Duration.millis(1))
             } else {
-              yield* Effect.sleep(1)
+              yield* clock.sleep(Duration.millis(1))
             }
           }
         })
@@ -180,7 +158,7 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
         Sink.make<ReadonlyArray<A>, E | E2, R2 | R3 | Scope.Scope>(
           (cause) => sink.onFailure(cause),
           // Use exhaust to ensure only 1 diff is running at a time
-          // Skipping an intermediate changes that occur while diffing
+          // Skipping any intermediate changes that occur while diffing
           (values) => diffAndPatch(values)
         )
       )
@@ -261,15 +239,15 @@ function addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
     indices.set(patch.index, patch.key)
 
     yield* Effect.forkIn(
-      options.onValue(ref).run(Sink.make(
+      options.onValue(ref, patch.key).run(Sink.make(
         (cause) => sink.onFailure(cause),
         (output) => {
           entry.output = Option.some(output)
 
           return scheduleNextEmit
         }
-      )),
-      childScope
+      )).pipe(Effect.provideService(Scope.Scope, childScope)),
+      parentScope
     )
   })
 }
@@ -304,29 +282,6 @@ function updateValue<A, B extends PropertyKey, C>(
   }
 
   return RefSubject.set(entry.ref, entry.value)
-}
-
-function reuseEntryForAdd<A, B extends PropertyKey, C>(
-  { entries, indices }: KeyedState<A, B, C>,
-  values: ReadonlyArray<A>,
-  patch: Add<A, B>,
-  reusableEntry: KeyedEntry<A, C>,
-  removePatch: Remove<A, B>
-) {
-  return Effect.gen(function*() {
-    // Cleanup the old entry
-    entries.delete(removePatch.key)
-    indices.delete(removePatch.index)
-
-    // Update the new entry
-    reusableEntry.index = patch.index
-    reusableEntry.value = values[patch.index]
-    indices.set(patch.index, patch.key)
-    entries.set(patch.key, reusableEntry)
-
-    // Update the ref, reusing the same Fiber & Scope
-    yield* RefSubject.set(reusableEntry.ref, values[patch.index])
-  })
 }
 
 function withDebounceFork<A, E, R>(

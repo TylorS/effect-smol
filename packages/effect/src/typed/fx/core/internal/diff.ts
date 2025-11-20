@@ -122,7 +122,7 @@ export function* diffIterator<A, B extends PropertyKey>(
   b: ReadonlyArray<A>,
   options: Partial<DiffOptions<A, B>> = {}
 ): Generator<Diff<A, B>> {
-  const { eq = Equal.equals, getKey = identity as any } = options
+  const { eq = Object.is, getKey = identity as any } = options
   const oldKeyMap = options.previousKeyMap ?? getKeyMap(a, getKey)
   const keyMap = options.keyMap ?? getKeyMap(b, getKey)
 
