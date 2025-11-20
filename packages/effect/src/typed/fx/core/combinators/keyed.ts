@@ -27,10 +27,10 @@ export const keyed: {
   <A, B extends PropertyKey, C, E2, R2>(
     options: KeyedOptions<A, B, C, E2, R2>
   ): <E, R>(fx: Fx<ReadonlyArray<A>, E, R>) => Fx<ReadonlyArray<C>, E | E2, R | R2 | Scope.Scope>
-  <A, E, R>(
+  <A, E, R, B extends PropertyKey, C, E2, R2>(
     fx: Fx<ReadonlyArray<A>, E, R>,
-    options: KeyedOptions<A, PropertyKey, A, E, R>
-  ): Fx<ReadonlyArray<A>, E, R>
+    options: KeyedOptions<A, B, C, E2, R2>
+  ): Fx<ReadonlyArray<C>, E | E2, R | R2 | Scope.Scope>
 } = dual(2, function keyed<A, E, R, B extends PropertyKey, C, E2, R2>(
   fx: Fx<ReadonlyArray<A>, E, R>,
   options: KeyedOptions<A, B, C, E2, R2>
