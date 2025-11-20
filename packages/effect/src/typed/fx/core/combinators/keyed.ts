@@ -269,7 +269,7 @@ function addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
           return scheduleNextEmit
         }
       )),
-      parentScope
+      childScope
     )
   })
 }
