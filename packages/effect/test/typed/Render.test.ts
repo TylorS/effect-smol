@@ -3,7 +3,8 @@ import { Effect } from "effect"
 import * as Fx from "effect/typed/fx/index"
 import * as EventHandler from "effect/typed/template/EventHandler"
 import { html, type Renderable } from "effect/typed/template/index"
-import { DomRenderTemplate, render, type Rendered } from "effect/typed/template/Render"
+import { DomRenderTemplate, render } from "effect/typed/template/Render"
+import type { Rendered } from "effect/typed/template/Wire"
 import { Window } from "happy-dom"
 
 describe("Render", () => {

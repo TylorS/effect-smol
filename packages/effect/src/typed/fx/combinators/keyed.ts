@@ -7,8 +7,8 @@ import { pipeArguments } from "../../../interfaces/Pipeable.ts"
 import { MaxOpsBeforeYield } from "../../../Scheduler.ts"
 import * as Scope from "../../../Scope.ts"
 import { type Fx } from "../Fx.ts"
-import { diffIterator, getKeyMap } from "../internal/diff.ts"
 import type { Add, Moved, Remove, Update } from "../internal/diff.ts"
+import { diffIterator, getKeyMap } from "../internal/diff.ts"
 import { withScopedFork } from "../internal/scope.ts"
 import * as RefSubject from "../ref-subject/RefSubject.ts"
 import * as Sink from "../sink/Sink.ts"
@@ -298,10 +298,13 @@ function withDebounceFork<A, E, R>(
               scope
             ),
             () =>
-              SynchronizedRef.get(ref).pipe(Effect.flatMap(Option.match({
-                onNone: () => Effect.void,
-                onSome: Fiber.join
-              })))
+              SynchronizedRef.updateEffect(
+                ref,
+                Option.match({
+                  onNone: () => Effect.succeedNone,
+                  onSome: (fiber) => Fiber.join(fiber).pipe(Effect.as(Option.none()))
+                })
+              )
           )
       ),
     "sequential"

@@ -22,7 +22,7 @@ export function makeAttributeValueUpdater(element: HTMLElement | SVGElement, att
       element.removeAttribute(attr.name)
       isSet = false
     } else {
-      attr.textContent = value
+      attr.value = value
       if (isSet === false) {
         element.setAttributeNode(attr)
         isSet = true
