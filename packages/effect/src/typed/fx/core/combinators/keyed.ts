@@ -1,3 +1,4 @@
+import * as Clock from "effect/Clock"
 import * as Option from "effect/data/Option"
 import type * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -9,6 +10,7 @@ import { MaxOpsBeforeYield } from "effect/Scheduler"
 import * as Scope from "effect/Scope"
 import * as ServiceMap from "effect/ServiceMap"
 import * as SynchronizedRef from "effect/SynchronizedRef"
+import type * as TestClock from "effect/testing/TestClock"
 import * as RefSubject from "../../RefSubject/RefSubject.ts"
 import * as Sink from "../../Sink/Sink.ts"
 import { type Fx } from "../Fx.ts"
@@ -140,7 +142,13 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           if (scheduled || added === false) {
             yield* scheduleNextEmit
           } else {
-            yield* Effect.sleep(1)
+            const services = yield* Effect.services<never>()
+            const clock = ServiceMap.get(services, Clock.Clock) as Clock.Clock | TestClock.TestClock
+            if ("adjust" in clock) {
+              yield* clock.adjust(1)
+            } else {
+              yield* Effect.sleep(1)
+            }
           }
         })
       }
