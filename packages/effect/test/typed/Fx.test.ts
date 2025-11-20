@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest"
-import { Cause, Effect } from "effect"
+import { Cause, Effect, pipe } from "effect"
 import * as Fx from "effect/typed/fx"
 
 describe("Fx", () => {
@@ -93,11 +93,14 @@ describe("Fx", () => {
     expected: [1, 2, 3]
   })
 
-  it.fx.live.skip("Fx.keyed", {
-    actual: Fx.keyed(Fx.succeed([1, 2, 3]), {
-      getKey: (n) => n,
-      onValue: Fx.map((n) => n + 1)
-    }),
+  it.fx.live("Fx.keyed", {
+    actual: pipe(
+      Fx.succeed([1, 2, 3]),
+      Fx.keyed({
+        getKey: (n) => n,
+        onValue: Fx.map((n) => n + 1)
+      })
+    ),
     expected: [[2, 3, 4]]
   })
 
