@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`completions > bash 1`] = `
+exports[`completions > zsh 1`] = `
 "function _forge_bash_completions() {
     local i cur prev opts cmd
     COMPREPLY=()
@@ -76,7 +76,7 @@ exports[`completions > bash 1`] = `
 complete -F _forge_bash_completions -o nosort -o bashdefault -o default forge"
 `;
 
-exports[`completions > fish 1`] = `
+exports[`completions > zsh 2`] = `
 "complete -c forge -n "__fish_use_subcommand" -f -a "build"
 complete -c forge -n "__fish_use_subcommand" -f -a "deploy"
 complete -c forge -n "__fish_use_subcommand" -l verbose -s v -f
@@ -87,7 +87,7 @@ complete -c forge -n "__fish_seen_subcommand_from deploy" -l env -r
 complete -c forge -n "__fish_seen_subcommand_from deploy" -l file -r -f -a "(__fish_complete_path (commandline -ct))""
 `;
 
-exports[`completions > zsh 1`] = `
+exports[`completions > zsh 3`] = `
 "#compdef forge
 
 function _forge_zsh_completions() {
