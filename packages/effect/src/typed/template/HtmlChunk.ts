@@ -1,9 +1,9 @@
 import type * as Template from "./Template.ts"
 
-import * as Array from "../../collections/Array.ts"
-import * as Order from "../../data/Order.ts"
-import * as Predicate from "../../data/Predicate.ts"
-import { constVoid } from "../../Function.ts"
+import * as Array from "effect/collections/Array"
+import * as Order from "effect/data/Order"
+import * as Predicate from "effect/data/Predicate"
+import { constVoid } from "effect/Function"
 import { renderToEscapedString, renderToString } from "./internal/encoding.ts"
 import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts"
 

@@ -1,8 +1,8 @@
 /// <reference types="./udomdiff.d.ts" />
 
+import { isNullish, isObject } from "effect/data/Predicate"
+import * as Effect from "effect/Effect"
 import udomdiff from "udomdiff"
-import { isNullish, isObject } from "../../../data/Predicate.ts"
-import * as Effect from "../../../Effect.ts"
 import { CouldNotFindCommentError } from "../errors.ts"
 import { type EventHandler, fromEffectOrEventHandler, isEventHandler } from "../EventHandler.ts"
 import { isRenderEvent, RenderEventTypeId } from "../RenderEvent.ts"
