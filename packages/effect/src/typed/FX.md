@@ -4,6 +4,24 @@
 
 `Fx` is Effect's reactive stream primitive, designed for building reactive applications with full type safety and Effect's powerful concurrency and error handling capabilities. If you're familiar with Effect, `Fx` extends those patterns to handle streams of values over time.
 
+While Effect's `Stream` is a **pull-based** stream (great for data processing, I/O, and backpressure), `Fx` is a **push-based** stream (perfect for events, UI interactions, and real-time updates).
+
+## Push vs. Pull: Why Fx?
+
+Understanding the difference between "Push" and "Pull" is key to knowing when to use `Fx` vs `Stream`.
+
+### Pull-Based (Stream)
+*   **Consumer drives**: The consumer asks for the next value ("pulls").
+*   **Backpressure**: Built-in. If the consumer is slow, the producer pauses.
+*   **Use cases**: Reading files, processing large datasets, database queries.
+
+### Push-Based (Fx)
+*   **Producer drives**: The producer emits values as they happen ("pushes").
+*   **No Backpressure**: Values are emitted regardless of whether the consumer is ready. Strategies like buffering or dropping are used if needed.
+*   **Use cases**: User events (clicks, keystrokes), WebSocket messages, timers, state changes.
+
+`Fx` is designed to model the "live" nature of applications where events happen spontaneously.
+
 ## What is Fx?
 
 An `Fx<A, E, R>` is a push-based stream that:
@@ -11,7 +29,7 @@ An `Fx<A, E, R>` is a push-based stream that:
 - **Can fail** with an error of type `E`
 - **Requires context** of type `R` (services, dependencies)
 
-Think of `Fx` as Effect's answer to RxJS Observables or AsyncIterables, but built on Effect's fiber-based concurrency model with full type safety and resource management.
+Think of `Fx` as Effect's answer to RxJS Observables, but built on Effect's fiber-based concurrency model with full type safety and resource management.
 
 ## Core Concepts
 
@@ -55,7 +73,7 @@ yield* Fx.fromIterable([1, 2, 3]).run(sink)
 
 ## Creating Fx Streams
 
-### From Values
+### From Values & Data
 
 ```ts
 import { Fx } from "effect/typed/fx"
@@ -68,6 +86,9 @@ const empty = Fx.empty
 
 // Failed stream
 const failed = Fx.fail("Something went wrong")
+
+// From an array
+const fromArray = Fx.fromIterable([1, 2, 3])
 ```
 
 ### From Effects
@@ -76,30 +97,13 @@ const failed = Fx.fail("Something went wrong")
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-// Convert an Effect to an Fx
+// Convert an Effect to an Fx (emits once)
 const fromEffect = Fx.fromEffect(
   Effect.succeed("Hello")
 )
 ```
 
-### From Iterables
-
-```ts
-import { Fx } from "effect/typed/fx"
-
-// From an array
-const fromArray = Fx.fromIterable([1, 2, 3])
-
-// From a generator
-function* numbers() {
-  yield 1
-  yield 2
-  yield 3
-}
-const fromGenerator = Fx.fromIterable(numbers())
-```
-
-### Periodic Streams
+### From Time & Scheduling
 
 ```ts
 import { Duration } from "effect"
@@ -108,263 +112,181 @@ import { Fx } from "effect/typed/fx"
 // Emit void every second
 const periodic = Fx.periodic("1 seconds")
 
-// Emit a value at a specific time
+// Emit a value after a delay
 const delayed = Fx.at("5 seconds", "Hello")
-```
-
-### Custom Streams
-
-```ts
-import { Effect } from "effect"
-import { Fx } from "effect/typed/fx"
-import * as Sink from "effect/typed/fx/Sink"
-
-// Create a custom stream
-const custom = Fx.make((sink) =>
-  Effect.gen(function* () {
-    // Emit values
-    yield* sink.onSuccess(1)
-    yield* sink.onSuccess(2)
-    yield* sink.onSuccess(3)
-  })
-)
-```
-
-## Consuming Fx Streams
-
-### Observing Values
-
-```ts
-import { Effect } from "effect"
-import { Fx } from "effect/typed/fx"
-
-const program = Effect.gen(function* () {
-  const stream = Fx.fromIterable([1, 2, 3])
-
-  // Observe each value
-  yield* Fx.observe(
-    stream,
-    (value) => Effect.sync(() => console.log(value))
-  )
-  // Output: 1, 2, 3
-})
-```
-
-### Collecting Values
-
-```ts
-import { Effect } from "effect"
-import { Fx } from "effect/typed/fx"
-
-const program = Effect.gen(function* () {
-  const stream = Fx.fromIterable([1, 2, 3])
-
-  // Collect all values into an array
-  const values = yield* Fx.collectAll(stream)
-  console.log(values) // [1, 2, 3]
-
-  // Collect up to N values
-  const firstTwo = yield* Fx.collectUpTo(stream, 2)
-  console.log(firstTwo) // [1, 2]
-})
-```
-
-### Getting the First Value
-
-```ts
-import { Effect } from "effect"
-import { Fx } from "effect/typed/fx"
-
-const program = Effect.gen(function* () {
-  const stream = Fx.fromIterable([1, 2, 3])
-
-  // Get the first value
-  const first = yield* Fx.first(stream)
-  console.log(first) // 1
-})
-```
-
-### Running to Promise
-
-```ts
-import { Fx } from "effect/typed/fx"
-
-// Run an Fx to completion, returning a Promise
-const promise = Fx.runPromise(
-  Fx.fromIterable([1, 2, 3])
-)
-
-promise.then(() => {
-  console.log("Completed!")
-})
 ```
 
 ## Transforming Streams
 
-### Mapping Values
+### Mapping & Filtering
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
 const program = Effect.gen(function* () {
-  const numbers = Fx.fromIterable([1, 2, 3])
+  const numbers = Fx.fromIterable([1, 2, 3, 4, 5])
 
-  // Transform each value
+  // Transform values
   const doubled = Fx.map(numbers, (n) => n * 2)
 
-  yield* Fx.observe(doubled, (value) =>
-    Effect.sync(() => console.log(value))
+  // Filter values
+  const evens = Fx.filter(doubled, (n) => n % 2 === 0)
+
+  // Effectful transformation
+  const logged = Fx.tapEffect(evens, (n) => 
+    Effect.log(`Saw even number: ${n}`)
   )
-  // Output: 2, 4, 6
 })
 ```
 
-### Filtering Values
+### Flattening & Composition
+
+The way you flatten streams determines how they handle concurrency:
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Effect.gen(function* () {
-  const numbers = Fx.fromIterable([1, 2, 3, 4, 5])
+const triggers = Fx.fromIterable([1, 2, 3])
 
-  // Keep only even numbers
-  const evens = Fx.filter(numbers, (n) => n % 2 === 0)
+// flatMap: Concatenates streams (runs one after another)
+// Not common in Fx/Push streams unless inner streams are finite
+const sequenced = Fx.flatMap(triggers, n => Fx.succeed(n))
 
-  yield* Fx.observe(evens, (value) =>
-    Effect.sync(() => console.log(value))
-  )
-  // Output: 2, 4
-})
+// switchMap: Switches to the latest stream, cancelling the previous one
+// Perfect for "latest state" or "autocomplete"
+const switched = Fx.switchMap(triggers, query => 
+  Fx.fromEffect(searchApi(query))
+)
+
+// mergeMap (flatMapConcurrently): Runs inner streams concurrently
+// Good for handling multiple independent events
+const merged = Fx.flatMapConcurrently(triggers, n => 
+  Fx.fromEffect(longRunningTask(n))
+)
 ```
 
-### Taking and Skipping
+## Resource Management
+
+Fx leverages Effect's `Scope` to safely manage resources. When a stream starts, it can acquire resources (like event listeners or sockets), and when it ends (completes, fails, or is interrupted), those resources are automatically released.
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Effect.gen(function* () {
-  const numbers = Fx.fromIterable([1, 2, 3, 4, 5])
+// A stream that manages a WebSocket connection
+const socketStream = Fx.make((sink) =>
+  Effect.gen(function* () {
+    // Acquire the socket
+    const socket = yield* Effect.acquireRelease(
+      Effect.sync(() => new WebSocket("ws://api.example.com")),
+      (ws) => Effect.sync(() => ws.close())
+    )
 
-  // Take first 3 values
-  const firstThree = Fx.take(numbers, 3)
-  yield* Fx.observe(firstThree, (value) =>
-    Effect.sync(() => console.log(value))
-  )
-  // Output: 1, 2, 3
+    // Listen for messages
+    yield* Effect.async<never, never, never>((resume) => {
+      socket.onmessage = (event) => {
+        // Emit to sink
+        Effect.runFork(sink.onSuccess(event.data))
+      }
+      socket.onerror = (error) => {
+        // Fail stream
+        Effect.runFork(sink.onFailure(Cause.fail(error)))
+      }
+    })
+  })
+)
 
-  // Skip first 2 values
-  const afterTwo = Fx.skip(numbers, 2)
-  yield* Fx.observe(afterTwo, (value) =>
-    Effect.sync(() => console.log(value))
-  )
-  // Output: 3, 4, 5
-})
+// When this stream is run, the socket opens.
+// When the consumer stops listening (unsubscribes), the socket closes.
 ```
 
-## Composing Streams
+## Error Handling
 
-### FlatMap: Transforming to New Streams
+Fx provides robust error handling capabilities matching Effect's model.
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Effect.gen(function* () {
-  const numbers = Fx.fromIterable([1, 2, 3])
-
-  // Transform each value into a new stream
-  const expanded = Fx.flatMap(numbers, (n) =>
-    Fx.fromIterable([n, n * 2, n * 3])
-  )
-
-  yield* Fx.observe(expanded, (value) =>
-    Effect.sync(() => console.log(value))
-  )
-  // Output: 1, 2, 3, 2, 4, 6, 3, 6, 9
-})
+const stream = Fx.fromIterable([1, 2, 3]).pipe(
+  Fx.mapEffect((n) =>
+    n === 2 ? Effect.fail("Error at 2") : Effect.succeed(n)
+  ),
+  // Recover from specific errors
+  Fx.catchTag("MyError", (e) => Fx.succeed(0)),
+  
+  // Recover from all errors
+  Fx.catchAll((e) => Fx.succeed(`Recovered: ${e}`)),
+  
+  // Retry on failure
+  Fx.retry({ times: 3, schedule: Schedule.exponential("100 millis") })
+)
 ```
 
-### SwitchMap: Latest Stream Only
+## Concurrency & Scheduling
+
+Since Fx is push-based, controlling the *rate* of events is often necessary.
 
 ```ts
-import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Effect.gen(function* () {
-  const triggers = Fx.fromIterable([1, 2, 3])
+const events = Fx.fromIterable([1, 2, 3])
 
-  // Switch to latest stream, canceling previous ones
-  const switched = Fx.switchMap(triggers, (n) =>
-    Fx.fromIterable([`A${n}`, `B${n}`, `C${n}`])
-  )
+// Debounce: Wait for silence before emitting
+// Good for search inputs
+const debounced = Fx.debounce(events, "500 millis")
 
-  yield* Fx.observe(switched, (value) =>
-    Effect.sync(() => console.log(value))
-  )
-  // Only values from the last trigger are emitted
-})
+// Throttle: Emit at most once per window
+// Good for scroll events
+const throttled = Fx.throttle(events, "100 millis")
 ```
 
-### Merging Multiple Streams
+## Interoperability
+
+### Fx to Stream
+
+You can convert an `Fx` to a `Stream`. Note that this buffers events if the `Stream` consumer is slower than the `Fx` producer.
 
 ```ts
-import { Effect } from "effect"
+import { Stream } from "effect/stream"
 import { Fx } from "effect/typed/fx"
 
-const program = Effect.gen(function* () {
-  const stream1 = Fx.fromIterable([1, 2, 3])
-  const stream2 = Fx.fromIterable([4, 5, 6])
+const fx = Fx.periodic("1 seconds")
+const stream = Fx.toStream(fx) // Stream<void>
+```
 
-  // Merge streams concurrently
-  const merged = Fx.mergeAll([stream1, stream2])
+### Stream to Fx
 
-  yield* Fx.observe(merged, (value) =>
-    Effect.sync(() => console.log(value))
-  )
-  // Values from both streams interleaved
-})
+You can convert a `Stream` to an `Fx`.
+
+```ts
+import { Stream } from "effect/stream"
+import { Fx } from "effect/typed/fx"
+
+const stream = Stream.make(1, 2, 3)
+const fx = Fx.fromStream(stream) // Fx<number>
 ```
 
 ## Generator Syntax
 
-`Fx.gen` provides a convenient way to run some Effect that produces an Fx:
+`Fx.gen` provides a convenient way to work with Fx using generator syntax, similar to `Effect.gen`.
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
 const program = Fx.gen(function* () {
-  const a = yield* someEffectA()
-  const b = yield* someEffectB()
-  const c = yield* someEffectC()
-
-  return Fx.succeed(a + b + c)
-})
-```
-
-## Error Handling
-
-Fx streams handle errors just like Effect:
-
-```ts
-import { Effect } from "effect"
-import { Fx } from "effect/typed/fx"
-
-const program = Effect.gen(function* () {
-  const stream = Fx.fromIterable([1, 2, 3]).pipe(
-    Fx.mapEffect((n) =>
-      n === 2 ? Effect.fail("Error at 2") : Effect.succeed(n)
-    ),
-    Fx.catchAll((error) => Fx.succeed(`Recovered: ${error}`))
-  )
-
-  yield* Fx.observe(stream, (value) =>
-    Effect.sync(() => console.log(value))
-  )
-  // Output: 1, "Recovered: Error at 2"
+  const a = yield* someFx
+  const b = yield* anotherFx
+  
+  // If 'a' emits multiple times, this block re-runs? 
+  // NO: Fx.gen is for *creating* a stream, not consuming it like async/await.
+  // It's primarily used for *composition* of Effects into an Fx.
+  
+  const user = yield* Effect.succeed({ name: "Alice" })
+  return Fx.succeed(user)
 })
 ```
 
