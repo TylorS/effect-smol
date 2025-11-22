@@ -7,8 +7,15 @@ import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
 /**
- * While it runs all the Fx instances concurrently, it guarantees that the values are emitted in the order provided
- * buffering as necessary.
+ * Merges multiple Fx streams concurrently but emits values in the order of the input streams.
+ *
+ * This ensures that values from the first Fx are emitted before values from the second Fx, and so on.
+ * Values from later streams are buffered until earlier streams complete or emit their values (depending on semantics, but usually this means strictly ordered emission).
+ *
+ * @param fx - The Fx streams to merge.
+ * @returns An `Fx` that emits values in order.
+ * @since 1.0.0
+ * @category combinators
  */
 export function mergeOrdered<FX extends ReadonlyArray<Fx<any, any, any>>>(
   ...fx: FX

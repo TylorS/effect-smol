@@ -8,6 +8,18 @@ import type { Fx } from "../Fx.ts"
 import { extendScope } from "../internal/scope.ts"
 import type { FlatMapLike } from "./flatMap.ts"
 
+/**
+ * Maps each element of an Fx to a new Fx, but only runs one inner Fx at a time.
+ * If a new element arrives while an inner Fx is running, the new element is buffered (overwriting any previously buffered value).
+ * When the current inner Fx completes, the latest buffered Fx is run.
+ *
+ * This is useful for scenarios where you want to ignore intermediate values but ensure the latest value is eventually processed.
+ *
+ * @param f - A function that maps an element `A` to a new `Fx<B>`.
+ * @returns An `Fx` that emits values from the inner streams.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const exhaustLatestMap: FlatMapLike = dual(2, <A, E, R, B, E2, R2>(
   self: Fx<A, E, R>,
   f: (a: A) => Fx<B, E2, R2>
