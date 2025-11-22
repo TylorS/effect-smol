@@ -64,11 +64,7 @@ export class HtmlChunksBuilder {
 
 export function templateToHtmlChunks({ nodes }: Template.Template) {
   const builder = new HtmlChunksBuilder()
-
-  for (const node of nodes) {
-    nodeToHtmlChunk(builder, node)
-  }
-
+  for (const node of nodes) nodeToHtmlChunk(builder, node)
   return builder.build()
 }
 
@@ -85,18 +81,14 @@ export function addTemplateHash(
 function prependTextChunk(chunks: ReadonlyArray<HtmlChunk>, text: string): ReadonlyArray<HtmlChunk> {
   if (chunks.length === 0) return [{ _tag: "text", text }]
   const firstChunk = chunks[0]
-  if (firstChunk._tag === "text") {
-    return [{ _tag: "text", text: text + firstChunk.text }, ...chunks.slice(1)]
-  }
+  if (firstChunk._tag === "text") return [{ _tag: "text", text: text + firstChunk.text }, ...chunks.slice(1)]
   return [{ _tag: "text", text }, ...chunks]
 }
 
 function appendTextChunk(chunks: ReadonlyArray<HtmlChunk>, text: string): ReadonlyArray<HtmlChunk> {
   if (chunks.length === 0) return [{ _tag: "text", text }]
   const lastChunk = chunks[chunks.length - 1]
-  if (lastChunk._tag === "text") {
-    return [...chunks.slice(0, -1), { _tag: "text", text: lastChunk.text + text }]
-  }
+  if (lastChunk._tag === "text") return [...chunks.slice(0, -1), { _tag: "text", text: lastChunk.text + text }]
   return [...chunks, { _tag: "text", text }]
 }
 
@@ -162,9 +154,7 @@ function elementToHtmlChunks(
   builder.text(`<${tagName}`)
   addAttributes(builder, attributes)
   builder.text(">")
-  for (const child of children) {
-    nodeToHtmlChunk(builder, child)
-  }
+  for (const child of children) nodeToHtmlChunk(builder, child)
   builder.text(`</${tagName}>`)
 }
 
