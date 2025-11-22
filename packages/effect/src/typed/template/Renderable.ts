@@ -12,6 +12,36 @@ import type { RenderEvent } from "./RenderEvent.ts"
  * - Effects that produce a Renderable
  * - Streams (Fx or Stream) that emit Renderables
  * - Objects (typically for setting properties or attributes)
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import { html } from "effect/typed/template"
+ * import { Fx } from "effect/typed/fx"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * // Primitives
+ * const primitive = html`<div>${"Hello"}</div>`
+ * const number = html`<div>${42}</div>`
+ * const boolean = html`<div>${true}</div>`
+ *
+ * // Effects
+ * const effect = html`<div>${Effect.succeed("Async value")}</div>`
+ *
+ * // Fx streams (reactive)
+ * const count = yield* RefSubject.make(0)
+ * const reactive = html`<div>Count: ${count}</div>`
+ *
+ * // Arrays
+ * const items = [1, 2, 3]
+ * const list = html`<ul>${items.map((n) => html`<li>${n}</li>`)}</ul>`
+ *
+ * // Objects (for attributes)
+ * const withProps = html`<div .data=${{ foo: "bar" }}></div>`
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export type Renderable<A, E = never, R = never> =
   | A

@@ -9,6 +9,25 @@ type Entry = { task: () => void; dispose: () => void }
  * An abstract base class for managing the execution of rendering tasks.
  * It allows prioritizing updates and scheduling them using different strategies
  * (e.g., `requestAnimationFrame`, `requestIdleCallback`, `setTimeout`, or synchronous execution).
+ *
+ * @example
+ * ```ts
+ * import { MixedRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ *
+ * const queue = new MixedRenderQueue()
+ *
+ * // Add a high-priority synchronous task
+ * queue.add("task1", () => console.log("High priority"), () => {}, RenderPriority.Sync)
+ *
+ * // Add a medium-priority RAF task
+ * queue.add("task2", () => console.log("Medium priority"), () => {}, RenderPriority.Raf(5))
+ *
+ * // Add a low-priority idle task
+ * queue.add("task3", () => console.log("Low priority"), () => {}, RenderPriority.Idle(1))
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export abstract class RenderQueue implements Disposable {
   protected readonly buckets: Array<KeyedPriorityBucket<Entry>> = []
@@ -78,6 +97,17 @@ const SYNC_DEADLINE: IdleDeadline = { timeRemaining: () => Infinity, didTimeout:
 
 /**
  * A RenderQueue that executes tasks synchronously and immediately.
+ *
+ * @example
+ * ```ts
+ * import { SyncRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ *
+ * const queue = new SyncRenderQueue()
+ * queue.add("task", () => console.log("Immediate"), () => {}, RenderPriority.Sync)
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export class SyncRenderQueue extends RenderQueue {
   protected schedule(task: (deadline: IdleDeadline) => void): Disposable {
@@ -99,6 +129,17 @@ export class SetTimeoutRenderQueue extends RenderQueue {
 /**
  * A RenderQueue that schedules tasks using `requestAnimationFrame`.
  * Good for visual updates that should happen before the next repaint.
+ *
+ * @example
+ * ```ts
+ * import { RequestAnimationFrameRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ *
+ * const queue = new RequestAnimationFrameRenderQueue(16) // 16ms budget
+ * queue.add("update", () => updateDOM(), () => {}, RenderPriority.Raf(5))
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export class RequestAnimationFrameRenderQueue extends RenderQueue {
   readonly durationAllowed: number
@@ -131,6 +172,21 @@ const NONE = disposable(constVoid)
  * - High priority: Sync
  * - Medium priority: RAF (or setTimeout fallback)
  * - Low priority: IdleCallback (or setTimeout fallback)
+ *
+ * @example
+ * ```ts
+ * import { MixedRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ *
+ * const queue = new MixedRenderQueue()
+ *
+ * // Tasks are automatically routed to the appropriate queue
+ * queue.add("sync", () => {}, () => {}, RenderPriority.Sync)
+ * queue.add("raf", () => {}, () => {}, RenderPriority.Raf(5))
+ * queue.add("idle", () => {}, () => {}, RenderPriority.Idle(1))
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export class MixedRenderQueue extends RenderQueue {
   private readonly high: RenderQueue
@@ -174,6 +230,23 @@ const RAF_PRIORITY_RANGE = 10
 
 /**
  * Defines priority levels for rendering tasks.
+ *
+ * @example
+ * ```ts
+ * import { RenderPriority } from "effect/typed/template/RenderQueue"
+ *
+ * // Synchronous execution (highest priority)
+ * const syncPriority = RenderPriority.Sync
+ *
+ * // RequestAnimationFrame priority (0-10)
+ * const rafPriority = RenderPriority.Raf(5)
+ *
+ * // Idle callback priority (lowest priority)
+ * const idlePriority = RenderPriority.Idle(1)
+ * ```
+ *
+ * @since 1.0.0
+ * @category utilities
  */
 export const RenderPriority = {
   /**

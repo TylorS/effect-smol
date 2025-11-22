@@ -20,8 +20,26 @@ let parser: Parser | undefined
  *
  * The result is a cached `Template` instance that contains the static AST and dynamic part locations.
  *
+ * @example
+ * ```ts
+ * import { parse } from "effect/typed/template/Parser"
+ * import * as Template from "effect/typed/template/Template"
+ *
+ * // Parse a template
+ * const template = parse`<div id=${"my-id"} class="container">
+ *   <p>Hello, ${"world"}!</p>
+ * </div>`
+ *
+ * // Access parsed structure
+ * console.log(template.nodes) // Array of parsed nodes
+ * console.log(template.parts) // Array of dynamic interpolation points
+ * console.log(template.hash) // Unique hash for the template
+ * ```
+ *
  * @param template - The template strings array from a tagged template literal.
  * @returns A `Template` object representing the parsed structure.
+ * @since 1.0.0
+ * @category parsing
  */
 export function parse(template: ReadonlyArray<string>): Template.Template {
   parser ??= new Parser()

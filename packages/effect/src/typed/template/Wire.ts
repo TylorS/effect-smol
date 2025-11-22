@@ -6,6 +6,18 @@
  * the DOM or updated without losing track of its content.
  *
  * It is used internally to manage the lifecycle of template instances.
+ *
+ * @example
+ * ```ts
+ * import { persistent } from "effect/typed/template/Wire"
+ *
+ * // Wire is created internally by the template renderer
+ * // It wraps DocumentFragments with multiple children
+ * // to maintain references after DOM operations
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export interface Wire {
   readonly ELEMENT_NODE: 1
@@ -125,6 +137,19 @@ export function getAllSiblingsBetween(start: Node, end: Node): Array<Node> {
 /**
  * A union type representing all possible rendered values.
  * Can be a single Node, a DocumentFragment, a Wire, or an array of these.
+ *
+ * @example
+ * ```ts
+ * import type { Rendered } from "effect/typed/template/Wire"
+ *
+ * // Rendered can be various DOM node types
+ * const node: Rendered = document.createElement("div")
+ * const fragment: Rendered = document.createDocumentFragment()
+ * const array: Rendered = [node, fragment]
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export type Rendered = Rendered.Value | ReadonlyArray<Rendered>
 
@@ -225,6 +250,22 @@ export function isArray(node: Rendered): node is ReadonlyArray<Rendered> {
 
 /**
  * Converts a `Rendered` value to an HTML string.
+ *
+ * @example
+ * ```ts
+ * import { toHtml } from "effect/typed/template/Wire"
+ *
+ * const div = document.createElement("div")
+ * div.textContent = "Hello"
+ * const html = toHtml(div) // "<div>Hello</div>"
+ *
+ * const fragment = document.createDocumentFragment()
+ * fragment.appendChild(div)
+ * const fragmentHtml = toHtml(fragment) // "<div>Hello</div>"
+ * ```
+ *
+ * @since 1.0.0
+ * @category utilities
  */
 export function toHtml(node: Rendered): string {
   if (isArray(node)) return node.map(toHtml).join("")
@@ -238,6 +279,23 @@ export function toHtml(node: Rendered): string {
 
 /**
  * Extracts all Elements from a `Rendered` value.
+ *
+ * @example
+ * ```ts
+ * import { getElements } from "effect/typed/template/Wire"
+ *
+ * const div = document.createElement("div")
+ * const span = document.createElement("span")
+ * const fragment = document.createDocumentFragment()
+ * fragment.appendChild(div)
+ * fragment.appendChild(span)
+ *
+ * const elements = getElements(fragment)
+ * console.log(elements.length) // 2
+ * ```
+ *
+ * @since 1.0.0
+ * @category utilities
  */
 export function getElements(node: Rendered): Array<Element> {
   if (isArray(node)) return node.flatMap(getElements)

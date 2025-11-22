@@ -50,6 +50,19 @@ import { getAllSiblingsBetween, isText, persistent, type Rendered } from "./Wire
  *
  * Defaults to the global `document` object. This can be overridden for testing
  * or environments where the global document is not available or desired.
+ *
+ * @example
+ * ```ts
+ * import { CurrentRenderDocument } from "effect/typed/template/Render"
+ * import { Layer } from "effect"
+ *
+ * // Override document for testing
+ * const testDocument = new Document()
+ * const testLayer = Layer.succeed(CurrentRenderDocument, testDocument)
+ * ```
+ *
+ * @since 1.0.0
+ * @category services
  */
 export const CurrentRenderDocument = ServiceMap.Reference<Document>("RenderDocument", {
   defaultValue: () => document
@@ -60,6 +73,20 @@ export const CurrentRenderDocument = ServiceMap.Reference<Document>("RenderDocum
  *
  * It ensures that DOM updates are batched and executed efficiently, often coordinating
  * with browser painting cycles (e.g., via `requestAnimationFrame`).
+ *
+ * @example
+ * ```ts
+ * import { CurrentRenderQueue } from "effect/typed/template/Render"
+ * import { MixedRenderQueue } from "effect/typed/template/RenderQueue"
+ * import { Layer } from "effect"
+ *
+ * // Use a custom render queue
+ * const customQueue = new MixedRenderQueue()
+ * const queueLayer = Layer.succeed(CurrentRenderQueue, customQueue)
+ * ```
+ *
+ * @since 1.0.0
+ * @category services
  */
 export const CurrentRenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQueue", {
   defaultValue: () => new RQ.MixedRenderQueue()
@@ -70,6 +97,19 @@ export const CurrentRenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQu
  *
  * The default value is `RenderPriority.Raf(10)`, which typically schedules updates
  * to occur before the next repaint.
+ *
+ * @example
+ * ```ts
+ * import { CurrentRenderPriority } from "effect/typed/template/Render"
+ * import { RenderPriority } from "effect/typed/template/RenderQueue"
+ * import { Layer } from "effect"
+ *
+ * // Use synchronous priority for immediate updates
+ * const syncLayer = Layer.succeed(CurrentRenderPriority, RenderPriority.Sync)
+ * ```
+ *
+ * @since 1.0.0
+ * @category services
  */
 export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRenderPriority", {
   defaultValue: () => RQ.RenderPriority.Raf(10)
@@ -84,6 +124,27 @@ export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRender
  * - Hydrating from existing DOM (if applicable).
  * - Setting up event listeners.
  * - Managing fine-grained updates to DOM nodes via `Fx` streams.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Layer } from "effect"
+ * import { html } from "effect/typed/template"
+ * import { DomRenderTemplate, render } from "effect/typed/template/Render"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * const program = Effect.gen(function* () {
+ *   const template = html`<div>Hello, world!</div>`
+ *
+ *   yield* render(template, document.body).pipe(
+ *     Fx.drainLayer,
+ *     Layer.provide(DomRenderTemplate),
+ *     Layer.launch
+ *   )
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category layers
  */
 export const DomRenderTemplate = Object.assign(
   Layer.effect(
@@ -225,9 +286,48 @@ export type ToRendered<T extends RenderEvent | null> = Rendered | (T extends nul
  * - Updating the content as new events are emitted.
  * - Hydrating the content if hydration context is provided.
  *
+ * @example
+ * ```ts
+ * import { Effect, Layer } from "effect"
+ * import { html } from "effect/typed/template"
+ * import { DomRenderTemplate, render } from "effect/typed/template/Render"
+ * import { Fx } from "effect/typed/fx"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(0)
+ *
+ *   const template = html`<div>
+ *     <p>Count: ${count}</p>
+ *     <button onclick=${RefSubject.increment(count)}>Increment</button>
+ *   </div>`
+ *
+ *   // Render to document.body
+ *   yield* render(template, document.body).pipe(
+ *     Fx.drainLayer,
+ *     Layer.provide(DomRenderTemplate),
+ *     Layer.launch
+ *   )
+ * })
+ *
+ * // Can also use pipe syntax
+ * const program2 = Effect.gen(function* () {
+ *   const template = html`<div>Hello</div>`
+ *
+ *   yield* template.pipe(
+ *     render(document.body),
+ *     Fx.drainLayer,
+ *     Layer.provide(DomRenderTemplate),
+ *     Layer.launch
+ *   )
+ * })
+ * ```
+ *
  * @param fx - The `Fx` stream of content to render.
  * @param where - The target DOM element to render into.
  * @returns An `Fx` that emits the currently rendered DOM nodes.
+ * @since 1.0.0
+ * @category rendering
  */
 export const render: {
   (where: HTMLElement): <A extends RenderEvent | null, E, R>(

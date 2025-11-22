@@ -35,8 +35,32 @@ const toHtmlString = (event: RenderEvent | null | undefined): Option<string> => 
  * This function transforms the output of a template rendering process (which produces `RenderEvent`s)
  * into a stream of strings suitable for HTML output (e.g., for Server-Side Rendering).
  *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import { html } from "effect/typed/template"
+ * import { renderToHtml, HtmlRenderTemplate } from "effect/typed/template/Html"
+ * import { Fx } from "effect/typed/fx"
+ * import { Layer } from "effect"
+ *
+ * const program = Effect.gen(function* () {
+ *   const template = html`<div>Hello, ${"world"}!</div>`
+ *
+ *   // Render to HTML string stream
+ *   const htmlStream = renderToHtml(template).pipe(
+ *     Fx.provide(HtmlRenderTemplate)
+ *   )
+ *
+ *   // Collect all HTML chunks
+ *   const chunks = yield* Fx.collectAll(htmlStream)
+ *   console.log(chunks.join("")) // "<div>Hello, world!</div>"
+ * })
+ * ```
+ *
  * @param fx - The `Fx` stream of `RenderEvent`s to render.
  * @returns An `Fx` stream of HTML strings.
+ * @since 1.0.0
+ * @category rendering
  */
 export function renderToHtml<E, R>(
   fx: Fx.Fx<RenderEvent | null | undefined, E, R>
@@ -50,8 +74,34 @@ export function renderToHtml<E, R>(
  * This is a convenience function that collects all events from `renderToHtml` and joins them
  * into a single string. It is an Effect that resolves when the stream completes.
  *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import { html } from "effect/typed/template"
+ * import { renderToHtmlString, HtmlRenderTemplate } from "effect/typed/template/Html"
+ * import { Fx } from "effect/typed/fx"
+ * import { Layer } from "effect"
+ *
+ * const program = Effect.gen(function* () {
+ *   const template = html`<div>
+ *     <h1>Hello</h1>
+ *     <p>World</p>
+ *   </div>`
+ *
+ *   // Render to single HTML string
+ *   const htmlString = yield* renderToHtmlString(template).pipe(
+ *     Fx.provide(HtmlRenderTemplate)
+ *   )
+ *
+ *   console.log(htmlString)
+ *   // "<div><h1>Hello</h1><p>World</p></div>"
+ * })
+ * ```
+ *
  * @param fx - The `Fx` stream of `RenderEvent`s to render.
  * @returns An `Effect` that resolves to the full HTML string.
+ * @since 1.0.0
+ * @category rendering
  */
 export function renderToHtmlString<E, R>(fx: Fx.Fx<RenderEvent | null | undefined, E, R>): Effect.Effect<string, E, R> {
   return fx.pipe(
@@ -79,6 +129,29 @@ type HtmlEntry = ReadonlyArray<HtmlChunk>
  * Using this layer enables templates to be rendered as HTML strings (e.g., for SSR)
  * rather than DOM nodes. It sets the `CurrentComputedBehavior` to `"one"`, indicating
  * a single-pass render approach typical for HTML generation.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import { html } from "effect/typed/template"
+ * import { renderToHtmlString, HtmlRenderTemplate } from "effect/typed/template/Html"
+ * import { Fx } from "effect/typed/fx"
+ * import { Layer } from "effect"
+ *
+ * const program = Effect.gen(function* () {
+ *   const template = html`<div>Hello, ${"world"}!</div>`
+ *
+ *   const htmlString = yield* renderToHtmlString(template).pipe(
+ *     Fx.provide(HtmlRenderTemplate)
+ *   )
+ *
+ *   // Use for SSR
+ *   return htmlString
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category layers
  */
 export const HtmlRenderTemplate = Layer.effect(
   RenderTemplate,
