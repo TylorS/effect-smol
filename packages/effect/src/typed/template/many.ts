@@ -32,6 +32,52 @@ const wrapInRenderEvent = Fx.map((events: ReadonlyArray<RenderEvent>): RenderEve
  * `many` behaves differently based on the environment:
  * - **HTML/SSR** (Computed Behavior = `'one'`): Concurrently renders all portions of the list but streams ready pieces in the order of their definitions.
  * - **DOM** (Computed Behavior = `'multiple'`): Integrates with hydration behaviors to reuse existing DOM nodes or efficiently update the DOM using keyed diffing.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import { html, many } from "effect/typed/template"
+ * import { DomRenderTemplate, render } from "effect/typed/template/Render"
+ * import { Fx } from "effect/typed/fx"
+ * import { Layer } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * interface Todo {
+ *   readonly id: string
+ *   readonly text: string
+ *   readonly completed: boolean
+ * }
+ *
+ * const program = Effect.gen(function* () {
+ *   const todos = yield* RefSubject.make<Todo[]>([
+ *     { id: "1", text: "Learn Effect", completed: false },
+ *     { id: "2", text: "Build app", completed: false }
+ *   ])
+ *
+ *   const todoList = many(
+ *     todos,
+ *     (todo) => todo.id, // Key function
+ *     (todoRef, key) => // Render function receives RefSubject
+ *       html`<li>
+ *         ${RefSubject.map(todoRef, (todo) => todo.text)}
+ *         <button onclick=${RefSubject.update(todoRef, (todo) =>
+ *           ({ ...todo, completed: !todo.completed })
+ *         )}>Toggle</button>
+ *       </li>`
+ *   )
+ *
+ *   const template = html`<ul>${todoList}</ul>`
+ *
+ *   yield* render(template, document.body).pipe(
+ *     Fx.drainLayer,
+ *     Layer.provide(DomRenderTemplate),
+ *     Layer.launch
+ *   )
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category rendering
  */
 export function many<A, E, R, B extends PropertyKey, R2, E2>(
   values: Fx.Fx<ReadonlyArray<A>, E, R>,

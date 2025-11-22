@@ -5,6 +5,23 @@ import { type Inspectable, NodeInspectSymbol } from "effect/interfaces/Inspectab
  *
  * A `Template` instance contains the static structure of an HTML template (nodes)
  * and metadata about dynamic parts (interpolation points).
+ *
+ * @example
+ * ```ts
+ * import { parse } from "effect/typed/template/Parser"
+ * import * as Template from "effect/typed/template/Template"
+ *
+ * // Parse a template string
+ * const template = parse`<div>Hello ${"world"}</div>`
+ *
+ * // Access template structure
+ * console.log(template.nodes) // Array of parsed nodes
+ * console.log(template.parts) // Array of dynamic parts
+ * console.log(template.hash) // Unique hash for caching
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export class Template implements Inspectable {
   readonly _tag = "template"
