@@ -1,4 +1,3 @@
-export * as Sink from "../Sink/index.ts"
 export * from "./combinators/index.ts"
 export * from "./constructors/index.ts"
 export * from "./Fx.ts"

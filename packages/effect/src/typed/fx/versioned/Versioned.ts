@@ -12,11 +12,11 @@ import { dual, flow } from "effect/Function"
 import type { Layer } from "effect/Layer"
 import { sum } from "effect/Number"
 import type * as Scope from "effect/Scope"
-import * as FxCombinators from "../core/combinators/index.ts"
-import * as FxCtor from "../core/constructors/index.ts"
-import type * as Fx from "../core/Fx.ts"
-import { MulticastEffect } from "../core/internal/multicast.ts"
-import { YieldableFx } from "../core/internal/yieldable.ts"
+import * as FxCombinators from "../Fx/combinators/index.ts"
+import * as FxCtor from "../Fx/constructors/index.ts"
+import type * as Fx from "../Fx/Fx.ts"
+import { MulticastEffect } from "../Fx/internal/multicast.ts"
+import { YieldableFx } from "../Fx/internal/yieldable.ts"
 import type { Sink } from "../Sink/Sink.ts"
 import * as Subject from "../Subject/Subject.ts"
 
@@ -24,6 +24,13 @@ import * as Subject from "../Subject/Subject.ts"
 // TODO: context abstraction
 // TODO: More operators
 
+/**
+ * A Versioned value is a value that changes over time, and each change is associated with a version number.
+ * It combines the capabilities of an `Fx` (to observe changes) and an `Effect` (to get the current value).
+ *
+ * @since 1.0.0
+ * @category models
+ */
 export interface Versioned<out R1, out E1, out A2, out E2, out R2, out A3, out E3, out R3>
   extends Fx.Fx<A2, E2, R2>, Effect.Yieldable<Versioned<R1, E1, A2, E2, R2, A3, E3, R3>, A3, E3, R3>
 {
@@ -32,16 +39,41 @@ export interface Versioned<out R1, out E1, out A2, out E2, out R2, out A3, out E
 }
 
 export namespace Versioned {
+  /**
+   * Unifies a Versioned type.
+   * @since 1.0.0
+   * @category type-level
+   */
   export type Unify<T> = T extends
     Versioned<infer R1, infer E1, infer R2, infer E2, infer A2, infer R3, infer E3, infer A3> | infer _
     ? Versioned<R1, E1, A2, E2, R2, A3, E3, R3>
     : never
 
+  /**
+   * Extracts the context required to get the version.
+   * @since 1.0.0
+   * @category type-level
+   */
   export type VersionContext<T> = T extends Versioned<infer R, any, any, any, any, any, any, any> ? R : never
 
+  /**
+   * Extracts the error type of the version effect.
+   * @since 1.0.0
+   * @category type-level
+   */
   export type VersionError<T> = T extends Versioned<any, infer E, any, any, any, any, any, any> ? E : never
 }
 
+/**
+ * Creates a Versioned value from its components.
+ *
+ * @param version - An effect that retrieves the current version number.
+ * @param fx - The stream of updates.
+ * @param effect - An effect that retrieves the current value.
+ * @returns A `Versioned` value.
+ * @since 1.0.0
+ * @category constructors
+ */
 export function make<R1, E1, A2, E2, R2, A3, E3, R3>(
   version: Effect.Effect<number, E1, R1>,
   fx: Fx.Fx<A2, E2, R2>,
@@ -79,6 +111,16 @@ class VersionedImpl<R1, E1, A2, E2, R2, A3, E3, R3> extends YieldableFx<A2, E2, 
   interrupt = Effect.suspend(() => this.effect.interrupt())
 }
 
+/**
+ * Transforms a Versioned value into another Versioned value.
+ *
+ * @param input - The source Versioned value.
+ * @param transformFx - A function to transform the update stream.
+ * @param transformGet - A function to transform the current value effect.
+ * @returns A new `Versioned` value.
+ * @since 1.0.0
+ * @category combinators
+ */
 export function transform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4>(
   input: Versioned<R0, E0, A, E, R, B, E2, R2>,
   transformFx: (fx: Fx.Fx<A, E, R>) => Fx.Fx<C, E3, R3>,
@@ -231,7 +273,9 @@ export const mapEffect: {
 })
 
 /**
+ * Combines multiple Versioned values into a single tuple.
  * @since 1.0.0
+ * @category combinators
  */
 export function tuple<const VS extends ReadonlyArray<Versioned<any, any, any, any, any, any, any, any>>>(
   versioneds: VS
@@ -253,7 +297,9 @@ export function tuple<const VS extends ReadonlyArray<Versioned<any, any, any, an
 }
 
 /**
+ * Combines multiple Versioned values into a single struct.
  * @since 1.0.0
+ * @category combinators
  */
 export function struct<const VS extends Readonly<Record<string, Versioned<any, any, any, any, any, any, any, any>>>>(
   versioneds: VS
@@ -275,7 +321,9 @@ export function struct<const VS extends Readonly<Record<string, Versioned<any, a
 }
 
 /**
+ * Provides context to a Versioned value.
  * @since 1.0.0
+ * @category combinators
  */
 export const provide = <R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
@@ -292,10 +340,20 @@ function mapRecord<K extends string, V, R>(record: Record<K, V>, f: (v: V, k: K)
   return Object.fromEntries(Object.entries<V>(record).map(([k, v]) => [k, f(v, k as K)])) as Record<K, R>
 }
 
+/**
+ * Creates a Versioned value from a constant.
+ * @since 1.0.0
+ * @category constructors
+ */
 export function of<A>(value: A): Versioned<never, never, A, never, never, A, never, never> {
   return make(Effect.succeed(1), FxCtor.succeed(value), Effect.succeed(value))
 }
 
+/**
+ * Holds the latest value of a Versioned stream.
+ * @since 1.0.0
+ * @category combinators
+ */
 export function hold<R0, E0, A, E, R, B, E2, R2>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>
 ): Versioned<R0, E0, A, E, R | Scope.Scope, B, E2, R2> {
@@ -306,6 +364,11 @@ export function hold<R0, E0, A, E, R, B, E2, R2>(
   )
 }
 
+/**
+ * Multicasts a Versioned stream.
+ * @since 1.0.0
+ * @category combinators
+ */
 export function multicast<R0, E0, A, E, R, B, E2, R2>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>
 ): Versioned<R0, E0, A, E, R | Scope.Scope, B, E2, R2> {
@@ -316,6 +379,11 @@ export function multicast<R0, E0, A, E, R, B, E2, R2>(
   )
 }
 
+/**
+ * Replays the last `bufferSize` values of a Versioned stream.
+ * @since 1.0.0
+ * @category combinators
+ */
 export function replay<R0, E0, A, E, R, B, E2, R2>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
   bufferSize: number

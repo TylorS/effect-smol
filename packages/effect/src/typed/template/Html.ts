@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { Scope } from "effect/Scope"
 import * as ServiceMap from "effect/ServiceMap"
-import * as Fx from "effect/typed/fx"
+import { Fx } from "effect/typed/fx"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 import {
   addTemplateHash,

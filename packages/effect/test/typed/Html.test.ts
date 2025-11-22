@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import type { Scope } from "effect"
 import { Effect } from "effect"
-import * as Fx from "effect/typed/fx/index"
+import { Fx } from "effect/typed/fx/index"
 import {
   HtmlRenderTemplate,
   renderToHtml,
