@@ -79,11 +79,10 @@ export function makeEventSource(): EventSource {
   }
 
   function setup(rendered: Rendered, scope: Scope.Scope) {
-    const elements = getElements(rendered)
+    if (listeners.size === 0) return Effect.void
 
-    if (elements.length === 0 || listeners.size === 0) {
-      return Effect.void
-    }
+    const elements = getElements(rendered)
+    if (elements.length === 0) return Effect.void
 
     const disposables: Array<Disposable> = []
     const fibers = new Map<symbol, Fiber.Fiber<any, any>>()
