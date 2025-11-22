@@ -4,6 +4,14 @@ import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * Filters elements of an Fx using an effectful predicate function.
+ *
+ * @param f - An effectful predicate function.
+ * @returns An `Fx` that emits only the elements for which `f` returns `true`.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const filterEffect: {
   <A, E2, R2>(
     f: (a: A) => Effect.Effect<boolean, E2, R2>

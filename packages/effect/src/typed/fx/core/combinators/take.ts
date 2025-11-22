@@ -2,6 +2,14 @@ import { dual } from "effect/Function"
 import type { Fx } from "../Fx.ts"
 import { slice } from "./slice.ts"
 
+/**
+ * Takes the first `n` elements from an Fx and then completes.
+ *
+ * @param n - The number of elements to take.
+ * @returns An `Fx` that emits at most `n` elements.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const take: {
   (
     n: number

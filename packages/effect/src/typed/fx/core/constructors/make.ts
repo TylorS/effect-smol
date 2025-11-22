@@ -28,10 +28,26 @@ class Make<A, E, R> implements Fx<A, E, R> {
   }
 }
 
+/**
+ * Creates an Fx from a function that provides values to a Sink.
+ *
+ * This is the lowest-level constructor for Fx, giving you full control over
+ * the stream's behavior.
+ *
+ * @param run - A function that takes a `Sink` and returns an `Effect` that drives the stream.
+ * @returns An `Fx` instance.
+ * @since 1.0.0
+ * @category constructors
+ */
 export const make = <A, E = never, R = never>(
   run: <RSink = never>(sink: Sink<A, E, RSink>) => Effect.Effect<unknown, never, R | RSink>
 ): Fx<A, E, R> => new Make<A, E, R>(run)
 
+/**
+ * Interface for emitting values, errors, or completion signals in a callback-based Fx.
+ * @since 1.0.0
+ * @category models
+ */
 export type Emit<A, E = never> = {
   succeed: (value: A) => Fiber<unknown, never>
   failCause: (cause: Cause.Cause<E>) => Fiber<unknown, never>
@@ -40,6 +56,15 @@ export type Emit<A, E = never> = {
   done: () => Fiber<unknown, never>
 }
 
+/**
+ * Creates an Fx from a callback-based source.
+ *
+ * @param run - A function that receives an `Emit` object to push values/errors.
+ *              It can return a cleanup effect.
+ * @returns An `Fx` adapted from the callback.
+ * @since 1.0.0
+ * @category constructors
+ */
 export const callback = <A, E = never, R = never>(
   run: (emit: Emit<A, E>) => void | Effect.Effect<unknown, never, R>
 ): Fx<A, E, R> =>
