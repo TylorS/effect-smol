@@ -2,6 +2,14 @@ import { dual } from "effect/Function"
 import type { Fx } from "../Fx.ts"
 import { slice } from "./slice.ts"
 
+/**
+ * Skips the first `n` elements of an Fx.
+ *
+ * @param n - The number of elements to skip.
+ * @returns An `Fx` that emits values after the first `n` elements.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const skip: {
   (
     n: number

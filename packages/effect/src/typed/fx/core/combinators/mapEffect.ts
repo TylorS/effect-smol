@@ -5,6 +5,14 @@ import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * Transforms the elements of an Fx using a provided Effectful function.
+ *
+ * @param f - A function that transforms values of type `A` to an Effect of `B`.
+ * @returns An `Fx` that emits values of type `B`.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const mapEffect: {
   <A, B, E2, R2>(
     f: (a: A) => Effect.Effect<B, E2, R2>
