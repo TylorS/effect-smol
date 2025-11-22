@@ -1,13 +1,11 @@
 /**
- * Wire is a data type that serves as a DocumentFragment that can be
- * utilized to create a persistent DOM structure.
- * @since 1.0.0
- */
-
-/**
- * Wire is a data type that serves as a DocumentFragment that can be
- * utilized to create a persistent DOM structure.
- * @since 1.0.0
+ * Wire is a data type that serves as a persistent, reusable DocumentFragment.
+ *
+ * Unlike a standard `DocumentFragment`, which empties itself when appended to the DOM,
+ * a `Wire` retains references to its child nodes. This allows it to be moved around
+ * the DOM or updated without losing track of its content.
+ *
+ * It is used internally to manage the lifecycle of template instances.
  */
 export interface Wire {
   readonly ELEMENT_NODE: 1
@@ -35,7 +33,7 @@ const remove = ({ firstChild, lastChild }: Node, document: Document): Node => {
 
 /**
  * Create a diffable node from any Node which also might be a Wire.
- * @since 1.0.0
+ * @internal
  */
 export const diffable = (document: Document) => (node: Node, operation: number): Node => {
   if (node.nodeType !== nodeType) return node
@@ -48,9 +46,11 @@ export const diffable = (document: Document) => (node: Node, operation: number):
 }
 
 /**
- * Create a Wire from a DocumentFragment only if it has more than one child.
- * otherwise return the first child.
- * @since 1.0.0
+ * Creates a Wire from a DocumentFragment.
+ *
+ * If the fragment has only one child, that child is returned directly.
+ * If it has multiple children, they are wrapped in a `Wire` structure (bounded by comments)
+ * to allow them to be treated as a single unit.
  */
 export const persistent = (
   document: Document,
@@ -66,6 +66,10 @@ export const persistent = (
   return fromComments(fragment, firstChild, lastChild)
 }
 
+/**
+ * Creates a Wire from a Fragment and boundary comments.
+ * @internal
+ */
 export const fromComments = (
   fragment: DocumentFragment,
   firstChild: Comment,
@@ -104,6 +108,10 @@ export const fromComments = (
   }
 }
 
+/**
+ * Gets all sibling nodes between a start and end node (exclusive).
+ * @internal
+ */
 export function getAllSiblingsBetween(start: Node, end: Node): Array<Node> {
   const siblings = []
   let node = start.nextSibling as Node
@@ -115,26 +123,19 @@ export function getAllSiblingsBetween(start: Node, end: Node): Array<Node> {
 }
 
 /**
- * When supporting a Wire for persisten document fragment behavior,
- * these are the kinds of values which can be rendered.
- * @since 1.0.0
+ * A union type representing all possible rendered values.
+ * Can be a single Node, a DocumentFragment, a Wire, or an array of these.
  */
 export type Rendered = Rendered.Value | ReadonlyArray<Rendered>
 
-/**
- * @since 1.0.0
- */
 export namespace Rendered {
   /**
-   * When supporting a Wire for persisten document fragment behavior,
-   * these are the kinds of values which can be rendered.
-   * @since 1.0.0
+   * Single rendered value type.
    */
   export type Value = Node | DocumentFragment | Wire
 
   /**
    * Extract the values from a Rendered type
-   * @since 1.0.0
    */
   export type Values<T extends Rendered> = [T] extends [ReadonlyArray<infer R>] ?
     ReadonlyArray<R | Exclude<T, ReadonlyArray<any>>>
@@ -142,7 +143,6 @@ export namespace Rendered {
 
   /**
    * Extract the elements from a Rendered type
-   * @since 1.0.0
    */
   export type Elements<T extends Rendered> = ReadonlyArray<
     [Node] extends [Exclude<T, DocumentFragment | Wire | ReadonlyArray<Rendered>>] ? HTMLElement | SVGElement
@@ -151,8 +151,7 @@ export namespace Rendered {
 }
 
 /**
- * Check if a node is a Wire
- * @since 1.0.0
+ * Checks if a rendered node is a `Wire`.
  */
 export function isWire(node: Rendered): node is Wire {
   if (!isArray(node)) return node.nodeType === nodeType
@@ -160,8 +159,7 @@ export function isWire(node: Rendered): node is Wire {
 }
 
 /**
- * Check if a node is a Node
- * @since 1.0.0
+ * Checks if a rendered node is a standard DOM `Node`.
  */
 export function isNode(node: Rendered): node is Node {
   if (!isArray(node)) return node.nodeType !== node.DOCUMENT_FRAGMENT_NODE
@@ -169,56 +167,49 @@ export function isNode(node: Rendered): node is Node {
 }
 
 /**
- * Check if a node is an Element
- * @since 1.0.0
+ * Checks if a rendered node is an `Element`.
  */
 export function isElement(node: Rendered): node is Element {
   return isNode(node) && node.nodeType === node.ELEMENT_NODE
 }
 
 /**
- * Check if a node is an SvgElement
- * @since 1.0.0
+ * Checks if a rendered node is an `SVGElement`.
  */
 export function isSvgElement(node: Rendered): node is SVGElement {
   return isElement(node) && "ownerSVGElement" in node
 }
 
 /**
- * Check if a node is a HTMLEelement
- * @since 1.0.0
+ * Checks if a rendered node is an `HTMLElement`.
  */
 export function isHtmlElement(node: Rendered): node is HTMLElement {
   return isElement(node) && !("ownerSVGElement" in node)
 }
 
 /**
- * Check if a node is a Text
- * @since 1.0.0
+ * Checks if a rendered node is a `Text` node.
  */
 export function isText(node: Rendered): node is Text {
   return isNode(node) && node.nodeType === node.TEXT_NODE
 }
 
 /**
- * Check if a node is an Attr
- * @since 1.0.0
+ * Checks if a rendered node is an `Attr` node.
  */
 export function isAttr(node: Rendered): node is Attr {
   return isNode(node) && node.nodeType === node.ATTRIBUTE_NODE
 }
 
 /**
- * Check if a node is a Comment
- * @since 1.0.0
+ * Checks if a rendered node is a `Comment` node.
  */
 export function isComment(node: Rendered): node is Comment {
   return isNode(node) && node.nodeType === node.COMMENT_NODE
 }
 
 /**
- * Check if a node is a DocumentFragment
- * @since 1.0.0
+ * Checks if a rendered node is a `DocumentFragment`.
  */
 export function isDocumentFragment(node: Rendered): node is DocumentFragment {
   if (!isArray(node)) return node.nodeType === node.DOCUMENT_FRAGMENT_NODE
@@ -226,16 +217,14 @@ export function isDocumentFragment(node: Rendered): node is DocumentFragment {
 }
 
 /**
- * Check if is an Array of nodes
- * @since 1.0.0
+ * Checks if a rendered value is an array of nodes.
  */
 export function isArray(node: Rendered): node is ReadonlyArray<Rendered> {
   return Array.isArray(node)
 }
 
 /**
- * Convert to html
- * @since 1.0.0
+ * Converts a `Rendered` value to an HTML string.
  */
 export function toHtml(node: Rendered): string {
   if (isArray(node)) return node.map(toHtml).join("")
@@ -247,6 +236,9 @@ export function toHtml(node: Rendered): string {
   return node.nodeValue || ""
 }
 
+/**
+ * Extracts all Elements from a `Rendered` value.
+ */
 export function getElements(node: Rendered): Array<Element> {
   if (isArray(node)) return node.flatMap(getElements)
   if (isWire(node)) return getElements(node.valueOf())
