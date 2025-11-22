@@ -9,6 +9,20 @@ import { templateHash } from "./internal/templateHash.ts"
 import * as Template from "./Template.ts"
 
 let parser: Parser | undefined
+/**
+ * Parses a template string array (from a tagged template literal) into a reusable `Template` object.
+ *
+ * This parser handles:
+ * - Standard HTML structure (elements, attributes, text, comments).
+ * - Custom part syntax for interpolation (e.g., `${value}`).
+ * - Special attributes like `.property`, `@event`, `?boolean`.
+ * - Self-closing tags and text-only elements (script, style).
+ *
+ * The result is a cached `Template` instance that contains the static AST and dynamic part locations.
+ *
+ * @param template - The template strings array from a tagged template literal.
+ * @returns A `Template` object representing the parsed structure.
+ */
 export function parse(template: ReadonlyArray<string>): Template.Template {
   parser ??= new Parser()
   return parser.parse(template)

@@ -5,12 +5,26 @@ export type RenderQueueTypeId = typeof RenderQueueTypeId
 
 type Entry = { task: () => void; dispose: () => void }
 
+/**
+ * An abstract base class for managing the execution of rendering tasks.
+ * It allows prioritizing updates and scheduling them using different strategies
+ * (e.g., `requestAnimationFrame`, `requestIdleCallback`, `setTimeout`, or synchronous execution).
+ */
 export abstract class RenderQueue implements Disposable {
   protected readonly buckets: Array<KeyedPriorityBucket<Entry>> = []
   protected scheduled: Disposable | undefined = undefined
 
   readonly [RenderQueueTypeId]: RenderQueueTypeId = RenderQueueTypeId
 
+  /**
+   * Adds a task to the render queue.
+   *
+   * @param key - A unique key to identify the task (used for deduplication/cancellation).
+   * @param task - The function to execute.
+   * @param dispose - A cleanup function to run after the task is executed.
+   * @param priority - The priority of the task. Higher priority tasks may run sooner depending on the implementation.
+   * @returns A Disposable that can be used to cancel the task.
+   */
   readonly add: (
     key: unknown,
     task: () => void,
@@ -62,6 +76,9 @@ export abstract class RenderQueue implements Disposable {
 const DEFAULT_DURATION_ALLOWED = 16
 const SYNC_DEADLINE: IdleDeadline = { timeRemaining: () => Infinity, didTimeout: false }
 
+/**
+ * A RenderQueue that executes tasks synchronously and immediately.
+ */
 export class SyncRenderQueue extends RenderQueue {
   protected schedule(task: (deadline: IdleDeadline) => void): Disposable {
     task(SYNC_DEADLINE)
@@ -69,6 +86,9 @@ export class SyncRenderQueue extends RenderQueue {
   }
 }
 
+/**
+ * A RenderQueue that schedules tasks using `setTimeout(..., 0)`.
+ */
 export class SetTimeoutRenderQueue extends RenderQueue {
   protected schedule(task: (deadline: IdleDeadline) => void): Disposable {
     const id = setTimeout(() => task(idleDealineFromTime(performance.now(), DEFAULT_DURATION_ALLOWED)), 0)
@@ -76,6 +96,10 @@ export class SetTimeoutRenderQueue extends RenderQueue {
   }
 }
 
+/**
+ * A RenderQueue that schedules tasks using `requestAnimationFrame`.
+ * Good for visual updates that should happen before the next repaint.
+ */
 export class RequestAnimationFrameRenderQueue extends RenderQueue {
   readonly durationAllowed: number
   constructor(durationAllowed: number = DEFAULT_DURATION_ALLOWED) {
@@ -89,6 +113,10 @@ export class RequestAnimationFrameRenderQueue extends RenderQueue {
   }
 }
 
+/**
+ * A RenderQueue that schedules tasks using `requestIdleCallback`.
+ * Good for low-priority background work.
+ */
 export class RequestIdleCallbackRenderQueue extends RenderQueue {
   protected schedule(task: (deadline: IdleDeadline) => void): Disposable {
     const id = requestIdleCallback(task)
@@ -98,6 +126,12 @@ export class RequestIdleCallbackRenderQueue extends RenderQueue {
 
 const NONE = disposable(constVoid)
 
+/**
+ * A composite RenderQueue that directs tasks to different queues based on their priority.
+ * - High priority: Sync
+ * - Medium priority: RAF (or setTimeout fallback)
+ * - Low priority: IdleCallback (or setTimeout fallback)
+ */
 export class MixedRenderQueue extends RenderQueue {
   private readonly high: RenderQueue
   private readonly mid: RenderQueue
@@ -138,9 +172,22 @@ export class MixedRenderQueue extends RenderQueue {
 
 const RAF_PRIORITY_RANGE = 10
 
+/**
+ * Defines priority levels for rendering tasks.
+ */
 export const RenderPriority = {
+  /**
+   * Immediate, synchronous execution.
+   */
   Sync: -1,
+  /**
+   * Scheduled via requestAnimationFrame.
+   * @param priority - A value between 0 and 10.
+   */
   Raf: (priority: number) => Math.max(0, Math.min(priority, RAF_PRIORITY_RANGE)),
+  /**
+   * Scheduled via requestIdleCallback.
+   */
   Idle: (priority: number) => RAF_PRIORITY_RANGE + priority
 } as const
 
