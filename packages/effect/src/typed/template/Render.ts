@@ -15,7 +15,7 @@ import { type EventSource, makeEventSource } from "./EventSource.ts"
 import { HydrateContext, makeHydrateContext } from "./HydrateContext.ts"
 import { buildTemplateFragment } from "./internal/buildTemplateFragement.ts"
 import {
-  findHoleComment,
+  findNodePartEndComment,
   getClassList,
   makeAttributeValueUpdater,
   makeBooleanUpdater,
@@ -54,7 +54,7 @@ export const CurrentRenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQu
 })
 
 export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRenderPriority", {
-  defaultValue: () => RQ.RenderPriority.Raf(0)
+  defaultValue: () => RQ.RenderPriority.Raf(10)
 })
 
 export const DomRenderTemplate = Object.assign(
@@ -291,7 +291,7 @@ function setupRenderPart<E = never, R = never>(
       return renderValue(
         ctx,
         part.index,
-        makeNodeUpdater(ctx.document, findHoleComment(node as HTMLElement | SVGElement, part.index))
+        makeNodeUpdater(ctx.document, findNodePartEndComment(node as HTMLElement | SVGElement, part.index))
       )
     }
     case "attr": {

@@ -3,8 +3,10 @@ import { constVoid } from "effect/Function"
 export const RenderQueueTypeId = "@typed/template/RenderQueue"
 export type RenderQueueTypeId = typeof RenderQueueTypeId
 
+type Entry = { task: () => void; dispose: () => void }
+
 export abstract class RenderQueue implements Disposable {
-  protected readonly buckets: Array<KeyedPriorityBucket<{ task: () => void; dispose: () => void }>> = []
+  protected readonly buckets: Array<KeyedPriorityBucket<Entry>> = []
   protected scheduled: Disposable | undefined = undefined
 
   readonly [RenderQueueTypeId]: RenderQueueTypeId = RenderQueueTypeId
@@ -15,7 +17,7 @@ export abstract class RenderQueue implements Disposable {
     dispose: () => void,
     priority: number
   ) => Disposable = (key, task, dispose, priority) => {
-    insert(this.buckets, priority, key, { task, dispose }, (task) => task.dispose())
+    insert(this.buckets, priority, key, { task, dispose }, (entry) => entry.dispose())
     this.scheduleNext()
     return disposable(() => remove(this.buckets, priority, key))
   }
@@ -45,7 +47,6 @@ export abstract class RenderQueue implements Disposable {
   }
 
   private scheduleNext(): void {
-    // Refactored for faster and more direct branching, avoiding unnecessary checks
     if (this.buckets.length === 0) {
       dispose(this)
       return
@@ -59,10 +60,11 @@ export abstract class RenderQueue implements Disposable {
 
 // 16ms to match 60fps
 const DEFAULT_DURATION_ALLOWED = 16
+const SYNC_DEADLINE: IdleDeadline = { timeRemaining: () => Infinity, didTimeout: false }
 
 export class SyncRenderQueue extends RenderQueue {
   protected schedule(task: (deadline: IdleDeadline) => void): Disposable {
-    task({ timeRemaining: () => Infinity, didTimeout: false })
+    task(SYNC_DEADLINE)
     return disposable(constVoid)
   }
 }
