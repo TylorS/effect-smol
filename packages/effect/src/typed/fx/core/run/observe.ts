@@ -7,6 +7,16 @@ import type { Scope } from "effect/Scope"
 import { make } from "../../Sink/Sink.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * Observes the values of an `Fx` stream using a callback function.
+ * The callback can return `void` or an `Effect` which will be executed for each value.
+ *
+ * @param fx - The `Fx` stream to observe.
+ * @param f - The function to call for each emitted value.
+ * @returns An `Effect` that completes when the stream ends.
+ * @since 1.0.0
+ * @category runners
+ */
 export const observe: {
   <A, E2 = never, R2 = never>(
     f: (value: A) => void | Effect.Effect<unknown, E2, R2>
@@ -40,7 +50,25 @@ export const observe: {
     })
   ))
 
+/**
+ * Runs an `Fx` stream to completion, discarding all values.
+ * Useful when the side effects of the stream are all that matter.
+ *
+ * @param fx - The `Fx` stream to drain.
+ * @returns An `Effect` that completes when the stream ends.
+ * @since 1.0.0
+ * @category runners
+ */
 export const drain = <A, E, R>(fx: Fx<A, E, R>): Effect.Effect<void, E, R> => observe(fx, () => Effect.void)
 
+/**
+ * Runs an `Fx` stream as a Layer.
+ * The stream is forked in the background when the layer is acquired.
+ *
+ * @param fx - The `Fx` stream to run.
+ * @returns A `Layer` that manages the background execution of the stream.
+ * @since 1.0.0
+ * @category runners
+ */
 export const drainLayer = <A, E, R>(fx: Fx<A, E, R>): Layer.Layer<never, E, Exclude<R, Scope>> =>
   Layer.effectDiscard(Effect.fork(drain(fx)))

@@ -4,6 +4,14 @@ import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * Performs an effect for each element of the Fx, without changing the elements.
+ *
+ * @param f - An effectful function to apply to each element.
+ * @returns An `Fx` that emits the original elements.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const tap: {
   <A, E2 = never, R2 = never>(
     f: (a: A) => void | Effect.Effect<unknown, E2, R2>
