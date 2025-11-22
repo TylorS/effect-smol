@@ -11,9 +11,7 @@ export function takeOneIfNotRenderEvent<A, E, R>(
     Sink.withEarlyExit(sink, (sink) =>
       fx.run(
         Sink.make(sink.onFailure, (event) => {
-          if (isHtmlRenderEvent(event) && !event.last) {
-            return sink.onSuccess(event)
-          }
+          if (isHtmlRenderEvent(event) && !event.last) return sink.onSuccess(event)
           return Effect.flatMap(sink.onSuccess(event), () => sink.earlyExit)
         })
       ))

@@ -9,6 +9,8 @@ import { HydrateContext } from "./HydrateContext.ts"
 import { renderToString } from "./internal/encoding.ts"
 import { DomRenderEvent, HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } from "./RenderEvent.ts"
 
+// We wrap the all the nodes in a single RenderEvent so that we can micro-optimize
+// the downstream behaviors of diffing/patching.
 const wrapInRenderEvent = Fx.map((events: ReadonlyArray<RenderEvent>): RenderEvent =>
   DomRenderEvent(
     events.flatMap((event) => getNodesFromRendered(event))

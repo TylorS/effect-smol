@@ -5,8 +5,14 @@ import * as Effect from "effect/Effect"
 import udomdiff from "udomdiff"
 import { CouldNotFindCommentError } from "../errors.ts"
 import { type EventHandler, fromEffectOrEventHandler, isEventHandler } from "../EventHandler.ts"
-import { isRenderEvent, RenderEventTypeId } from "../RenderEvent.ts"
-import { diffable } from "../Wire.ts"
+import {
+  type DomRenderEvent,
+  type HtmlRenderEvent,
+  isRenderEvent,
+  type RenderEvent,
+  RenderEventTypeId
+} from "../RenderEvent.js"
+import { diffable, isComment } from "../Wire.ts"
 import { renderToString } from "./encoding.ts"
 
 export function makeTextContentUpdater(element: Node) {
@@ -127,12 +133,8 @@ export function diffDataSet(
 }
 
 export function getClassList(value: unknown): ReadonlyArray<string> {
-  if (isNullish(value)) {
-    return []
-  }
-  if (Array.isArray(value)) {
-    return value.flatMap(getClassList)
-  }
+  if (isNullish(value)) return []
+  if (Array.isArray(value)) return value.flatMap(getClassList)
   return splitClassNames(renderToString(value, ""))
 }
 
@@ -194,20 +196,10 @@ export function matchNodeValue<A, B>(
     case "object": {
       if (isNullish(value)) {
         return onNodes([])
-      } else if (Array.isArray(value)) {
-        // arrays can be used to cleanup, if empty
-        if (value.length === 0) return onNodes([])
-        // or diffed, if these contains nodes or "wires"
-        return onNodes(value.flatMap((_) => renderEventToArray(document, _)))
       } else if (isRenderEvent(value)) {
-        const isHtml = value[RenderEventTypeId] === "html"
-        if (isHtml) {
-          const tmp = document.createElement("template")
-          tmp.innerHTML = value.html
-          return onNodes(Array.from(tmp.childNodes))
-        } else {
-          return onNodes(renderEventToArray(document, value))
-        }
+        return onNodes(unwrapRenderEvent(document, value))
+      } else if (Array.isArray(value)) {
+        return onNodes(value.flatMap((_) => renderEventToArray(document, _)))
       } else {
         return onNodes(renderEventToArray(document, value))
       }
@@ -227,20 +219,28 @@ export function renderEventToArray(document: Document, x: unknown): Array<Node> 
     case "function":
     case "object":
       if (isNullish(x)) return []
+      if (isRenderEvent(x)) return unwrapRenderEvent(document, x)
       if (Array.isArray(x)) return x.flatMap((_) => renderEventToArray(document, _))
-      if (isRenderEvent(x)) {
-        if (x[RenderEventTypeId] === "dom") {
-          const value = x.valueOf()
-          return Array.isArray(value) ? value : [value as Node]
-        }
-        const tmp = document.createElement("template")
-        tmp.innerHTML = x.html
-        return Array.from(tmp.childNodes)
-      }
       return [x as Node]
     default:
       return []
   }
+}
+
+function unwrapRenderEvent(document: Document, x: RenderEvent): Array<Node> {
+  if (x[RenderEventTypeId] === "dom") return unwrapDomRenderEvent(x)
+  return unwrapHtmlRenderEvent(document, x)
+}
+
+function unwrapDomRenderEvent(x: DomRenderEvent): Array<Node> {
+  const value = x.content
+  return Array.isArray(value) ? value : [value as Node]
+}
+
+function unwrapHtmlRenderEvent(document: Document, x: HtmlRenderEvent): Array<Node> {
+  const tmp = document.createElement("template")
+  tmp.innerHTML = x.html
+  return Array.from(tmp.childNodes)
 }
 
 export function diffChildren(
@@ -258,31 +258,35 @@ export function diffChildren(
   )
 }
 
-export function findHoleComment(parent: Element, index: number) {
+export function findNodePartEndComment(parent: Element, index: number) {
   const childNodes = parent.childNodes
 
   for (let i = 0; i < childNodes.length; ++i) {
     const node = childNodes[i]
 
-    if (node.nodeType === 8 && node.nodeValue === `/n_${index}`) {
-      return node as Comment
+    if (isCommentWithValue(node, `/n_${index}`)) {
+      return node
     }
   }
 
   throw new CouldNotFindCommentError(index)
 }
 
-export function findHoleStartComment(parent: Element, index: number) {
+export function findNodePartStartComment(parent: Element, index: number) {
   const childNodes = parent.childNodes
 
   for (let i = 0; i < childNodes.length; ++i) {
     const node = childNodes[i]
-    if (node.nodeType === 8 && node.nodeValue === `n_${index}`) {
-      return node as Comment
+    if (isCommentWithValue(node, `n_${index}`)) {
+      return node
     }
   }
 
   throw new CouldNotFindCommentError(index)
+}
+
+function isCommentWithValue(node: Node, value: string): node is Comment {
+  return isComment(node) && node.nodeValue === value
 }
 
 export function makeNodeUpdater(

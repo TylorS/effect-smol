@@ -222,15 +222,11 @@ function liftRenderableToFx<E, R>(
       if (isNullish(renderable)) {
         return isStatic ? Fx.empty : Fx.succeed(HtmlRenderEvent(TEXT_START, true))
       } else if (Array.isArray(renderable)) {
-        return Fx.mergeOrdered(
-          ...renderable.map((r) => liftRenderableToFx<E, R>(r, isStatic))
-        )
+        return Fx.mergeOrdered(...renderable.map((r) => liftRenderableToFx<E, R>(r, isStatic)))
       } else if (Fx.isFx(renderable)) {
         return takeOneIfNotRenderEvent(renderable)
       } else if (Effect.isEffect(renderable)) {
-        return Fx.unwrap(
-          Effect.map(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic))
-        )
+        return Fx.unwrap(Effect.map(renderable, (r) => liftRenderableToFx<E, R>(r, isStatic)))
       } else if (isHtmlRenderEvent(renderable)) {
         return Fx.succeed(renderable)
       } else return Fx.take(Fx.struct(mapRecord(renderable, (_) => liftRenderableToFx<E, R>(_, isStatic))), 1)

@@ -38,22 +38,16 @@ export class CouldNotFindTemplateEndError extends Error {
   }
 }
 
-const constructors: Array<Function> = [
+const constructors = [
   CouldNotFindCommentError,
   CouldNotFindRootElement,
   CouldNotFindManyCommentError,
   CouldNotFindTemplateHashError,
   CouldNotFindTemplateEndError
-]
+] as const
 
-export function isHydrationError(
-  e: unknown
-): e is
-  | CouldNotFindCommentError
-  | CouldNotFindRootElement
-  | CouldNotFindManyCommentError
-  | CouldNotFindTemplateHashError
-  | CouldNotFindTemplateEndError
-{
+export type HydrationError = InstanceType<typeof constructors[number]>
+
+export function isHydrationError(e: unknown): e is HydrationError {
   return constructors.some((c) => e instanceof c)
 }
