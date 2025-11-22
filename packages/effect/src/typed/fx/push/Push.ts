@@ -8,14 +8,46 @@ import type * as Effect from "effect/Effect"
 import { dual, identity } from "effect/Function"
 import { pipeArguments } from "effect/interfaces/Pipeable"
 import type * as Scope from "effect/Scope"
-import * as Fx from "../core/index.ts"
-import { FxTypeId } from "../core/TypeId.ts"
+import * as Fx from "../Fx/index.ts"
+import { FxTypeId } from "../Fx/TypeId.ts"
 import * as Sink from "../Sink/index.ts"
 
 /**
  * Push is an abstract type which represents a Type which is both an Fx and a Sink. The type parameters
  * are decoupled from one another and allow mapping over the input and output of the Push separately for
  * more complex use cases.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Push from "effect/typed/fx/Push"
+ * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "effect/typed/fx/Sink"
+ *
+ * const program = Effect.gen(function* () {
+ *   // Create a Push that accepts numbers and emits strings
+ *   const push = Push.make(
+ *     Sink.make(
+ *       (cause) => Effect.sync(() => console.log("Error:", cause)),
+ *       (value) => Effect.sync(() => console.log("Received:", value))
+ *     ),
+ *     Fx.succeed("Hello")
+ *   )
+ *
+ *   // Push a value to the sink
+ *   yield* push.onSuccess(42)
+ *   // Output: "Received: 42"
+ *
+ *   // Observe the Fx output
+ *   yield* Fx.observe(push, (value) =>
+ *     Effect.sync(() => console.log("Emitted:", value))
+ *   )
+ *   // Output: "Emitted: Hello"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sink<A, E, R>, Fx.Fx<B, E2, R2> {}
 
@@ -23,6 +55,41 @@ export namespace Push {
   export interface Any extends Push<any, any, any, any, any, any> {}
 }
 
+/**
+ * Creates a `Push` from a `Sink` and an `Fx`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Push from "effect/typed/fx/Push"
+ * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "effect/typed/fx/Sink"
+ *
+ * const program = Effect.gen(function* () {
+ *   const sink = Sink.make(
+ *     (cause) => Effect.sync(() => console.log("Failed:", cause)),
+ *     (value) => Effect.sync(() => console.log("Success:", value))
+ *   )
+ *
+ *   const fx = Fx.succeed("Output")
+ *
+ *   const push = Push.make(sink, fx)
+ *
+ *   // Push a value
+ *   yield* push.onSuccess(42)
+ *   // Output: "Success: 42"
+ *
+ *   // Observe the Fx
+ *   yield* Fx.observe(push, (value) =>
+ *     Effect.sync(() => console.log("Emitted:", value))
+ *   )
+ *   // Output: "Emitted: Output"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category constructors
+ */
 export const make: {
   <B, E2, R2>(fx: Fx.Fx<B, E2, R2>): <A, E, R>(sink: Sink.Sink<A, E, R>) => Push<A, E, R, B, E2, R2>
   <A, E, R, B, E2, R2>(sink: Sink.Sink<A, E, R>, fx: Fx.Fx<B, E2, R2>): Push<A, E, R, B, E2, R2>
@@ -69,6 +136,37 @@ class PushImpl<A, E, R, B, E2, R2> implements Push<A, E, R, B, E2, R2> {
   }
 }
 
+/**
+ * Maps over the input (Sink) side of a `Push`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Push from "effect/typed/fx/Push"
+ * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "effect/typed/fx/Sink"
+ *
+ * const program = Effect.gen(function* () {
+ *   const push = Push.make(
+ *     Sink.make(
+ *       (cause) => Effect.void,
+ *       (value: number) => Effect.sync(() => console.log("Number:", value))
+ *     ),
+ *     Fx.succeed("Output")
+ *   )
+ *
+ *   // Map input from string to number
+ *   const mapped = Push.mapInput(push, (str: string) => parseInt(str))
+ *
+ *   // Push a string, which gets converted to a number
+ *   yield* mapped.onSuccess("42")
+ *   // Output: "Number: 42"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const mapInput: {
   <P extends Push.Any, C>(
     f: (c: C) => Sink.Success<P>
@@ -176,6 +274,39 @@ export const filterMapInputEffect: {
   )
 })
 
+/**
+ * Maps over the output (Fx) side of a `Push`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Push from "effect/typed/fx/Push"
+ * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "effect/typed/fx/Sink"
+ *
+ * const program = Effect.gen(function* () {
+ *   const push = Push.make(
+ *     Sink.make(
+ *       (cause) => Effect.void,
+ *       (value) => Effect.void
+ *     ),
+ *     Fx.succeed(42)
+ *   )
+ *
+ *   // Map output from number to string
+ *   const mapped = Push.map(push, (n) => `Number: ${n}`)
+ *
+ *   // Observe the mapped output
+ *   yield* Fx.observe(mapped, (value) =>
+ *     Effect.sync(() => console.log(value))
+ *   )
+ *   // Output: "Number: 42"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const map: {
   <B, C>(f: (b: B) => C): <A, E, R, E2, R2>(push: Push<A, E, R, B, E2, R2>) => Push<A, E, R, C, E2, R2>
   <A, E, R, B, E2, R2, C>(push: Push<A, E, R, B, E2, R2>, f: (b: B) => C): Push<A, E, R, C, E2, R2>
@@ -271,6 +402,40 @@ export const filterMapEffect: {
   )
 })
 
+/**
+ * Transforms each output value into a new `Fx`, switching to the latest inner `Fx` when a new value arrives.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Push from "effect/typed/fx/Push"
+ * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "effect/typed/fx/Sink"
+ *
+ * const program = Effect.gen(function* () {
+ *   const push = Push.make(
+ *     Sink.make(
+ *       (cause) => Effect.void,
+ *       (value) => Effect.void
+ *     ),
+ *     Fx.succeed(1)
+ *   )
+ *
+ *   // Switch to a new Fx for each value
+ *   const switched = Push.switchMap(push, (n) =>
+ *     Fx.fromIterable([n, n * 2, n * 3])
+ *   )
+ *
+ *   // Only the latest Fx's values are emitted
+ *   yield* Fx.observe(switched, (value) =>
+ *     Effect.sync(() => console.log(value))
+ *   )
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const switchMap: {
   <B, C, E3, R3>(f: (b: B) => Fx.Fx<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>
@@ -307,6 +472,40 @@ export const switchMapEffect: {
   )
 })
 
+/**
+ * Transforms each output value into a new `Fx` and merges all inner `Fx` values concurrently.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Push from "effect/typed/fx/Push"
+ * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "effect/typed/fx/Sink"
+ *
+ * const program = Effect.gen(function* () {
+ *   const push = Push.make(
+ *     Sink.make(
+ *       (cause) => Effect.void,
+ *       (value) => Effect.void
+ *     ),
+ *     Fx.succeed(1)
+ *   )
+ *
+ *   // FlatMap merges all inner Fx values
+ *   const flattened = Push.flatMap(push, (n) =>
+ *     Fx.fromIterable([n, n * 2, n * 3])
+ *   )
+ *
+ *   // All values from all inner Fx are emitted
+ *   yield* Fx.observe(flattened, (value) =>
+ *     Effect.sync(() => console.log(value))
+ *   )
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const flatMap: {
   <B, C, E3, R3>(f: (b: B) => Fx.Fx<C, E3, R3>): <A, E, R, E2, R2>(
     push: Push<A, E, R, B, E2, R2>

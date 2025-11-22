@@ -13,13 +13,13 @@ import * as MutableRef from "effect/MutableRef"
 import { sum } from "effect/Number"
 import * as Scope from "effect/Scope"
 import * as ServiceMap from "effect/ServiceMap"
-import type { Bounds } from "../core/combinators/slice.ts"
-import * as Fx from "../core/index.ts"
-import * as DeferredRef from "../core/internal/DeferredRef.ts"
-import { getExitEquivalence } from "../core/internal/equivalence.ts"
-import type { UnionToTuple } from "../core/internal/UnionToTuple.ts"
-import { YieldableFx } from "../core/internal/yieldable.ts"
-import { FxTypeId, isFx } from "../core/TypeId.ts"
+import type { Bounds } from "../Fx/combinators/slice.ts"
+import * as Fx from "../Fx/index.ts"
+import * as DeferredRef from "../Fx/internal/DeferredRef.ts"
+import { getExitEquivalence } from "../Fx/internal/equivalence.ts"
+import type { UnionToTuple } from "../Fx/internal/UnionToTuple.ts"
+import { YieldableFx } from "../Fx/internal/yieldable.ts"
+import { FxTypeId, isFx } from "../Fx/TypeId.ts"
 import * as Sink from "../Sink/Sink.ts"
 import * as Subject from "../Subject/Subject.ts"
 import * as Versioned from "../Versioned/Versioned.ts"
@@ -33,6 +33,40 @@ export type ComputedTypeId = typeof ComputedTypeId
 export const FilteredTypeId = Symbol.for("@typed/fx/Filtered")
 export type FilteredTypeId = typeof FilteredTypeId
 
+/**
+ * A `Computed` is a read-only view of a value that can change over time.
+ * It is an `Fx` that emits the current value and subsequent updates.
+ * It is also an `Effect` that samples the current value.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * // Create a RefSubject and derive a Computed from it
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(0)
+ *
+ *   // Create a computed that doubles the count
+ *   const doubled = RefSubject.map(count, (n) => n * 2)
+ *
+ *   // Sample the computed value
+ *   const value = yield* doubled
+ *   console.log(value) // 0
+ *
+ *   // Update the source
+ *   yield* RefSubject.set(count, 5)
+ *
+ *   // The computed automatically reflects the change
+ *   const newValue = yield* doubled
+ *   console.log(newValue) // 10
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
+ */
 export interface Computed<out A, out E = never, out R = never>
   extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E, R>
 {
@@ -47,11 +81,65 @@ export declare namespace Computed {
     | Computed<never, never, any>
 }
 
+/**
+ * A `Filtered` is a `Computed` that may not always have a value.
+ * It is essentially a `Computed<Option<A>>` with helper methods.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Option } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * // Create a RefSubject and filter it
+ * const program = Effect.gen(function* () {
+ *   const numbers = yield* RefSubject.make([1, 2, 3, 4, 5])
+ *
+ *   // Get the first even number (filtered)
+ *   const firstEven = RefSubject.filterMap(
+ *     numbers,
+ *     (arr) => Option.fromNullable(arr.find((n) => n % 2 === 0))
+ *   )
+ *
+ *   // Try to get the value (may fail with NoSuchElementError)
+ *   const value = yield* firstEven
+ *   console.log(value) // 2
+ *
+ *   // Or convert back to Option
+ *   const option = firstEven.asComputed()
+ *   const maybeValue = yield* option
+ *   console.log(Option.isSome(maybeValue)) // true
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
+ */
 export interface Filtered<out A, out E = never, out R = never>
   extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R>
 {
   readonly [FilteredTypeId]: FilteredTypeId
 
+  /**
+   * Converts the Filtered back to a Computed of Option.
+   *
+   * @example
+   * ```ts
+   * import { Effect, Option } from "effect"
+   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   *
+   * const program = Effect.gen(function* () {
+   *   const filtered = RefSubject.filterMap(
+   *     yield* RefSubject.make([1, 2, 3]),
+   *     (arr) => Option.fromNullable(arr.find((n) => n > 5))
+   *   )
+   *
+   *   // Convert to Computed<Option<number>>
+   *   const computed = filtered.asComputed()
+   *   const option = yield* computed
+   *   console.log(Option.isNone(option)) // true (no number > 5)
+   * })
+   * ```
+   */
   asComputed(): Computed<Option.Option<A>, E, R>
 }
 
@@ -63,19 +151,104 @@ export declare namespace Filtered {
     | Filtered<never, never, any>
 }
 
+/**
+ * Interface for basic RefSubject operations: get, set, delete.
+ * @since 1.0.0
+ * @category models
+ */
 export interface GetSetDelete<A, E, R> {
   readonly get: Effect.Effect<A, E, R>
   readonly set: (a: A) => Effect.Effect<A, E, R>
   readonly delete: Effect.Effect<Option.Option<A>, E, R>
 }
 
+/**
+ * A `RefSubject` is a mutable reference that can be observed as an Fx.
+ * It combines the capabilities of a `Ref` (get/set/update) with a `Subject` (subscribe).
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * // Create a RefSubject with an initial value
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(0)
+ *
+ *   // Get the current value
+ *   const current = yield* count
+ *   console.log(current) // 0
+ *
+ *   // Update the value
+ *   yield* RefSubject.set(count, 5)
+ *   const updated = yield* count
+ *   console.log(updated) // 5
+ *
+ *   // Use as an Fx to observe changes
+ *   yield* Fx.observe(
+ *     count,
+ *     (value) => Effect.sync(() => console.log("Count changed:", value))
+ *   )
+ *
+ *   // Increment
+ *   yield* RefSubject.increment(count)
+ *   // Output: "Count changed: 6"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
+ */
 export interface RefSubject<A, E = never, R = never> extends Computed<A, E, R>, Subject.Subject<A, E, R> {
   readonly [RefSubjectTypeId]: RefSubjectTypeId
 
+  /**
+   * Runs an effect that can modify the RefSubject transactionally.
+   * All operations within the transaction are atomic and serialized.
+   *
+   * @example
+   * ```ts
+   * import { Effect } from "effect"
+   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   *
+   * const program = Effect.gen(function* () {
+   *   const balance = yield* RefSubject.make(100)
+   *
+   *   // Transfer money atomically
+   *   yield* balance.updates((ref) =>
+   *     Effect.gen(function* () {
+   *       const current = yield* ref.get
+   *       if (current >= 50) {
+   *         yield* ref.set(current - 50)
+   *         return "Transfer successful"
+   *       }
+   *       return "Insufficient funds"
+   *     })
+   *   )
+   * })
+   * ```
+   */
   readonly updates: <B, E2, R2>(
     f: (ref: GetSetDelete<A, E, R>) => Effect.Effect<B, E2, R2>
   ) => Effect.Effect<B, E | E2, R | R2>
 
+  /**
+   * Interrupts the RefSubject, stopping all subscriptions and cleaning up resources.
+   *
+   * @example
+   * ```ts
+   * import { Effect } from "effect"
+   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   *
+   * const program = Effect.gen(function* () {
+   *   const ref = yield* RefSubject.make(0)
+   *
+   *   // Later, clean up
+   *   yield* ref.interrupt
+   * })
+   * ```
+   */
   readonly interrupt: Effect.Effect<void, never, R>
 }
 
@@ -348,6 +521,44 @@ class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Sco
   }
 }
 
+/**
+ * Creates a new `RefSubject` from a value, `Effect`, or `Fx`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * // From a plain value
+ * const program1 = Effect.gen(function* () {
+ *   const ref = yield* RefSubject.make(42)
+ *   const value = yield* ref
+ *   console.log(value) // 42
+ * })
+ *
+ * // From an Effect
+ * const program2 = Effect.gen(function* () {
+ *   const ref = yield* RefSubject.make(
+ *     Effect.succeed("Hello")
+ *   )
+ *   const value = yield* ref
+ *   console.log(value) // "Hello"
+ * })
+ *
+ * // From an Fx (tracks the latest value)
+ * const program3 = Effect.gen(function* () {
+ *   const ref = yield* RefSubject.make(
+ *     Fx.fromIterable([1, 2, 3])
+ *   )
+ *   const value = yield* ref
+ *   console.log(value) // 3 (latest value)
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category constructors
+ */
 export function make<A, E = never, R = never>(
   effect: A | Effect.Effect<A, E, R> | Fx.Fx<A, E, R>,
   options?: RefSubjectOptions<A>
@@ -361,6 +572,27 @@ export function make<A, E = never, R = never>(
   }
 }
 
+/**
+ * Creates a `RefSubject` from an `Effect`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const ref = yield* RefSubject.fromEffect(
+ *     Effect.succeed("Initial value")
+ *   )
+ *
+ *   const value = yield* ref
+ *   console.log(value) // "Initial value"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category constructors
+ */
 export function fromEffect<A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options?: RefSubjectOptions<A>
@@ -368,6 +600,31 @@ export function fromEffect<A, E, R>(
   return Effect.map(makeCore(effect, options), (core) => new RefSubjectImpl(core))
 }
 
+/**
+ * Creates a `RefSubject` from an `Fx`, tracking the latest emitted value.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * const program = Effect.gen(function* () {
+ *   // Create an Fx that emits multiple values
+ *   const numbers = Fx.fromIterable([1, 2, 3, 4, 5])
+ *
+ *   // Create a RefSubject that tracks the latest value
+ *   const ref = yield* RefSubject.fromFx(numbers)
+ *
+ *   // Get the latest value
+ *   const latest = yield* ref
+ *   console.log(latest) // 5
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category constructors
+ */
 export function fromFx<A, E, R>(
   fx: Fx.Fx<A, E, R>,
   options?: RefSubjectOptions<A>
@@ -542,6 +799,32 @@ function sendEvent<A, E, R, R2>(
   }
 }
 
+/**
+ * Sets the value of a `RefSubject`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(0)
+ *
+ *   // Set the value
+ *   yield* RefSubject.set(count, 10)
+ *   const value = yield* count
+ *   console.log(value) // 10
+ *
+ *   // Can also use pipe syntax
+ *   yield* count.pipe(RefSubject.set(20))
+ *   const newValue = yield* count
+ *   console.log(newValue) // 20
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const set: {
   <A>(value: A): <E, R>(ref: RefSubject<A, E, R>) => Effect.Effect<A, E, R>
   <A, E, R>(ref: RefSubject<A, E, R>, a: A): Effect.Effect<A, E, R>
@@ -549,17 +832,92 @@ export const set: {
   return ref.updates((ref) => ref.set(a))
 })
 
+/**
+ * Resets a `RefSubject` to its initial value, returning the previous value if it existed.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Option } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(0)
+ *
+ *   yield* RefSubject.set(count, 5)
+ *   const before = yield* count
+ *   console.log(before) // 5
+ *
+ *   // Reset to initial value
+ *   const previous = yield* RefSubject.reset(count)
+ *   console.log(Option.isSome(previous)) // true
+ *   console.log(previous.value) // 5
+ *
+ *   const after = yield* count
+ *   console.log(after) // 0
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function reset<A, E, R>(ref: RefSubject<A, E, R>): Effect.Effect<Option.Option<A>, E, R> {
   return ref.updates((ref) => ref.delete)
 }
 
 export {
   /**
+   * Deletes the current value of a `RefSubject`, resetting it to its initial state.
+   *
+   * @example
+   * ```ts
+   * import { Effect, Option } from "effect"
+   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   *
+   * const program = Effect.gen(function* () {
+   *   const ref = yield* RefSubject.make(10)
+   *   yield* RefSubject.set(ref, 20)
+   *
+   *   // Delete the current value
+   *   const deleted = yield* RefSubject.delete(ref)
+   *   console.log(Option.isSome(deleted)) // true
+   *   console.log(deleted.value) // 20
+   *
+   *   // Value is reset to initial
+   *   const current = yield* ref
+   *   console.log(current) // 10
+   * })
+   * ```
+   *
    * @since 1.20.0
+   * @category combinators
    */
   reset as delete
 }
 
+/**
+ * Updates a `RefSubject` using an `Effect`ful function.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(5)
+ *
+ *   // Update with an async operation
+ *   yield* RefSubject.updateEffect(count, (value) =>
+ *     Effect.succeed(value * 2)
+ *   )
+ *
+ *   const result = yield* count
+ *   console.log(result) // 10
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const updateEffect: {
   <A, E2, R2>(
     f: (value: A) => Effect.Effect<A, E2, R2>
@@ -575,6 +933,32 @@ export const updateEffect: {
   return ref.updates((ref) => Effect.flatMap(Effect.flatMap(ref.get, f), ref.set))
 })
 
+/**
+ * Updates a `RefSubject` using a pure function.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(5)
+ *
+ *   // Increment by 1
+ *   yield* RefSubject.update(count, (n) => n + 1)
+ *   const value = yield* count
+ *   console.log(value) // 6
+ *
+ *   // Can also use pipe syntax
+ *   yield* count.pipe(RefSubject.update((n) => n * 2))
+ *   const doubled = yield* count
+ *   console.log(doubled) // 12
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const update: {
   <A>(f: (value: A) => A): <E, R>(ref: RefSubject<A, E, R>) => Effect.Effect<A, E, R>
   <A, E, R>(ref: RefSubject<A, E, R>, f: (value: A) => A): Effect.Effect<A, E, R>
@@ -582,6 +966,31 @@ export const update: {
   return updateEffect(ref, (value) => Effect.succeed(f(value)))
 })
 
+/**
+ * Modifies a `RefSubject` using an `Effect`ful function that returns both a result and a new value.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(5)
+ *
+ *   // Get the old value and set a new one, returning the old value
+ *   const oldValue = yield* RefSubject.modifyEffect(count, (value) =>
+ *     Effect.succeed([value, value + 10] as const)
+ *   )
+ *
+ *   console.log(oldValue) // 5
+ *   const newValue = yield* count
+ *   console.log(newValue) // 15
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const modifyEffect: {
   <A, B, E2, R2>(
     f: (value: A) => Effect.Effect<readonly [B, A], E2, R2>
@@ -603,6 +1012,29 @@ export const modifyEffect: {
   )
 })
 
+/**
+ * Modifies a `RefSubject` using a pure function that returns both a result and a new value.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(5)
+ *
+ *   // Get the old value and increment, returning the old value
+ *   const oldValue = yield* RefSubject.modify(count, (value) => [value, value + 1] as const)
+ *
+ *   console.log(oldValue) // 5
+ *   const newValue = yield* count
+ *   console.log(newValue) // 6
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const modify: {
   <A, B>(f: (value: A) => readonly [B, A]): <E, R>(ref: RefSubject<A, E, R>) => Effect.Effect<B, E, R>
   <A, E, R, B>(ref: RefSubject<A, E, R>, f: (value: A) => readonly [B, A]): Effect.Effect<B, E, R>
@@ -610,12 +1042,68 @@ export const modify: {
   return modifyEffect(ref, (value) => Effect.succeed(f(value)))
 })
 
+/**
+ * Checks if a value is a `RefSubject`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const ref = yield* RefSubject.make(42)
+ *   const isRef = RefSubject.isRefSubject(ref)
+ *   console.log(isRef) // true
+ *
+ *   const notRef = { value: 42 }
+ *   const isNotRef = RefSubject.isRefSubject(notRef)
+ *   console.log(isNotRef) // false
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category guards
+ */
 export function isRefSubject(value: any): value is RefSubject<any, any, any> {
   return value && typeof value === "object" && value[RefSubjectTypeId] === RefSubjectTypeId
 }
 
 const isRefSubjectDataFirst = (args: IArguments) => isRefSubject(args[0])
 
+/**
+ * Runs an effect that can modify a `RefSubject` transactionally, with optional interrupt handling.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const balance = yield* RefSubject.make(100)
+ *
+ *   // Transfer money atomically with interrupt handling
+ *   yield* RefSubject.runUpdates(
+ *     balance,
+ *     (ref) =>
+ *       Effect.gen(function* () {
+ *         const current = yield* ref.get
+ *         if (current >= 50) {
+ *           yield* ref.set(current - 50)
+ *           return "Transfer successful"
+ *         }
+ *         return "Insufficient funds"
+ *       }),
+ *     {
+ *       onInterrupt: (value) => Effect.sync(() => console.log(`Interrupted at balance: ${value}`)),
+ *       value: "initial"
+ *     }
+ *   )
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const runUpdates: {
   <A, E, R, B, E2, R2, R3 = never, E3 = never, C = never>(
     f: (ref: GetSetDelete<A, E, R>) => Effect.Effect<B, E2, R2>,
@@ -663,10 +1151,58 @@ export const runUpdates: {
   }
 )
 
+/**
+ * Increments a numeric `RefSubject` by 1.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(0)
+ *
+ *   yield* RefSubject.increment(count)
+ *   const value = yield* count
+ *   console.log(value) // 1
+ *
+ *   yield* RefSubject.increment(count)
+ *   const newValue = yield* count
+ *   console.log(newValue) // 2
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function increment<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<number, E, R> {
   return update(ref, (value) => value + 1)
 }
 
+/**
+ * Decrements a numeric `RefSubject` by 1.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(10)
+ *
+ *   yield* RefSubject.decrement(count)
+ *   const value = yield* count
+ *   console.log(value) // 9
+ *
+ *   yield* RefSubject.decrement(count)
+ *   const newValue = yield* count
+ *   console.log(newValue) // 8
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function decrement<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<number, E, R> {
   return update(ref, (value) => value - 1)
 }
@@ -754,9 +1290,38 @@ function getDefaultBounds(options?: Partial<Bounds>): Bounds | undefined {
 }
 
 /**
- * Extract all values from an object using a Proxy
+ * Extract all values from an object using a Proxy.
+ * Allows accessing nested properties of a `Computed` or `Filtered` object/array as individual computed values.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const user = yield* RefSubject.make({ name: "Alice", age: 30 })
+ *
+ *   // Create a proxy to access nested properties
+ *   const proxied = RefSubject.proxy(user)
+ *
+ *   // Access individual properties as Computed values
+ *   const name = yield* proxied.name
+ *   console.log(name) // "Alice"
+ *
+ *   const age = yield* proxied.age
+ *   console.log(age) // 30
+ *
+ *   // Update the source
+ *   yield* RefSubject.set(user, { name: "Bob", age: 25 })
+ *
+ *   // Proxied values automatically update
+ *   const newName = yield* proxied.name
+ *   console.log(newName) // "Bob"
+ * })
+ * ```
  *
  * @since 2.0.0
+ * @category combinators
  */
 export const proxy: {
   <A extends ReadonlyArray<any> | Readonly<Record<PropertyKey, any>>, E, R>(
@@ -799,6 +1364,37 @@ export type Success<T> = T extends RefSubject<infer A, infer _E, infer _R> ? A :
 
 export type Identifier<T> = T extends RefSubject.Service<infer R, infer _Id, infer _A, infer _E> ? R : never
 
+/**
+ * Transforms a `RefSubject`, `Computed`, or `Filtered` using an `Effect`ful function.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(5)
+ *
+ *   // Transform with an async operation
+ *   const doubled = RefSubject.mapEffect(count, (n) =>
+ *     Effect.succeed(n * 2)
+ *   )
+ *
+ *   const value = yield* doubled
+ *   console.log(value) // 10
+ *
+ *   // Update source
+ *   yield* RefSubject.set(count, 7)
+ *
+ *   // Computed automatically updates
+ *   const newValue = yield* doubled
+ *   console.log(newValue) // 14
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const mapEffect: {
   <T extends RefSubject.Any | Computed.Any | Filtered.Any, B, E2, R2>(
     f: (a: Success<T>) => Effect.Effect<B, E2, R2>
@@ -833,6 +1429,35 @@ export const mapEffect: {
     : new ComputedImpl(versioned, f)
 })
 
+/**
+ * Transforms a `RefSubject`, `Computed`, or `Filtered` using a pure function.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(5)
+ *
+ *   // Create a computed that doubles the count
+ *   const doubled = RefSubject.map(count, (n) => n * 2)
+ *
+ *   const value = yield* doubled
+ *   console.log(value) // 10
+ *
+ *   // Update source
+ *   yield* RefSubject.set(count, 7)
+ *
+ *   // Computed automatically updates
+ *   const newValue = yield* doubled
+ *   console.log(newValue) // 14
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const map: {
   <T extends RefSubject.Any | Computed.Any | Filtered.Any, B>(f: (a: Success<T>) => B): (
     ref: T
@@ -858,6 +1483,30 @@ export const map: {
   return mapEffect(versioned, (a) => Effect.succeed(f(a)))
 })
 
+/**
+ * Filters and transforms a `RefSubject`, `Computed`, or `Filtered` using an `Effect`ful function that returns an `Option`.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Option } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const numbers = yield* RefSubject.make([1, 2, 3, 4, 5])
+ *
+ *   // Find the first even number
+ *   const firstEven = RefSubject.filterMapEffect(numbers, (arr) =>
+ *     Effect.succeed(Option.fromNullable(arr.find((n) => n % 2 === 0)))
+ *   )
+ *
+ *   const value = yield* firstEven
+ *   console.log(value) // 2
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const filterMapEffect: {
   <A, B, E2, R2>(
     f: (a: A) => Effect.Effect<Option.Option<B>, E2, R2>
@@ -885,6 +1534,30 @@ export const filterMapEffect: {
   return new FilteredImpl(versioned, f)
 })
 
+/**
+ * Filters and transforms a `RefSubject`, `Computed`, or `Filtered` using a pure function that returns an `Option`.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Option } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const numbers = yield* RefSubject.make([1, 2, 3, 4, 5])
+ *
+ *   // Get the first even number
+ *   const firstEven = RefSubject.filterMap(numbers, (arr) =>
+ *     Option.fromNullable(arr.find((n) => n % 2 === 0))
+ *   )
+ *
+ *   const value = yield* firstEven
+ *   console.log(value) // 2
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const filterMap: {
   <A, B>(f: (a: A) => Option.Option<B>): {
     <E, R>(ref: RefSubject<A, E, R> | Computed<A, E, R> | Filtered<A, E, R>): Filtered<B, E, R>
@@ -910,6 +1583,32 @@ export const filterMap: {
   return new FilteredImpl(versioned, (a) => Effect.succeed(f(a)))
 })
 
+/**
+ * Converts a `Computed` or `Filtered` of `Option<A>` into a `Filtered<A>`, filtering out `None` values.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Option } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const maybeValue = yield* RefSubject.make(Option.some(42))
+ *
+ *   // Compact the Option
+ *   const filtered = RefSubject.compact(maybeValue)
+ *
+ *   const value = yield* filtered
+ *   console.log(value) // 42
+ *
+ *   // If the Option becomes None, the Filtered will fail
+ *   yield* RefSubject.set(maybeValue, Option.none())
+ *   // yield* filtered would fail with NoSuchElementError
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export const compact: {
   <A, E, R>(ref: Computed<Option.Option<A>, E, R>): Filtered<A>
   <A, E, R>(ref: Filtered<Option.Option<A>, E, R>): Filtered<A>
@@ -1127,6 +1826,41 @@ type RefSubjectTupleFrom<
   Effect.Services<Refs[number]>
 >
 
+/**
+ * Combines multiple `RefSubject`, `Computed`, or `Filtered` instances into a single struct.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const firstName = yield* RefSubject.make("Alice")
+ *   const lastName = yield* RefSubject.make("Smith")
+ *   const age = yield* RefSubject.make(30)
+ *
+ *   // Combine into a struct
+ *   const person = RefSubject.struct({
+ *     firstName,
+ *     lastName,
+ *     age
+ *   })
+ *
+ *   const fullPerson = yield* person
+ *   console.log(fullPerson) // { firstName: "Alice", lastName: "Smith", age: 30 }
+ *
+ *   // Update one field
+ *   yield* RefSubject.set(firstName, "Bob")
+ *
+ *   // Struct automatically updates
+ *   const updated = yield* person
+ *   console.log(updated.firstName) // "Bob"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function struct<
   const Refs extends Readonly<Record<string, RefSubject.Any | Computed.Any | Filtered.Any>>
 >(refs: Refs): StructFrom<Refs> {
@@ -1140,6 +1874,37 @@ export function struct<
       return makeStructFiltered(refs as any) as any as StructFrom<Refs>
   }
 }
+/**
+ * Combines multiple `RefSubject`, `Computed`, or `Filtered` instances into a single tuple.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "effect/typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const x = yield* RefSubject.make(10)
+ *   const y = yield* RefSubject.make(20)
+ *   const z = yield* RefSubject.make(30)
+ *
+ *   // Combine into a tuple
+ *   const point = RefSubject.tuple([x, y, z])
+ *
+ *   const coords = yield* point
+ *   console.log(coords) // [10, 20, 30]
+ *
+ *   // Update one value
+ *   yield* RefSubject.set(x, 15)
+ *
+ *   // Tuple automatically updates
+ *   const updated = yield* point
+ *   console.log(updated) // [15, 20, 30]
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function tuple<
   const Refs extends ReadonlyArray<Ref>
 >(refs: Refs): TupleFrom<Refs> {

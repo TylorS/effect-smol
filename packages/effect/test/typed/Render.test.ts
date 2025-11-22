@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
 import { Effect } from "effect"
-import * as Fx from "effect/typed/fx/index"
+import { Fx } from "effect/typed/fx/index"
 import * as EventHandler from "effect/typed/template/EventHandler"
 import { html, type Renderable } from "effect/typed/template/index"
 import { DomRenderTemplate, render } from "effect/typed/template/Render"

@@ -11,7 +11,7 @@ import type * as Effect from "effect/Effect"
 import { dual } from "effect/Function"
 import { equals } from "effect/interfaces/Equal"
 import type * as Scope from "effect/Scope"
-import type * as Fx from "../core/Fx.ts"
+import type * as Fx from "../Fx/Fx.ts"
 import * as RefSubject from "./RefSubject.ts"
 
 /**
@@ -23,6 +23,34 @@ export interface RefArray<in out A, in out E = never, out R = never>
   extends RefSubject.RefSubject<ReadonlyArray<A>, E, R>
 {}
 
+/**
+ * Creates a new `RefArray` from an array, `Effect`, or `Fx`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefArray from "effect/typed/fx/RefSubject/RefArray"
+ *
+ * // From a plain array
+ * const program1 = Effect.gen(function* () {
+ *   const items = yield* RefArray.make([1, 2, 3])
+ *   const values = yield* items
+ *   console.log(values) // [1, 2, 3]
+ * })
+ *
+ * // From an Effect
+ * const program2 = Effect.gen(function* () {
+ *   const items = yield* RefArray.make(
+ *     Effect.succeed(["a", "b", "c"])
+ *   )
+ *   const values = yield* items
+ *   console.log(values) // ["a", "b", "c"]
+ * })
+ * ```
+ *
+ * @since 1.18.0
+ * @category constructors
+ */
 export function make<A, E, R>(
   initial: ReadonlyArray<A> | Effect.Effect<ReadonlyArray<A>, E, R> | Fx.Fx<ReadonlyArray<A>, E, R>,
   eq: Equivalence<A> = equals
@@ -448,13 +476,55 @@ export const dedupeWith =
     RefSubject.update(ref, ReadonlyArray.dedupeWith(valueEq))
 
 /**
+ * Gets the last element of a `RefArray` as a `Filtered`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefArray from "effect/typed/fx/RefSubject/RefArray"
+ *
+ * const program = Effect.gen(function* () {
+ *   const items = yield* RefArray.make([1, 2, 3, 4, 5])
+ *
+ *   const last = RefArray.last(items)
+ *   const value = yield* last
+ *   console.log(value) // 5
+ *
+ *   // If array becomes empty, Filtered will fail
+ *   yield* RefArray.set(items, [])
+ *   // yield* last would fail with NoSuchElementError
+ * })
+ * ```
+ *
  * @since 1.18.0
+ * @category filtered
  */
 export const last = <A, E, R>(ref: RefArray<A, E, R>): RefSubject.Filtered<A, E, R> =>
   RefSubject.filterMap(ref, ReadonlyArray.last)
 
 /**
+ * Gets the first element of a `RefArray` as a `Filtered`.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefArray from "effect/typed/fx/RefSubject/RefArray"
+ *
+ * const program = Effect.gen(function* () {
+ *   const items = yield* RefArray.make([1, 2, 3, 4, 5])
+ *
+ *   const head = RefArray.head(items)
+ *   const value = yield* head
+ *   console.log(value) // 1
+ *
+ *   // If array becomes empty, Filtered will fail
+ *   yield* RefArray.set(items, [])
+ *   // yield* head would fail with NoSuchElementError
+ * })
+ * ```
+ *
  * @since 1.18.0
+ * @category filtered
  */
 export const head = <A, E, R>(ref: RefArray<A, E, R>): RefSubject.Filtered<A, E, R> =>
   RefSubject.filterMap(ref, ReadonlyArray.head)

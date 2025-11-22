@@ -1,6 +1,6 @@
 import { assert, describe, it } from "@effect/vitest"
 import { Cause, Effect, pipe } from "effect"
-import * as Fx from "effect/typed/fx"
+import { Fx } from "effect/typed/fx"
 
 describe("Fx", () => {
   it.fx("Fx.succeed", {

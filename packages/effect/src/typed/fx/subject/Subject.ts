@@ -8,17 +8,40 @@ import { pipeArguments } from "effect/interfaces/Pipeable"
 import * as MutableRef from "effect/MutableRef"
 import * as Scope from "effect/Scope"
 import type * as ServiceMap from "effect/ServiceMap"
-import type * as Fx from "../core/index.ts"
-import { RingBuffer } from "../core/internal/ring-buffer.ts"
-import { awaitScopeClose, withExtendedScope } from "../core/internal/scope.ts"
-import { FxTypeId } from "../core/TypeId.ts"
+import type * as Fx from "../Fx/index.ts"
+import { RingBuffer } from "../Fx/internal/ring-buffer.ts"
+import { awaitScopeClose, withExtendedScope } from "../Fx/internal/scope.ts"
+import { FxTypeId } from "../Fx/TypeId.ts"
 import type * as Sink from "../Sink/Sink.ts"
 
+/**
+ * A `Subject` is an `Fx` that allows for imperative pushing of values.
+ * It also acts as a `Sink`, meaning you can `run` another `Fx` into it.
+ *
+ * @since 1.0.0
+ * @category models
+ */
 export interface Subject<A, E = never, R = never> extends Fx.Fx<A, E, R | Scope.Scope>, Sink.Sink<A, E, R> {
+  /**
+   * The number of current subscribers to this Subject.
+   */
   readonly subscriberCount: Effect.Effect<number, never, R>
+  /**
+   * Interrupts all subscribers and clears the subject.
+   */
   readonly interrupt: Effect.Effect<void, never, R>
 }
 
+/**
+ * Shares the execution of an Fx among multiple subscribers using a Subject.
+ * The source Fx is started when the first subscriber arrives and stopped when the last one leaves.
+ *
+ * @param fx - The source Fx.
+ * @param subject - The subject to use for multicasting.
+ * @returns A shared `Fx`.
+ * @since 1.0.0
+ * @category combinators
+ */
 export function share<A, E, R, R2>(
   fx: Fx.Fx<A, E, R>,
   subject: Subject<A, E, R2>
@@ -100,18 +123,44 @@ export class Share<A, E, R, R2> implements Fx.Fx<A, E, R | R2 | Scope.Scope> {
   }
 }
 
+/**
+ * Multicasts an Fx to multiple subscribers.
+ * The source Fx is shared, so side effects only happen once per active session (ref count > 0).
+ *
+ * @param fx - The source Fx.
+ * @returns A multicasted `Fx`.
+ * @since 1.0.0
+ * @category combinators
+ */
 export function multicast<A, E, R>(
   fx: Fx.Fx<A, E, R>
 ): Fx.Fx<A, E, R | Scope.Scope> {
   return new Share(fx, unsafeMake<A, E>(0))
 }
 
+/**
+ * Holds the latest value emitted by the Fx and replays it to new subscribers.
+ *
+ * @param fx - The source Fx.
+ * @returns A shared `Fx` that replays the latest value.
+ * @since 1.0.0
+ * @category combinators
+ */
 export function hold<A, E, R>(
   fx: Fx.Fx<A, E, R>
 ): Fx.Fx<A, E, R | Scope.Scope> {
   return new Share(fx, unsafeMake<A, E>(1))
 }
 
+/**
+ * Replays the last `capacity` values emitted by the Fx to new subscribers.
+ *
+ * @param capacity - The number of values to buffer and replay.
+ * @param fx - The source Fx.
+ * @returns A shared `Fx` that replays values.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const replay: {
   (capacity: number): <A, E, R>(fx: Fx.Fx<A, E, R>) => Fx.Fx<A, E, R>
   <A, E, R>(fx: Fx.Fx<A, E, R>, capacity: number): Fx.Fx<A, E, R>
@@ -304,6 +353,11 @@ export class ReplaySubjectImpl<A, E> extends SubjectImpl<A, E> {
   )
 }
 
+/**
+ * Creates a `Subject` that replays the last `replay` values. You will need to manually call `interrupt` on the subject to clear resources.
+ * @param replay - The number of values to replay.
+ * @returns A `Subject` that replays the last `replay` values.
+ */
 export function unsafeMake<A, E = never>(replay: number = 0): Subject<A, E> {
   replay = Math.max(0, replay)
 
@@ -316,6 +370,9 @@ export function unsafeMake<A, E = never>(replay: number = 0): Subject<A, E> {
   }
 }
 
+/**
+ * Create a Subject which utilizes a Scope to manage the lifecycle of the subject's resources.
+ */
 export function make<A, E = never>(replay?: number): Effect.Effect<Subject<A, E>, never, Scope.Scope> {
   return Effect.acquireRelease(Effect.sync(() => unsafeMake(replay)), (subject) => subject.interrupt)
 }
