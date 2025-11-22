@@ -1,10 +1,29 @@
 import { type Inspectable, NodeInspectSymbol } from "effect/interfaces/Inspectable"
 
+/**
+ * Represents a parsed HTML template.
+ *
+ * A `Template` instance contains the static structure of an HTML template (nodes)
+ * and metadata about dynamic parts (interpolation points).
+ */
 export class Template implements Inspectable {
   readonly _tag = "template"
 
+  /**
+   * The root nodes of the template.
+   */
   readonly nodes: ReadonlyArray<Node>
+
+  /**
+   * A unique hash representing the template content. Used for caching and hydration.
+   */
   readonly hash: string
+
+  /**
+   * A list of dynamic parts in the template.
+   * Each part is associated with a path (array of indices) to locate the corresponding
+   * node in the DOM tree.
+   */
   readonly parts: ReadonlyArray<
     readonly [part: PartNode | SparsePartNode, path: Array<number>]
   >
@@ -35,8 +54,14 @@ export class Template implements Inspectable {
   }
 }
 
+/**
+ * Represents a node that can be a parent of other nodes in the template AST.
+ */
 export type ParentNode = ElementNode | SelfClosingElementNode | TextOnlyElement
 
+/**
+ * Represents any node in the template AST.
+ */
 export type Node =
   | ElementNode
   | SelfClosingElementNode
@@ -46,6 +71,9 @@ export type Node =
   | Comment
   | DocType
 
+/**
+ * Represents a dynamic part of the template that will be updated at runtime.
+ */
 export type PartNode =
   | AttrPartNode
   | BooleanPartNode
@@ -59,8 +87,15 @@ export type PartNode =
   | TextPartNode
   | CommentPartNode
 
+/**
+ * Represents a "sparse" part, which is a text or attribute value composed of
+ * mix of static text and dynamic parts (e.g. `id="prefix-${id}"`).
+ */
 export type SparsePartNode = SparseAttrNode | SparseClassNameNode | SparseCommentNode | SparseTextNode
 
+/**
+ * Represents an HTML element with children.
+ */
 export class ElementNode {
   readonly _tag = "element"
   readonly tagName: string
@@ -77,14 +112,23 @@ export class ElementNode {
   }
 }
 
+/**
+ * Represents a dynamic insertion point within the node structure (e.g. `<div>${content}</div>`).
+ */
 export class NodePart {
   readonly _tag = "node"
+  /**
+   * The index of the value in the interpolation array.
+   */
   readonly index: number
   constructor(index: number) {
     this.index = index
   }
 }
 
+/**
+ * Represents a self-closing HTML element (e.g. `<br />`, `<img />`).
+ */
 export class SelfClosingElementNode {
   readonly _tag = "self-closing-element"
   readonly tagName: string
@@ -98,6 +142,9 @@ export class SelfClosingElementNode {
   }
 }
 
+/**
+ * Represents an element that contains only text (e.g. `<script>`, `<style>`).
+ */
 export class TextOnlyElement {
   readonly _tag = "text-only-element"
 
@@ -115,6 +162,9 @@ export class TextOnlyElement {
   }
 }
 
+/**
+ * Represents a DOCTYPE declaration.
+ */
 export class DocType {
   readonly _tag = "doctype"
   readonly name: string
@@ -131,6 +181,9 @@ export class DocType {
   }
 }
 
+/**
+ * Represents an attribute on an element.
+ */
 export type Attribute =
   | AttributeNode
   | AttrPartNode
@@ -145,6 +198,9 @@ export type Attribute =
   | PropertiesPartNode
   | RefPartNode
 
+/**
+ * Represents a static attribute (e.g. `class="foo"`).
+ */
 export class AttributeNode {
   readonly _tag = "attribute" as const
   readonly name: string
@@ -158,6 +214,9 @@ export class AttributeNode {
   }
 }
 
+/**
+ * Represents a dynamic attribute (e.g. `src="${url}"`).
+ */
 export class AttrPartNode {
   readonly _tag = "attr" as const
   readonly name: string
@@ -171,6 +230,9 @@ export class AttrPartNode {
   }
 }
 
+/**
+ * Represents a sparse attribute (e.g. `class="foo ${bar}"`).
+ */
 export class SparseAttrNode {
   readonly _tag = "sparse-attr" as const
   readonly name: string
@@ -184,6 +246,9 @@ export class SparseAttrNode {
   }
 }
 
+/**
+ * Represents a boolean attribute (e.g. `disabled`).
+ */
 export class BooleanNode {
   readonly _tag = "boolean" as const
   readonly name: string
@@ -192,6 +257,9 @@ export class BooleanNode {
   }
 }
 
+/**
+ * Represents a dynamic boolean attribute (e.g. `?disabled="${isDisabled}"`).
+ */
 export class BooleanPartNode {
   readonly _tag = "boolean-part" as const
   readonly name: string
@@ -204,6 +272,9 @@ export class BooleanPartNode {
     this.index = index
   }
 }
+/**
+ * Represents a dynamic class name part (e.g. `class="${classes}"`).
+ */
 export class ClassNamePartNode {
   readonly _tag = "className-part" as const
   readonly index: number
@@ -212,6 +283,9 @@ export class ClassNamePartNode {
   }
 }
 
+/**
+ * Represents a sparse class name (e.g. `class="foo ${bar}"`).
+ */
 export class SparseClassNameNode {
   readonly _tag = "sparse-class-name" as const
 
@@ -221,6 +295,9 @@ export class SparseClassNameNode {
   }
 }
 
+/**
+ * Represents a data attribute part (e.g. `data-foo="${value}"`).
+ */
 export class DataPartNode {
   readonly _tag = "data" as const
 
@@ -230,6 +307,9 @@ export class DataPartNode {
   }
 }
 
+/**
+ * Represents an event listener part (e.g. `@click="${handler}"`).
+ */
 export class EventPartNode {
   readonly _tag = "event" as const
   readonly name: string
@@ -243,6 +323,9 @@ export class EventPartNode {
   }
 }
 
+/**
+ * Represents a property assignment (e.g. `.value="${value}"`).
+ */
 export class PropertyPartNode {
   readonly _tag = "property" as const
   readonly name: string
@@ -256,6 +339,9 @@ export class PropertyPartNode {
   }
 }
 
+/**
+ * Represents a spread of properties (e.g. `${...props}`).
+ */
 export class PropertiesPartNode {
   readonly _tag = "properties" as const
   readonly index: number
@@ -266,6 +352,9 @@ export class PropertiesPartNode {
   }
 }
 
+/**
+ * Represents a reference capture (e.g. `ref="${ref}"`).
+ */
 export class RefPartNode {
   readonly _tag = "ref" as const
 
@@ -275,8 +364,14 @@ export class RefPartNode {
   }
 }
 
+/**
+ * Represents text content.
+ */
 export type Text = TextNode | TextPartNode | SparseTextNode
 
+/**
+ * Represents a static text node.
+ */
 export class TextNode {
   readonly _tag = "text" as const
 
@@ -286,6 +381,9 @@ export class TextNode {
   }
 }
 
+/**
+ * Represents a dynamic text part (e.g. `${text}`).
+ */
 export class TextPartNode {
   readonly _tag = "text-part" as const
 
@@ -295,6 +393,9 @@ export class TextPartNode {
   }
 }
 
+/**
+ * Represents sparse text content (e.g. `Hello ${name}!`).
+ */
 export class SparseTextNode {
   readonly _tag = "sparse-text" as const
   readonly nodes: Array<TextNode | TextPartNode>
@@ -303,8 +404,14 @@ export class SparseTextNode {
   }
 }
 
+/**
+ * Represents a comment node.
+ */
 export type Comment = CommentNode | CommentPartNode | SparseCommentNode
 
+/**
+ * Represents a static comment.
+ */
 export class CommentNode {
   readonly _tag = "comment" as const
 
@@ -314,6 +421,9 @@ export class CommentNode {
   }
 }
 
+/**
+ * Represents a dynamic comment part.
+ */
 export class CommentPartNode {
   readonly _tag = "comment-part" as const
 
@@ -323,6 +433,9 @@ export class CommentPartNode {
   }
 }
 
+/**
+ * Represents a sparse comment.
+ */
 export class SparseCommentNode {
   readonly _tag = "sparse-comment" as const
 
