@@ -5,6 +5,14 @@ import { take } from "../combinators/take.ts"
 import type { Fx } from "../Fx.ts"
 import { observe } from "./observe.ts"
 
+/**
+ * Collects all values emitted by an `Fx` into an array.
+ *
+ * @param fx - The `Fx` to collect values from.
+ * @returns An `Effect` that produces an array of all values when the `Fx` completes.
+ * @since 1.0.0
+ * @category runners
+ */
 export const collectAll = <A, E = never, R = never>(
   fx: Fx<A, E, R>
 ): Effect.Effect<ReadonlyArray<A>, E, R> =>
@@ -17,6 +25,14 @@ export const collectAll = <A, E = never, R = never>(
     )
   })
 
+/**
+ * Forks the collection of all values from an `Fx`.
+ *
+ * @param fx - The `Fx` to collect values from.
+ * @returns An `Effect` that produces a `Fiber` which computes the array of values.
+ * @since 1.0.0
+ * @category runners
+ */
 export const collectAllFork = <A, E = never, R = never>(
   fx: Fx<A, E, R>
 ): Effect.Effect<Fiber.Fiber<ReadonlyArray<A>, E>, never, R> =>
@@ -25,6 +41,15 @@ export const collectAllFork = <A, E = never, R = never>(
     uninterruptible: false
   })
 
+/**
+ * Collects the first `n` values emitted by an `Fx` into an array.
+ *
+ * @param fx - The `Fx` to collect values from.
+ * @param upTo - The maximum number of values to collect.
+ * @returns An `Effect` that produces an array of up to `n` values.
+ * @since 1.0.0
+ * @category runners
+ */
 export const collectUpTo: {
   (
     upTo: number
@@ -43,6 +68,15 @@ export const collectUpTo: {
     )
 )
 
+/**
+ * Forks the collection of up to `n` values from an `Fx`.
+ *
+ * @param fx - The `Fx` to collect values from.
+ * @param upTo - The maximum number of values to collect.
+ * @returns An `Effect` that produces a `Fiber` which computes the array of values.
+ * @since 1.0.0
+ * @category runners
+ */
 export const collectUpToFork = <A, E = never, R = never>(
   fx: Fx<A, E, R>,
   upTo: number

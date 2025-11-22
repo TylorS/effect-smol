@@ -3,6 +3,14 @@ import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * Filters elements of an Fx using a predicate function.
+ *
+ * @param f - A predicate function.
+ * @returns An `Fx` that emits only the elements for which `f` returns `true`.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const filter: {
   <A>(
     f: (a: A) => boolean
