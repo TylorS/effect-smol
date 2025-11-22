@@ -7,28 +7,53 @@ import { constVoid } from "effect/Function"
 import { renderToEscapedString, renderToString } from "./internal/encoding.ts"
 import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts"
 
+/**
+ * Represents a piece of a pre-compiled HTML template.
+ *
+ * Chunks allow the renderer to stream static parts of the HTML immediately
+ * while waiting for dynamic parts to be resolved.
+ */
 export type HtmlChunk =
   | HtmlTextChunk
   | HtmlPartChunk
   | HtmlSparsePartChunk
 
+/**
+ * A static text chunk.
+ */
 export interface HtmlTextChunk {
   readonly _tag: "text"
   readonly text: string
 }
 
+/**
+ * A chunk representing a dynamic part (interpolation).
+ */
 export interface HtmlPartChunk {
   readonly _tag: "part"
   readonly node: Template.PartNode
+  /**
+   * Function to render the value of this part into a string.
+   */
   readonly render: (value: unknown) => string
 }
 
+/**
+ * A chunk representing a sparse part (mixed static/dynamic text).
+ */
 export interface HtmlSparsePartChunk {
   readonly _tag: "sparse-part"
   readonly node: Template.SparsePartNode
+  /**
+   * Function to render the value of this part into a string.
+   */
   readonly render: (value: unknown) => string
 }
 
+/**
+ * Helper class for constructing a list of `HtmlChunk`s.
+ * @internal
+ */
 export class HtmlChunksBuilder {
   private chunks: Array<HtmlChunk> = []
 
@@ -62,12 +87,20 @@ export class HtmlChunksBuilder {
 
 // TODO: Add support for unsafe HTML content.
 
+/**
+ * Converts a parsed `Template` into a sequence of `HtmlChunk`s.
+ * This optimization pre-calculates the static HTML strings to minimize work at render time.
+ */
 export function templateToHtmlChunks({ nodes }: Template.Template) {
   const builder = new HtmlChunksBuilder()
   for (const node of nodes) nodeToHtmlChunk(builder, node)
   return builder.build()
 }
 
+/**
+ * Wraps the HTML chunks with comments containing the template hash.
+ * This is crucial for hydration to identify which template rendered a section of HTML.
+ */
 export function addTemplateHash(
   chunks: ReadonlyArray<HtmlChunk>,
   { hash }: Template.Template

@@ -45,18 +45,46 @@ import * as Template from "./Template.ts"
 import { getAllSiblingsBetween, isText, persistent, type Rendered } from "./Wire.ts"
 
 // Can be utilized to override the document for rendering
+/**
+ * A service that provides the `Document` interface for rendering.
+ *
+ * Defaults to the global `document` object. This can be overridden for testing
+ * or environments where the global document is not available or desired.
+ */
 export const CurrentRenderDocument = ServiceMap.Reference<Document>("RenderDocument", {
   defaultValue: () => document
 })
 
+/**
+ * A service that manages the queue of DOM updates.
+ *
+ * It ensures that DOM updates are batched and executed efficiently, often coordinating
+ * with browser painting cycles (e.g., via `requestAnimationFrame`).
+ */
 export const CurrentRenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQueue", {
   defaultValue: () => new RQ.MixedRenderQueue()
 })
 
+/**
+ * A service that provides the default priority for rendering tasks.
+ *
+ * The default value is `RenderPriority.Raf(10)`, which typically schedules updates
+ * to occur before the next repaint.
+ */
 export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRenderPriority", {
   defaultValue: () => RQ.RenderPriority.Raf(10)
 })
 
+/**
+ * A Layer that provides the `RenderTemplate` service implemented for DOM rendering.
+ *
+ * This layer enables templates to be rendered as actual DOM nodes. It handles:
+ * - Parsing templates into DOM fragments.
+ * - Caching parsed templates.
+ * - Hydrating from existing DOM (if applicable).
+ * - Setting up event listeners.
+ * - Managing fine-grained updates to DOM nodes via `Fx` streams.
+ */
 export const DomRenderTemplate = Object.assign(
   Layer.effect(
     RenderTemplate,
@@ -183,8 +211,24 @@ export const DomRenderTemplate = Object.assign(
   } as const
 )
 
+/**
+ * A helper type to determine the rendered output type.
+ */
 export type ToRendered<T extends RenderEvent | null> = Rendered | (T extends null ? null : never)
 
+/**
+ * Mounts a reactive `Fx` stream of `RenderEvent`s to a specific DOM element.
+ *
+ * This function takes a stream of render events (usually from a template) and keeps
+ * the target DOM element updated. It handles:
+ * - Mounting the initial content.
+ * - Updating the content as new events are emitted.
+ * - Hydrating the content if hydration context is provided.
+ *
+ * @param fx - The `Fx` stream of content to render.
+ * @param where - The target DOM element to render into.
+ * @returns An `Fx` that emits the currently rendered DOM nodes.
+ */
 export const render: {
   (where: HTMLElement): <A extends RenderEvent | null, E, R>(
     fx: Fx.Fx<A, E, R>

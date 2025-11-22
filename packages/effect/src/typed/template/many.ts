@@ -13,10 +13,26 @@ import { DomRenderEvent, HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } 
 // the downstream behaviors of diffing/patching.
 const wrapInRenderEvent = Fx.map((events: ReadonlyArray<RenderEvent>): RenderEvent =>
   DomRenderEvent(
-    events.flatMap((event) => getNodesFromRendered(event))
+    events.flatMap(getNodesFromRendered)
   )
 )
 
+/**
+ * Efficiently renders a reactive list of items by using keys to minimize DOM operations and maintain component state.
+ *
+ * `many` optimizes list rendering by:
+ * 1. **Keyed Diffing**: Uniquely identifies items using `getKey`. Components are only mounted when a new key appears and unmounted when a key disappears.
+ * 2. **Granular Updates**: Instead of re-rendering the component when an item changes, `many` passes a `RefSubject<A>` to the `render` function.
+ *    The component remains mounted, and the `RefSubject` emits the updated value, allowing the component to update only the changed parts of the DOM.
+ *
+ * This pattern is essential for performance when rendering lists where items may be reordered, added, removed, or modified in place.
+ *
+ * **Rendering Modes:**
+ *
+ * `many` behaves differently based on the environment:
+ * - **HTML/SSR** (Computed Behavior = `'one'`): Concurrently renders all portions of the list but streams ready pieces in the order of their definitions.
+ * - **DOM** (Computed Behavior = `'multiple'`): Integrates with hydration behaviors to reuse existing DOM nodes or efficiently update the DOM using keyed diffing.
+ */
 export function many<A, E, R, B extends PropertyKey, R2, E2>(
   values: Fx.Fx<ReadonlyArray<A>, E, R>,
   getKey: (a: A) => B,

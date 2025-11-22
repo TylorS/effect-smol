@@ -29,12 +29,30 @@ const toHtmlString = (event: RenderEvent | null | undefined): Option<string> => 
   return some(s)
 }
 
+/**
+ * Renders a stream of `RenderEvent`s into a stream of HTML strings.
+ *
+ * This function transforms the output of a template rendering process (which produces `RenderEvent`s)
+ * into a stream of strings suitable for HTML output (e.g., for Server-Side Rendering).
+ *
+ * @param fx - The `Fx` stream of `RenderEvent`s to render.
+ * @returns An `Fx` stream of HTML strings.
+ */
 export function renderToHtml<E, R>(
   fx: Fx.Fx<RenderEvent | null | undefined, E, R>
 ): Fx.Fx<string, E, R> {
   return Fx.filterMap(fx, toHtmlString)
 }
 
+/**
+ * Renders a stream of `RenderEvent`s into a single HTML string.
+ *
+ * This is a convenience function that collects all events from `renderToHtml` and joins them
+ * into a single string. It is an Effect that resolves when the stream completes.
+ *
+ * @param fx - The `Fx` stream of `RenderEvent`s to render.
+ * @returns An `Effect` that resolves to the full HTML string.
+ */
 export function renderToHtmlString<E, R>(fx: Fx.Fx<RenderEvent | null | undefined, E, R>): Effect.Effect<string, E, R> {
   return fx.pipe(
     renderToHtml,
@@ -43,12 +61,25 @@ export function renderToHtmlString<E, R>(fx: Fx.Fx<RenderEvent | null | undefine
   )
 }
 
+/**
+ * A boolean service that indicates whether the current rendering context is static.
+ *
+ * If `true`, the HTML renderer will optimize for static output, potentially skipping
+ * dynamic placeholder generation or other interactive features not needed for static HTML.
+ */
 export const StaticRendering = ServiceMap.Reference<boolean>("@typed/template/Html/StaticRendering", {
   defaultValue: () => false
 })
 
 type HtmlEntry = ReadonlyArray<HtmlChunk>
 
+/**
+ * A Layer that provides the `RenderTemplate` service implemented for HTML string generation.
+ *
+ * Using this layer enables templates to be rendered as HTML strings (e.g., for SSR)
+ * rather than DOM nodes. It sets the `CurrentComputedBehavior` to `"one"`, indicating
+ * a single-pass render approach typical for HTML generation.
+ */
 export const HtmlRenderTemplate = Layer.effect(
   RenderTemplate,
   Effect.gen(function*() {
@@ -81,6 +112,12 @@ export const HtmlRenderTemplate = Layer.effect(
   Layer.provideMerge(Layer.succeed(RefSubject.CurrentComputedBehavior, "one"))
 )
 
+/**
+ * A variant of `HtmlRenderTemplate` that enables static rendering optimizations.
+ *
+ * This layer provides the `RenderTemplate` service for HTML generation but also
+ * sets `StaticRendering` to `true`, enabling optimizations for static content.
+ */
 export const StaticHtmlRenderTemplate = HtmlRenderTemplate.pipe(
   Layer.provideMerge(Layer.succeed(StaticRendering, true))
 )

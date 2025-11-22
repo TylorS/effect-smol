@@ -1,4 +1,4 @@
-export * from "./EventHandler.ts"
+export * as EventHandler from "./EventHandler.ts"
 export * from "./EventSource.ts"
 export * from "./Html.ts"
 export * from "./HtmlChunk.ts"

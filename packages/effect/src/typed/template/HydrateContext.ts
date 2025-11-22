@@ -21,6 +21,15 @@ export type HydrateContext = {
  */
 export const HydrateContext = ServiceMap.Service<HydrateContext>("@typed/html/HydrateContext")
 
+/**
+ * Creates a hydration context starting from a root element.
+ *
+ * This context allows the renderer to "attach" to existing DOM nodes (SSR output)
+ * instead of creating new ones.
+ *
+ * @param rootElement - The root DOM element where hydration should begin.
+ * @returns A `ServiceMap` containing the `HydrateContext`.
+ */
 export const makeHydrateContext = (rootElement: HTMLElement): ServiceMap.ServiceMap<never> => {
   try {
     const where = getHydrationRoot(rootElement)

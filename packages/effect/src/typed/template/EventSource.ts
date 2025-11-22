@@ -8,13 +8,25 @@ type EventName = string
 
 type Handler<Ev extends Event> = EventHandler<Ev>
 
+/**
+ * An interface for managing event listeners on DOM nodes.
+ *
+ * It abstracts the process of adding and removing event listeners, ensuring that they are
+ * properly cleaned up when the scope is closed or the element is removed.
+ */
 export interface EventSource {
+  /**
+   * Adds an event listener to a target.
+   */
   readonly addEventListener: <Ev extends Event>(
     element: EventTarget,
     event: EventName,
     handler: Handler<Ev>
   ) => Disposable
 
+  /**
+   * Sets up event listeners for a rendered template within a scope.
+   */
   readonly setup: (rendered: Rendered, scope: Scope.Scope) => Effect.Effect<void>
 }
 
@@ -24,6 +36,12 @@ type Run = <E, A>(effect: Effect.Effect<A, E>) => Fiber.Fiber<A, E>
 const disposable = (f: () => void): Disposable => ({ [Symbol.dispose]: f })
 const dispose = (d: Disposable): void => d[Symbol.dispose]()
 
+/**
+ * Creates a new `EventSource`.
+ *
+ * The created `EventSource` can efficiently manage multiple event listeners,
+ * grouping them by event type and handling setup/teardown lifecycles.
+ */
 export function makeEventSource(): EventSource {
   const listeners = new Map<
     EventName,
