@@ -41,6 +41,33 @@ class MapSink<A, E, R, B> implements Sink<B, E, R> {
   }
 }
 
+/**
+ * Transforms values before they reach the sink using a pure function.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Sink from "effect/typed/fx/Sink"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * const program = Effect.gen(function* () {
+ *   const sink = Sink.make(
+ *     (cause) => Effect.void,
+ *     (value: number) => Effect.sync(() => console.log("Received:", value))
+ *   )
+ *
+ *   // Map string inputs to numbers
+ *   const mapped = Sink.map(sink, (str: string) => parseInt(str))
+ *
+ *   // Run an Fx with the mapped sink
+ *   yield* Fx.fromIterable(["1", "2", "3"]).run(mapped)
+ *   // Output: "Received: 1", "Received: 2", "Received: 3"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function map<A, E, R, B>(
   sink: Sink<A, E, R>,
   f: (b: B) => A
@@ -84,6 +111,34 @@ class FilterMapSink<A, E, R, B> implements Sink<B, E, R> {
   }
 }
 
+/**
+ * Filters and transforms values before they reach the sink using a function that returns an `Option`.
+ *
+ * @example
+ * ```ts
+ * import { Effect, Option } from "effect"
+ * import * as Sink from "effect/typed/fx/Sink"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * const program = Effect.gen(function* () {
+ *   const sink = Sink.make(
+ *     (cause) => Effect.void,
+ *     (value: number) => Effect.sync(() => console.log("Even:", value))
+ *   )
+ *
+ *   // Only pass through even numbers
+ *   const filtered = Sink.filterMap(sink, (n: number) =>
+ *     n % 2 === 0 ? Option.some(n) : Option.none()
+ *   )
+ *
+ *   yield* Fx.fromIterable([1, 2, 3, 4, 5]).run(filtered)
+ *   // Output: "Even: 2", "Even: 4"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function filterMap<A, E, R, B>(
   sink: Sink<A, E, R>,
   f: (b: B) => Option.Option<A>
@@ -97,6 +152,32 @@ export function compact<A, E, R>(
   return filterMap(sink, identity)
 }
 
+/**
+ * Filters values before they reach the sink using a predicate function.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as Sink from "effect/typed/fx/Sink"
+ * import { Fx } from "effect/typed/fx"
+ *
+ * const program = Effect.gen(function* () {
+ *   const sink = Sink.make(
+ *     (cause) => Effect.void,
+ *     (value: number) => Effect.sync(() => console.log("Positive:", value))
+ *   )
+ *
+ *   // Only pass through positive numbers
+ *   const filtered = Sink.filter(sink, (n) => n > 0)
+ *
+ *   yield* Fx.fromIterable([-2, -1, 0, 1, 2]).run(filtered)
+ *   // Output: "Positive: 1", "Positive: 2"
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
 export function filter<A, E, R>(
   sink: Sink<A, E, R>,
   f: (a: A) => boolean

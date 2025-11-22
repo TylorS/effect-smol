@@ -1,5 +1,5 @@
 import { Effect, Layer } from "effect"
-import * as Fx from "effect/typed/fx"
+import { Fx } from "effect/typed/fx"
 import { DomRenderTemplate, render } from "effect/typed/template"
 import { Services } from "./infrastructure"
 import { TodoApp } from "./presentation"
