@@ -12,6 +12,24 @@ import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts
  *
  * Chunks allow the renderer to stream static parts of the HTML immediately
  * while waiting for dynamic parts to be resolved.
+ *
+ * @example
+ * ```ts
+ * import type { HtmlChunk } from "effect/typed/template/HtmlChunk"
+ * import { templateToHtmlChunks } from "effect/typed/template/HtmlChunk"
+ * import { parse } from "effect/typed/template/Parser"
+ *
+ * const template = parse`<div>Hello ${"world"}</div>`
+ * const chunks = templateToHtmlChunks(template)
+ *
+ * // chunks will contain:
+ * // - HtmlTextChunk with text "<div>Hello "
+ * // - HtmlPartChunk for the dynamic part
+ * // - HtmlTextChunk with text "</div>"
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export type HtmlChunk =
   | HtmlTextChunk
@@ -20,6 +38,9 @@ export type HtmlChunk =
 
 /**
  * A static text chunk.
+ *
+ * @since 1.0.0
+ * @category models
  */
 export interface HtmlTextChunk {
   readonly _tag: "text"
@@ -28,6 +49,9 @@ export interface HtmlTextChunk {
 
 /**
  * A chunk representing a dynamic part (interpolation).
+ *
+ * @since 1.0.0
+ * @category models
  */
 export interface HtmlPartChunk {
   readonly _tag: "part"
@@ -40,6 +64,9 @@ export interface HtmlPartChunk {
 
 /**
  * A chunk representing a sparse part (mixed static/dynamic text).
+ *
+ * @since 1.0.0
+ * @category models
  */
 export interface HtmlSparsePartChunk {
   readonly _tag: "sparse-part"
@@ -90,6 +117,22 @@ export class HtmlChunksBuilder {
 /**
  * Converts a parsed `Template` into a sequence of `HtmlChunk`s.
  * This optimization pre-calculates the static HTML strings to minimize work at render time.
+ *
+ * @example
+ * ```ts
+ * import { templateToHtmlChunks } from "effect/typed/template/HtmlChunk"
+ * import { parse } from "effect/typed/template/Parser"
+ *
+ * const template = parse`<div class="container">Hello ${"world"}</div>`
+ * const chunks = templateToHtmlChunks(template)
+ *
+ * // chunks is an array of HtmlChunk objects
+ * // Static parts are pre-rendered as text chunks
+ * // Dynamic parts are represented as part chunks
+ * ```
+ *
+ * @since 1.0.0
+ * @category utilities
  */
 export function templateToHtmlChunks({ nodes }: Template.Template) {
   const builder = new HtmlChunksBuilder()
@@ -100,6 +143,22 @@ export function templateToHtmlChunks({ nodes }: Template.Template) {
 /**
  * Wraps the HTML chunks with comments containing the template hash.
  * This is crucial for hydration to identify which template rendered a section of HTML.
+ *
+ * @example
+ * ```ts
+ * import { addTemplateHash, templateToHtmlChunks } from "effect/typed/template/HtmlChunk"
+ * import { parse } from "effect/typed/template/Parser"
+ *
+ * const template = parse`<div>Hello</div>`
+ * const chunks = templateToHtmlChunks(template)
+ * const chunksWithHash = addTemplateHash(chunks, template)
+ *
+ * // chunksWithHash will have template hash comments added
+ * // for hydration purposes
+ * ```
+ *
+ * @since 1.0.0
+ * @category utilities
  */
 export function addTemplateHash(
   chunks: ReadonlyArray<HtmlChunk>,

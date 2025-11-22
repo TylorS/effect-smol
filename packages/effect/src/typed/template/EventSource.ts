@@ -13,6 +13,35 @@ type Handler<Ev extends Event> = EventHandler<Ev>
  *
  * It abstracts the process of adding and removing event listeners, ensuring that they are
  * properly cleaned up when the scope is closed or the element is removed.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import { makeEventSource } from "effect/typed/template/EventSource"
+ * import * as EventHandler from "effect/typed/template/EventHandler"
+ * import { Scope } from "effect"
+ *
+ * const program = Effect.gen(function* () {
+ *   const eventSource = makeEventSource()
+ *   const button = document.createElement("button")
+ *
+ *   // Add event listener
+ *   const handler = EventHandler.make((event: MouseEvent) => {
+ *     console.log("Button clicked")
+ *   })
+ *
+ *   const disposable = eventSource.addEventListener(button, "click", handler)
+ *
+ *   // Setup listeners for rendered content
+ *   yield* eventSource.setup(button, yield* Scope.make())
+ *
+ *   // Cleanup
+ *   disposable[Symbol.dispose]()
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category models
  */
 export interface EventSource {
   /**
@@ -41,6 +70,28 @@ const dispose = (d: Disposable): void => d[Symbol.dispose]()
  *
  * The created `EventSource` can efficiently manage multiple event listeners,
  * grouping them by event type and handling setup/teardown lifecycles.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import { makeEventSource } from "effect/typed/template/EventSource"
+ * import * as EventHandler from "effect/typed/template/EventHandler"
+ *
+ * const program = Effect.gen(function* () {
+ *   const eventSource = makeEventSource()
+ *   const element = document.createElement("div")
+ *
+ *   // Add multiple event listeners
+ *   eventSource.addEventListener(element, "click", EventHandler.make(() => console.log("clicked")))
+ *   eventSource.addEventListener(element, "mouseover", EventHandler.make(() => console.log("hovered")))
+ *
+ *   // Setup all listeners
+ *   yield* eventSource.setup(element, yield* Scope.make())
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category constructors
  */
 export function makeEventSource(): EventSource {
   const listeners = new Map<
