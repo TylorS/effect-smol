@@ -7,6 +7,11 @@ import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 import { extendScope } from "../internal/scope.ts"
 
+/**
+ * Type definition for flatMap functions to support variable arguments.
+ * @since 1.0.0
+ * @category types
+ */
 export type FlatMapLike<Args extends ReadonlyArray<any> = []> = {
   <A, B, E2, R2>(
     f: (a: A) => Fx<B, E2, R2>,
@@ -20,6 +25,16 @@ export type FlatMapLike<Args extends ReadonlyArray<any> = []> = {
   ): Fx<B, E | E2, R | R2 | Scope.Scope>
 }
 
+/**
+ * Maps each element of an Fx to a new Fx, and merges the results.
+ *
+ * The inner Fx streams are run concurrently. This is equivalent to `mergeMap` in RxJS.
+ *
+ * @param f - A function that maps an element `A` to a new `Fx<B>`.
+ * @returns An `Fx` that emits values from all inner streams.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const flatMap: FlatMapLike = dual(2, <A, E, R, B, E2, R2>(
   self: Fx<A, E, R>,
   f: (a: A) => Fx<B, E2, R2>

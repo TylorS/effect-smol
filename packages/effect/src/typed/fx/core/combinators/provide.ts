@@ -6,6 +6,17 @@ import * as Scope from "effect/Scope"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * Provides context to an Fx from a Layer.
+ *
+ * The context is provided to the entire Fx stream, including any effects run
+ * during its execution. The context is scoped to the lifetime of the stream.
+ *
+ * @param layer - The Layer to provide.
+ * @returns An `Fx` with the required context provided.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const provide: {
   <R2, E2 = never, R3 = never>(
     layer: Layer.Layer<R2, E2, R3>
