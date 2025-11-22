@@ -21,10 +21,7 @@ export interface EventSource {
 type Entry = readonly [Element, Handler<any>]
 type Run = <E, A>(effect: Effect.Effect<A, E>) => Fiber.Fiber<A, E>
 
-const disposable = (f: () => void): Disposable => ({
-  [Symbol.dispose]: f
-})
-
+const disposable = (f: () => void): Disposable => ({ [Symbol.dispose]: f })
 const dispose = (d: Disposable): void => d[Symbol.dispose]()
 
 export function makeEventSource(): EventSource {
