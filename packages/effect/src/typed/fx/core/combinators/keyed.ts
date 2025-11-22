@@ -19,12 +19,42 @@ import { diff, getKeyMap } from "../internal/diff.ts"
 import { withScopedFork } from "../internal/scope.ts"
 import { FxTypeId } from "../TypeId.ts"
 
+/**
+ * Configuration options for the `keyed` combinator.
+ * @since 1.0.0
+ * @category models
+ */
 export interface KeyedOptions<A, B, C, E2, R2> {
+  /**
+   * Function to extract a unique key from an element.
+   */
   readonly getKey: (a: A) => B
+  /**
+   * Function to transform a value into an Fx, receiving a RefSubject of the value.
+   * This allows the transformation to react to updates of the same item (same key).
+   */
   readonly onValue: (ref: RefSubject.RefSubject<A>, key: B) => Fx<C, E2, R2 | Scope.Scope>
+  /**
+   * Optional debounce duration for emission.
+   */
   readonly debounce?: Duration.DurationInput
 }
 
+/**
+ * Efficiently transforms a list of values into a list of Fx streams, using keys to track identity.
+ *
+ * This is crucial for performance when rendering lists or managing collections of stateful entities.
+ * When the input list changes:
+ * - New keys cause `onValue` to be called.
+ * - Existing keys have their `RefSubject` updated with the new value.
+ * - Removed keys have their corresponding Fx and scope cleaned up.
+ *
+ * @param fx - An `Fx` emitting an array of values.
+ * @param options - Configuration options.
+ * @returns An `Fx` emitting an array of results.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const keyed: {
   <A, B extends PropertyKey, C, E2, R2>(
     options: KeyedOptions<A, B, C, E2, R2>
@@ -98,22 +128,20 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
   id: number
 ): Effect.Effect<unknown, never, Scope.Scope | R | R2 | R3> {
   return withDebounceFork(
-    (forkEmit, parentScope) => {
+    (debounceFork, parentScope) => {
       const state = emptyKeyedState<A, B, C>()
+      const emit = Effect.suspend(() => sink.onSuccess(getReadyIndices(state)))
+      const scheduleNextEmit = debounceFork(emit)
 
       let previousKeyMap: Map<PropertyKey, number> = new Map()
 
-      const emit = Effect.suspend(() => sink.onSuccess(getReadyIndices(state)))
-      const scheduleNextEmit = forkEmit(emit)
-
-      function diffAndPatch(values: ReadonlyArray<A>) {
-        return Effect.gen(function*() {
+      return fx.run(Sink.make(
+        sink.onFailure,
+        Effect.fn(function*(values: ReadonlyArray<A>) {
           const previous = state.previousValues
-          state.previousValues = values
+          const keyMap = getKeyMap(values, options.getKey)
 
           let changed = false
-
-          const keyMap = getKeyMap(values, options.getKey)
 
           for (
             const patch of diff<A, B>(previous, values, { getKey: options.getKey, previousKeyMap, keyMap })
@@ -123,21 +151,22 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
               yield* removeValue(state, patch, state.entries.get(patch.key)!)
             } else if (patch._tag === "Add") {
               changed = true
-              yield* addValue(
+              yield* addValue({
                 state,
                 values,
                 patch,
                 id,
                 parentScope,
-                options,
+                keyedOptions: options,
                 sink,
                 scheduleNextEmit
-              )
+              })
             } else {
               yield* updateValue(state, values, patch)
             }
           }
 
+          state.previousValues = values
           previousKeyMap = keyMap
 
           if (changed) {
@@ -146,14 +175,7 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
             yield* adjustTime()
           }
         })
-      }
-
-      return fx.run(
-        Sink.make<ReadonlyArray<A>, E | E2, R2 | R3 | Scope.Scope>(
-          sink.onFailure,
-          diffAndPatch
-        )
-      )
+      ))
     },
     options.debounce || 1
   )
@@ -203,15 +225,19 @@ function getReadyIndices<A, B extends PropertyKey, C>(
 }
 
 function* addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
-  { entries, indices }: KeyedState<A, B, C>,
-  values: ReadonlyArray<A>,
-  patch: Add<A, B>,
-  id: number,
-  parentScope: Scope.Scope,
-  options: KeyedOptions<A, B, C, E2, R2>,
-  sink: Sink.Sink<ReadonlyArray<C>, E | E2, R2 | R3>,
-  scheduleNextEmit: Effect.Effect<D, never, R3>
+  options: {
+    state: KeyedState<A, B, C>
+    values: ReadonlyArray<A>
+    patch: Add<A, B>
+    id: number
+    parentScope: Scope.Scope
+    keyedOptions: KeyedOptions<A, B, C, E2, R2>
+    sink: Sink.Sink<ReadonlyArray<C>, E | E2, R2 | R3>
+    scheduleNextEmit: Effect.Effect<D, never, R3>
+  }
 ) {
+  const { id, keyedOptions, parentScope, patch, scheduleNextEmit, sink, state, values } = options
+  const { entries, indices } = state
   const value = values[patch.index]
   const childScope = yield* Scope.fork(parentScope, "sequential")
   const ref = yield* RefSubject.make(Effect.sync<A>(() => entry.value)).pipe(
@@ -230,7 +256,7 @@ function* addValue<A, B extends PropertyKey, C, R2, E2, E, R3, D>(
   indices.set(patch.index, patch.key)
 
   yield* Effect.forkIn(
-    options.onValue(ref, patch.key).run(Sink.make(
+    keyedOptions.onValue(ref, patch.key).run(Sink.make(
       (cause) => sink.onFailure(cause),
       (output) => {
         entry.output = Option.some(output)

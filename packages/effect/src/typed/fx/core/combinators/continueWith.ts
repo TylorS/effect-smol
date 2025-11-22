@@ -4,6 +4,14 @@ import { make } from "../constructors/make.ts"
 import { succeed } from "../constructors/succeed.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * continues an Fx with another Fx after the first one completes.
+ *
+ * @param f - A function that returns the next Fx to run.
+ * @returns An `Fx` that emits values from the first Fx, then from the second Fx.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const continueWith: {
   <B, E2, R2>(
     f: () => Fx<B, E2, R2>
@@ -19,6 +27,14 @@ export const continueWith: {
 ): Fx<A | B, E | E2, R | R2> =>
   make<A | B, E | E2, R | R2>((sink) => Effect.flatMap(fx.run(sink), () => f().run(sink))))
 
+/**
+ * Appends a value to the end of an Fx.
+ *
+ * @param value - The value to append.
+ * @returns An `Fx` that emits values from the input Fx, then the appended value.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const append: {
   <B>(
     value: B
@@ -33,6 +49,14 @@ export const append: {
   value: B
 ): Fx<A | B, E, R> => continueWith(fx, () => succeed(value)))
 
+/**
+ * Prepends a value to the beginning of an Fx.
+ *
+ * @param value - The value to prepend.
+ * @returns An `Fx` that emits the prepended value, then values from the input Fx.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const prepend: {
   <B>(
     value: B
@@ -47,6 +71,15 @@ export const prepend: {
   value: B
 ): Fx<B | A, E, R> => continueWith(succeed(value), () => fx))
 
+/**
+ * Wraps an Fx with a start and end value.
+ *
+ * @param before - The value to emit before the Fx starts.
+ * @param after - The value to emit after the Fx completes.
+ * @returns An `Fx` that emits `before`, then values from the input Fx, then `after`.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const delimit: {
   <B, C>(
     before: B,

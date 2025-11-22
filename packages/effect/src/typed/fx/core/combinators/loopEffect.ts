@@ -4,6 +4,15 @@ import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
+/**
+ * Effectfully loops over an Fx with an accumulator, producing a new value for each element.
+ *
+ * @param seed - The initial state.
+ * @param f - The effectful loop function.
+ * @returns An `Fx` emitting the transformed values.
+ * @since 1.0.0
+ * @category combinators
+ */
 export const loopEffect: {
   <B, A, E2, R2, C>(
     seed: B,
