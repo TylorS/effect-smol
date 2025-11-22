@@ -6,6 +6,108 @@
 
 If you're familiar with React, Vue, or other modern UI frameworks, `Template` provides similar capabilities but with Effect's type safety, error handling, and resource management built-in.
 
+## Declarative Programming with Typed
+
+One of the most powerful aspects of `Template` is its **declarative nature**. Instead of manually manipulating the DOM, you declare *what* the UI should look like for a given state, and `Typed` handles the *how*.
+
+### Imperative vs. Declarative
+
+**Imperative (Manual DOM)**:
+```ts
+// ❌ Tedious and error-prone
+const div = document.createElement("div")
+const p = document.createElement("p")
+p.textContent = "Count: " + count
+div.appendChild(p)
+
+// Updating requires manual intervention
+function update(newCount) {
+  p.textContent = "Count: " + newCount
+}
+```
+
+**Declarative (Typed Template)**:
+```ts
+// ✅ Clear and concise
+const template = html`<div>
+  <p>Count: ${count}</p>
+</div>`
+// Updates are automatic!
+```
+
+By combining `Effect`, `Fx`, and `Template`, you build your application as a **pure description** of data flow and UI structure.
+
+### Robust Error Handling
+
+In traditional frontend development, errors in event handlers or rendering logic can crash the entire application or leave it in an inconsistent state. `Typed` leverages Effect's error handling model to make your UI resilient.
+
+#### Errors are Values
+
+Errors in `Typed` are treated as values, not exceptions. This means they are part of the type signature and must be handled explicitly or propagated.
+
+#### Error Containment with EventHandler
+
+When you use `EventHandler`, any error occurring within the handler's Effect is automatically captured and emitted into the template's `Fx` stream. **This is a crucial safety feature.**
+
+Even if an error occurs deep within an async call stack or a nested service, it **cannot escape** the template's error channel.
+
+```ts
+import { Effect } from "effect"
+import { html } from "effect/typed/template"
+import * as EventHandler from "effect/typed/template/EventHandler"
+
+// An event handler that might fail
+const riskyHandler = EventHandler.make(() =>
+  Effect.gen(function* () {
+    // Simulate a failure
+    yield* Effect.fail("Something went wrong!") 
+  })
+)
+
+const template = html`<button onclick=${riskyHandler}>Click Risk</button>`
+
+// The error "Something went wrong!" will be emitted by the template Fx
+// It will NOT crash the application or throw an unhandled exception
+```
+
+This allows you to handle errors centrally at the point where you run your template, or locally by recovering within the handler itself.
+
+```ts
+// Recovering locally
+const safeHandler = EventHandler.catchCause(riskyHandler, (cause) => 
+  Effect.sync(() => console.error("Caught error:", cause))
+)
+```
+
+This robust error containment ensures that your application remains stable even in the face of unexpected failures.
+
+## Why Fx? The Power of Push
+
+Typed chooses `Fx` as its core primitive because it perfectly matches the **push-based nature of the browser**.
+
+*   **Browser Events are Push**: DOM events (clicks, input, mouse movements) happen spontaneously and "push" data to listeners.
+*   **Fx is Push**: `Fx` streams push values to subscribers as they become available.
+
+> **Thought Experiment:** Imagine if keyboard events were **pull-based**. The browser would have to ask you 60 times a second: *"Did you press 'A' yet? How about now? Now?"*
+>
+> Or worse yet, the browser would literally have to **pull your fingertips to the keys** to extract the input.
+>
+> It sounds ridiculous because it is. The web is inherently push-based. `Fx` embraces this reality instead of fighting it with virtual DOM diffing cycles.
+
+This alignment eliminates the "impedance mismatch" often found in pull-based systems (like React's VDOM or AsyncIterables) when dealing with UI events. Reactivity flows naturally from the user event → `Fx` stream → DOM update, without complex polling or diffing cycles.
+
+### Universal Compatibility
+
+While `Fx` is the internal engine, `Template` is designed to be flexible. You can interpolate almost anything, and it will be automatically converted to an `Fx`:
+
+*   **Values**: Primitives like `string`, `number`, `boolean` become single-value streams.
+*   **Arrays/Iterables**: Become streams that emit multiple values.
+*   **Effect**: Becomes a stream that emits the result (or error) of the effect.
+*   **Stream**: Standard Effect `Stream`s are seamlessly converted.
+*   **Fx**: Native Fx streams are used directly.
+
+This means you can use the best tool for the job—a simple `Effect` for an API call, a `Stream` for a WebSocket, or a `RefSubject` for state—and mix them freely in your templates.
+
 ## Understanding the Web Platform
 
 Before diving into templates, it's helpful to understand the fundamental concepts of web development.
@@ -1283,6 +1385,141 @@ interface HydrateContext {
   hydrate: boolean          // Whether we're hydrating
 }
 ```
+
+## Deep Dive: Typed vs. React
+
+While Typed Template shares high-level goals with libraries like React (building declarative UIs), its internal architecture and execution model are fundamentally different. Understanding these differences is key to leveraging Typed's performance and safety.
+
+### 1. The Rendering Model: Fine-Grained vs. Virtual DOM
+
+**React (Virtual DOM):**
+React uses a "pull-based" model. When state changes, React re-runs your component function to generate a new Virtual DOM tree. It then compares (diffs) this new tree with the old one to determine what actual DOM updates are needed.
+*   **Overhead:** Re-running components, regenerating objects, and tree diffing on every update.
+*   **Optimization:** Requires manual `useMemo`, `useCallback`, and `React.memo` to prevent unnecessary work.
+
+**Typed (Fine-Grained Reactivity):**
+Typed uses a "push-based" model. When you render a template, it compiles once into a static DOM structure with "holes" for dynamic content. It then sets up direct subscriptions (`Fx` streams) between your state and those specific DOM nodes.
+*   **No VDOM Diffing:** When a `RefSubject` changes, the value is pushed directly to the text node or attribute that needs it. The rest of the template is ignored.
+*   **Performance:** Updates are O(1) relative to the specific binding, not O(N) relative to the component tree size.
+
+### 2. Component Lifecycle: "Run Once" vs. "Re-render"
+
+**React:**
+Components are functions that run *every time* render happens.
+```ts
+// React
+function Counter() {
+  // This function runs repeatedly!
+  const [count, setCount] = useState(0); 
+  const double = count * 2; // Re-calculated every render
+  return <div>{count}</div>;
+}
+```
+
+**Typed:**
+Components are generators that run **exactly once** during setup. They return a template (an `Fx` stream) that remains active.
+```ts
+// Typed
+const Counter = Effect.gen(function*() {
+  // This logic runs ONLY ONCE during setup
+  const count = yield* RefSubject.make(0);
+  
+  // This transformation is a persistent stream setup
+  const double = RefSubject.map(count, (n) => n * 2);
+
+  // The template is returned once. The streams inside keep it alive.
+  return html`<div>${count} (Double: ${double})</div>`;
+});
+```
+This means you define your data flow graph *once*, and values flow through it forever. You rarely need to worry about "stale closures" or dependency arrays because the function doesn't re-run.
+
+### 3. List Rendering Strategy
+
+**React:**
+React relies on the `key` prop. When a list updates, React re-renders the parent, generates the new list of elements, and diffs them against the old list. If a row's data changes, that row component re-renders.
+
+**Typed (`many`):**
+The `many` function offers a distinct architectural advantage.
+```ts
+many(todos, (t) => t.id, (todoRef, key) => {
+  // This function runs ONCE per item when it is first created.
+  // 'todoRef' is a RefSubject containing the current value.
+  
+  return html`
+    <!-- When the item data updates, we map over todoRef -->
+    <!-- The surrounding DOM nodes are NOT recreated -->
+    <span>${RefSubject.map(todoRef, t => t.text)}</span>
+  `
+})
+```
+*   **Persistent Rows:** If an item's data changes, the component function is *not* re-executed. Instead, the `todoRef` emits a new value, updating only the tiny part of the DOM that changed.
+*   **Stability:** Focus state, selection state, and animations are easier to preserve because the DOM nodes remain stable.
+
+### 4. Side Effects & Resources: Scopes vs. `useEffect`
+
+**React:**
+`useEffect` ties side effects to the render cycle. It requires strict dependency arrays to avoid infinite loops or stale data. Cleanup functions must be returned manually.
+
+**Typed:**
+Typed utilizes Effect's `Scope` system.
+*   **Automatic Cleanup:** Every template runs within a Scope. When a component is removed from the DOM (e.g., via `Fx.if` switching branches), the Scope closes.
+*   **Safe Resources:** Any resource acquired with `Effect.acquireRelease` (like a WebSocket connection or specialized event listener) attached to that scope is automatically released. No manual cleanup functions or dependency arrays required.
+
+### 5. No Build Step Required
+
+**React:**
+JSX is not valid JavaScript. You effectively *must* use a bundler (Vite, Webpack) and a compiler (Babel, SWC) to develop.
+
+**Typed:**
+Uses standardized **Tagged Template Literals** (`html\``). This is valid, native JavaScript.
+*   **Zero Compile:** You can run Typed code directly in modern browsers or Deno/Node without a transpilation step (if you don't use TypeScript-specific syntax).
+*   **Tooling:** Standard TS template literal types provide autocomplete and type checking for interpolated values.
+
+## Architectural Implications
+
+Moving beyond the surface differences with React, Typed introduces a paradigm shift in how we think about UI architecture.
+
+### 1. Explicit Reactivity vs. "Magic" Tracking
+
+Most modern reactive frameworks (React, Vue, Solid, MobX) rely on **implicit dependency tracking**. When you access a signal or state within a component, the framework "magically" records that dependency.
+
+*   **The Problem:** This relies on global mutable state during render. It imposes "Rules of Hooks" (call order matters). It can lead to "leaky" reactivity where accessing a value accidentally subscribes the component to it.
+*   **The Typed Way:** Reactivity is **explicit**. You compose streams using `map`, `combine`, and `flatMap`. Data flow is a visible, static graph constructed once.
+    *   *Benefit:* No "magic". You can trace exactly where data comes from. You can pass streams around as first-class values without worrying about "reactive contexts".
+
+### 2. First-Class Concurrency
+
+In many frameworks, concurrency is an implementation detail of the renderer (e.g., React Fiber). In Typed, concurrency is **first-class** because everything is an Effect.
+
+*   **Pause Rendering:** You can literally `yield* Effect.sleep("1 second")` inside a computed derivation, and the downstream updates will pause.
+*   **Race Conditions:** You can use `Effect.race` to handle competing data sources directly in your view logic.
+*   **Cancellation:** When a component is removed, the underlying `Effect` fiber is interrupted. This automatically cancels network requests, clears timers, and closes socket connections associated with that component.
+
+### 3. Dependency Injection (The "R" in `Fx<A, E, R>`)
+
+React uses `Context` for dependency injection. This couples your business logic to the component tree.
+
+Typed leverages Effect's **Layer** system. The `R` in your `Fx` represents the services your component needs (Router, Database, UserSession).
+
+```ts
+// A component that declares it needs a 'UserRepo'
+const UserProfile = Fx.gen(function*() {
+  const repo = yield* UserRepo; // Typed dependency
+  const user = yield* repo.getUser;
+  return html`<div>${user.name}</div>`;
+})
+```
+
+*   **Decoupling:** You can test `UserProfile` by providing a mock `UserRepo` layer, without rendering it.
+*   **Scalability:** Dependencies are resolved explicitly, not by searching up a tree at runtime.
+
+### 4. Mathematical Safety (The "E" in `Fx<A, E, R>`)
+
+In React, runtime errors crash the component tree until caught by an Error Boundary.
+
+In Typed, errors are encoded in the type system (the `E` channel).
+*   **Compile-Time Guarantees:** If you have an `Fx<View, NetworkError, R>`, TypeScript ensures you handle `NetworkError` before you can render it.
+*   **Recovery:** You can use standard Effect error recovery (`catchAll`, `retry`, `orElse`) to handle failures gracefully *at the granularity you choose*.
 
 ## Debugging Templates
 
