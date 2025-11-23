@@ -65,9 +65,8 @@ Here is a glimpse of how these pieces fit together:
 
 ```ts
 import { Effect, Layer } from "effect"
-import { html } from "effect/typed/template"
-import { render, DomRenderTemplate } from "effect/typed/template/Render"
-import * as RefSubject from "effect/typed/fx/RefSubject"
+import { Fx, RefSubject } from "effect/typed/fx"
+import { html, render, DomRenderTemplate } from "effect/typed/template"
 
 // 1. Define State (RefSubject)
 const program = Effect.gen(function* () {
@@ -87,6 +86,7 @@ const program = Effect.gen(function* () {
 
   // 4. Render
   yield* render(template, document.body).pipe(
+    Fx.drainLayer,
     Layer.provide(DomRenderTemplate),
     Layer.launch
   )
