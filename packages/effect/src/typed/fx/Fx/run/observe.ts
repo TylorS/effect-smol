@@ -69,3 +69,27 @@ export const drain = <A, E, R>(fx: Fx<A, E, R>): Effect.Effect<void, E, R> => ob
  */
 export const drainLayer = <A, E, R>(fx: Fx<A, E, R>): Layer.Layer<never, E, Exclude<R, Scope>> =>
   Layer.effectDiscard(Effect.fork(drain(fx)))
+
+/**
+ * Observes the values of an `Fx` stream using a callback function and returns a `Layer`.
+ * The callback can return `void` or an `Effect` which will be executed for each value.
+ *
+ * @param fx - The `Fx` stream to observe.
+ * @param f - The function to call for each emitted value.
+ * @returns A `Layer` that manages the background execution of the stream.
+ * @since 1.0.0
+ * @category runners
+ */
+export const observeLayer: {
+  <A, E2 = never, R2 = never>(
+    f: (value: A) => void | Effect.Effect<unknown, E2, R2>
+  ): <E, R>(fx: Fx<A, E, R>) => Layer.Layer<never, E | E2, R | R2>
+
+  <A, E, R, E2 = never, R2 = never>(
+    fx: Fx<A, E, R>,
+    f: (value: A) => void | Effect.Effect<unknown, E2, R2>
+  ): Layer.Layer<never, E | E2, R | R2>
+} = dual(2, <A, E, R, E2 = never, R2 = never>(
+  fx: Fx<A, E, R>,
+  f: (value: A) => void | Effect.Effect<unknown, E2, R2>
+): Layer.Layer<never, E | E2, R | R2> => Layer.effectDiscard(observe(fx, f)))

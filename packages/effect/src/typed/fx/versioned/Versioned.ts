@@ -8,16 +8,19 @@
 import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
-import { dual, flow } from "effect/Function"
-import type { Layer } from "effect/Layer"
+import { dual, flow, identity } from "effect/Function"
+import { pipeArguments } from "effect/interfaces/Pipeable"
+import * as Layer from "effect/Layer"
 import { sum } from "effect/Number"
 import type * as Scope from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
 import * as FxCombinators from "../Fx/combinators/index.ts"
 import * as FxCtor from "../Fx/constructors/index.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import { MulticastEffect } from "../Fx/internal/multicast.ts"
 import { YieldableFx } from "../Fx/internal/yieldable.ts"
-import type { Sink } from "../Sink/Sink.ts"
+import { FxTypeId } from "../Fx/TypeId.ts"
+import type * as Sink from "../Sink/Sink.ts"
 import * as Subject from "../Subject/Subject.ts"
 
 // TODO: dualize
@@ -62,6 +65,22 @@ export namespace Versioned {
    * @category type-level
    */
   export type VersionError<T> = T extends Versioned<any, infer E, any, any, any, any, any, any> ? E : never
+
+  export interface Service<Self, Id extends string, E1, A2, E2, A3, E3>
+    extends Versioned<Self, E1, A2, E2, Self, A3, E3, Self>
+  {
+    readonly id: Id
+    readonly service: ServiceMap.Service<Self, Versioned<never, E1, A2, E2, never, A3, E3, never>>
+    readonly make: <R1 = never, R2 = never, R3 = never>(
+      version: Effect.Effect<number, E1, R1>,
+      fx: Fx.Fx<A2, E2, R2>,
+      effect: Effect.Yieldable<any, A3, E3, R3>
+    ) => Layer.Layer<Self, never, Exclude<R1 | R2 | R3, Scope.Scope>>
+  }
+
+  export interface Class<Self, Id extends string, E1, A2, E2, A3, E3> extends Service<Self, Id, E1, A2, E2, A3, E3> {
+    new(): Service<Self, Id, E1, A2, E2, A3, E3>
+  }
 }
 
 /**
@@ -100,7 +119,7 @@ class VersionedImpl<R1, E1, A2, E2, R2, A3, E3, R3> extends YieldableFx<A2, E2, 
     this.effect = new MulticastEffect(effect)
   }
 
-  run<R3>(sink: Sink<A2, E2, R3>): Effect.Effect<unknown, never, R2 | R3> {
+  run<R3>(sink: Sink.Sink<A2, E2, R3>): Effect.Effect<unknown, never, R2 | R3> {
     return this.fx.run(sink)
   }
 
@@ -167,12 +186,12 @@ export class VersionedTransform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4
 
   readonly version = Effect.sync(() => this._version)
 
-  run<R5>(sink: Sink<C, E3, R5>): Effect.Effect<unknown, never, R3 | R5> {
+  run<R5>(sink: Sink.Sink<C, E3, R5>): Effect.Effect<unknown, never, R3 | R5> {
     return this._fx.run(sink)
   }
 
   toEffect(): Effect.Effect<D, E0 | E4, R0 | R4> {
-    const transformed = this._transformEffect(this.input as any as Effect.Effect<B, E2, R2>)
+    const transformed = this._transformEffect(this.input.asEffect())
     const update = (v: number) =>
       Effect.tapCause(
         Effect.tap(
@@ -327,7 +346,7 @@ export function struct<const VS extends Readonly<Record<string, Versioned<any, a
  */
 export const provide = <R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
   versioned: Versioned<R0, E0, A, E, R, B, E2, R2>,
-  layer: Layer<S, never, R3>
+  layer: Layer.Layer<S, never, R3>
 ): Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>> => {
   return make(
     Effect.provide(versioned.version, layer),
@@ -393,4 +412,61 @@ export function replay<R0, E0, A, E, R, B, E2, R2>(
     Subject.replay(versioned, bufferSize),
     versioned
   )
+}
+
+const VARIANCE = {
+  _A: identity,
+  _E: identity,
+  _R: identity
+}
+
+export function Service<Self, E1 = never, A2 = never, E2 = never, A3 = never, E3 = never>() {
+  return <const Id extends string>(id: Id): Versioned.Class<Self, Id, E1, A2, E2, A3, E3> => {
+    const service = ServiceMap.Service<Self, Versioned<never, E1, A2, E2, never, A3, E3, never>>(id)
+
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    return class VersionedService {
+      static readonly id = id
+      static readonly service = service
+
+      static readonly make = <R1 = never, R2 = never, R3 = never>(
+        version: Effect.Effect<number, E1, R1>,
+        fx: Fx.Fx<A2, E2, R2>,
+        effect: Effect.Yieldable<any, A3, E3, R3>
+      ): Layer.Layer<Self, never, Exclude<R1 | R2 | R3, Scope.Scope>> =>
+        Layer.effect(
+          service,
+          Effect.services<R1 | R2 | R3>().pipe(
+            Effect.map((context) =>
+              make(
+                Effect.provide(version, context),
+                FxCombinators.provideServices(fx, context),
+                Effect.provide(effect.asEffect(), context)
+              )
+            )
+          )
+        )
+
+      static readonly [FxTypeId] = VARIANCE
+      static readonly pipe = function(this: any) {
+        return pipeArguments(this, arguments)
+      }
+
+      static readonly version = Effect.flatMap(service.asEffect(), (v) => v.version)
+      static readonly interrupt = Effect.flatMap(service.asEffect(), (v) => v.interrupt)
+
+      static readonly run = <RSink>(sink: Sink.Sink<A2, E2, RSink>) =>
+        Effect.flatMap(service.asEffect(), (v) => v.run(sink))
+
+      static readonly [Symbol.iterator] = function*() {
+        const v = yield* service
+        return yield* v
+      }
+      static readonly asEffect = () => Effect.flatMap(service.asEffect(), (v) => v.asEffect())
+
+      constructor() {
+        return VersionedService
+      }
+    } as unknown as Versioned.Class<Self, Id, E1, A2, E2, A3, E3>
+  }
 }

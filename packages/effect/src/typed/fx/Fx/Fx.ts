@@ -1,8 +1,13 @@
-import type * as Effect from "effect/Effect"
-import { type Pipeable } from "effect/interfaces/Pipeable"
+import * as Effect from "effect/Effect"
+import { identity } from "effect/Function"
+import { type Pipeable, pipeArguments } from "effect/interfaces/Pipeable"
+import * as Layer from "effect/Layer"
+import type * as Scope from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
 import type { Types } from "effect/types"
 import type * as Sink from "../Sink/Sink.ts"
-import type { FxTypeId } from "./TypeId.ts"
+import { provideServices } from "./combinators/provide.ts"
+import { FxTypeId, isFx } from "./TypeId.ts"
 
 /**
  * `Fx` is a reactive stream of values that supports concurrency, error handling,
@@ -74,6 +79,18 @@ export declare namespace Fx {
   export type Services<T> = [T] extends [never] ? never
     : [T] extends [Fx<infer _A, infer _E, infer _R>] ? _R
     : never
+
+  export interface Service<Self, Id extends string, A, E> extends Fx<A, E, Self> {
+    readonly id: Id
+    readonly service: ServiceMap.Service<Self, Fx<A, E>>
+    readonly make: <R = never>(
+      fx: Fx<A, E, R> | Effect.Effect<Fx<A, E, R>, E, R>
+    ) => Layer.Layer<Self, E, Exclude<R, Scope.Scope>>
+  }
+
+  export interface Class<Self, Id extends string, A, E> extends Service<Self, Id, A, E> {
+    new(): Service<Self, Id, A, E>
+  }
 }
 
 /**
@@ -96,3 +113,45 @@ export type Error<T> = Fx.Error<T>
  * @category type-level
  */
 export type Services<T> = Fx.Services<T>
+
+const VARIANCE: Fx.Variance<any, any, any> = {
+  _A: identity,
+  _E: identity,
+  _R: identity
+}
+
+export function Service<Self, A, E = never>() {
+  return <const Id extends string>(id: Id): Fx.Class<Self, Id, A, E> => {
+    const service = ServiceMap.Service<Self, Fx<A, E>>(id)
+
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    return class FxService {
+      static readonly id = id
+      static readonly service = service
+
+      static readonly make = <R = never>(
+        fx: Fx<A, E, R> | Effect.Effect<Fx<A, E, R>, E, R>
+      ): Layer.Layer<Self, E, Exclude<R, Scope.Scope>> =>
+        Layer.effect(
+          service,
+          Effect.gen(function*() {
+            const services = yield* Effect.services<R>()
+            const result = isFx(fx) ? fx : yield* fx
+            return provideServices(result, services)
+          })
+        )
+
+      static readonly [FxTypeId] = VARIANCE
+      static readonly pipe = function(this: any) {
+        return pipeArguments(this, arguments)
+      }
+
+      static readonly run = <RSink>(sink: Sink.Sink<A, E, RSink>) =>
+        Effect.flatMap(service.asEffect(), (fx) => fx.run(sink))
+
+      constructor() {
+        return FxService
+      }
+    } as unknown as Fx.Class<Self, Id, A, E>
+  }
+}

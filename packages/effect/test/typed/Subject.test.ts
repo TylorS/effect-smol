@@ -1,40 +1,47 @@
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
-import { Fx } from "effect/typed/fx"
+import * as Fx from "effect/typed/fx/Fx"
 import * as Subject from "effect/typed/fx/Subject"
 
 describe("Subject", () => {
-  it.effect(
-    "allows imperatively sending events",
-    Effect.fn(function*() {
-      const subject = yield* Subject.make<number>()
-      const values = yield* Fx.collectAllFork(subject)
+  it.effect("allows multicasting values", () =>
+    Effect.gen(function*() {
+      const subject = Subject.unsafeMake<number>()
+      const fiber = yield* Fx.collectAllFork(subject)
+      yield* Effect.yieldNow
 
       yield* subject.onSuccess(1)
       yield* subject.onSuccess(2)
       yield* subject.onSuccess(3)
       yield* subject.interrupt
 
-      expect(yield* Fiber.join(values)).toEqual([1, 2, 3])
-    })
-  )
+      expect(yield* Fiber.join(fiber)).toEqual([1, 2, 3])
+    }))
 
-  it.effect(
-    "supports replaying events",
-    Effect.fn(function*() {
-      const subject = yield* Subject.make<number>(1)
-      const values1 = yield* Fx.collectAllFork(subject)
+  it.effect("allows replay of values", () =>
+    Effect.gen(function*() {
+      const subject = Subject.unsafeMake<number>(2)
+
       yield* subject.onSuccess(1)
-      const values2 = yield* Fx.collectAllFork(subject)
       yield* subject.onSuccess(2)
       yield* subject.onSuccess(3)
-      yield* subject.interrupt
 
-      const expected = [1, 2, 3]
+      expect(yield* Fx.collectAll(Fx.take(subject, 2))).toEqual([2, 3])
+    }))
 
-      expect(yield* Fiber.join(values1)).toEqual(expected)
-      expect(yield* Fiber.join(values2)).toEqual(expected)
-    })
-  )
+  describe("Service", () => {
+    it.effect("should allow defining a Subject as a Service", () =>
+      Effect.gen(function*() {
+        class MySubject extends Subject.Service<MySubject, number>()("MySubject") {}
+
+        const layer = MySubject.make(1)
+
+        yield* Effect.gen(function*() {
+          yield* MySubject.onSuccess(1)
+          const result = yield* Fx.collectAll(Fx.take(MySubject, 1))
+          expect(result).toEqual([1])
+        }).pipe(Effect.provide(layer))
+      }))
+  })
 })

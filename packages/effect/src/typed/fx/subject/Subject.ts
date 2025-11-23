@@ -5,9 +5,10 @@ import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import { dual, identity } from "effect/Function"
 import { pipeArguments } from "effect/interfaces/Pipeable"
+import * as Layer from "effect/Layer"
 import * as MutableRef from "effect/MutableRef"
 import * as Scope from "effect/Scope"
-import type * as ServiceMap from "effect/ServiceMap"
+import * as ServiceMap from "effect/ServiceMap"
 import type * as Fx from "../Fx/index.ts"
 import { RingBuffer } from "../Fx/internal/ring-buffer.ts"
 import { awaitScopeClose, withExtendedScope } from "../Fx/internal/scope.ts"
@@ -30,6 +31,18 @@ export interface Subject<A, E = never, R = never> extends Fx.Fx<A, E, R | Scope.
    * Interrupts all subscribers and clears the subject.
    */
   readonly interrupt: Effect.Effect<void, never, R>
+}
+
+export declare namespace Subject {
+  export interface Service<Self, Id extends string, A, E> extends Subject<A, E, Self> {
+    readonly id: Id
+    readonly service: ServiceMap.Service<Self, Subject<A, E>>
+    readonly make: (replay?: number) => Layer.Layer<Self, never, Scope.Scope>
+  }
+
+  export interface Class<Self, Id extends string, A, E> extends Service<Self, Id, A, E> {
+    new(): Service<Self, Id, A, E>
+  }
 }
 
 /**
@@ -271,7 +284,7 @@ function runSinkCause<A, E>(
   ctx: ServiceMap.ServiceMap<any>,
   scope: Scope.Closeable,
   cause: Cause.Cause<E>
-) {
+): Effect.Effect<void, never, never> {
   return Effect.provide(
     Effect.catchCause(sink.onFailure(cause), (error) => Scope.close(scope, Exit.failCause(error))),
     ctx
@@ -375,4 +388,45 @@ export function unsafeMake<A, E = never>(replay: number = 0): Subject<A, E> {
  */
 export function make<A, E = never>(replay?: number): Effect.Effect<Subject<A, E>, never, Scope.Scope> {
   return Effect.acquireRelease(Effect.sync(() => unsafeMake(replay)), (subject) => subject.interrupt)
+}
+
+export function Service<Self, A, E = never>() {
+  return <const Id extends string>(id: Id): Subject.Class<Self, Id, A, E> => {
+    const service = ServiceMap.Service<Self, Subject<A, E>>(id)
+
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    return class SubjectService {
+      static readonly id = id
+      static readonly service = service
+
+      static readonly make = (replay?: number): Layer.Layer<Self, never, Scope.Scope> =>
+        Layer.effect(
+          service,
+          make<A, E>(replay)
+        )
+
+      static readonly [FxTypeId] = VARIANCE
+      static readonly pipe = function(this: any) {
+        return pipeArguments(this, arguments)
+      }
+
+      // Fx
+      static readonly run = <RSink>(sink: Sink.Sink<A, E, RSink>) =>
+        Effect.flatMap(service.asEffect(), (subject) => subject.run(sink))
+
+      // Sink
+      static readonly onSuccess = (value: A) =>
+        Effect.flatMap(service.asEffect(), (subject) => subject.onSuccess(value))
+      static readonly onFailure = (cause: Cause.Cause<E>) =>
+        Effect.flatMap(service.asEffect(), (subject) => subject.onFailure(cause))
+
+      // Subject
+      static readonly subscriberCount = Effect.flatMap(service.asEffect(), (subject) => subject.subscriberCount)
+      static readonly interrupt = Effect.flatMap(service.asEffect(), (subject) => subject.interrupt)
+
+      constructor() {
+        return SubjectService
+      }
+    } as unknown as Subject.Class<Self, Id, A, E>
+  }
 }

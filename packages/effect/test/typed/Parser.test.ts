@@ -1,6 +1,6 @@
 import { deepEqual, deepStrictEqual } from "assert"
-import * as Parser from "effect/typed/template/internal/Parser"
 import { templateHash } from "effect/typed/template/internal/templateHash"
+import * as Parser from "effect/typed/template/Parser"
 import * as Template from "effect/typed/template/Template"
 import { describe, expect, it } from "vitest"
 

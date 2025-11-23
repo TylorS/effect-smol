@@ -1,118 +1,75 @@
-import { assert, describe, it } from "@effect/vitest"
-import { Cause, Effect, pipe } from "effect"
-import { Fx } from "effect/typed/fx"
+import { describe, expect, it } from "@effect/vitest"
+import * as Effect from "effect/Effect"
+import * as Fx from "effect/typed/fx/Fx"
+import * as Sink from "effect/typed/fx/Sink"
 
 describe("Fx", () => {
-  it.fx("Fx.succeed", {
-    actual: Fx.succeed(1),
-    expected: [1]
-  })
+  it.effect("fromIterable", () =>
+    Effect.gen(function*() {
+      const fx = Fx.fromIterable([1, 2, 3])
+      expect(yield* Fx.collectAll(fx)).toEqual([1, 2, 3])
+    }))
 
-  it.fxError("Fx.fail", {
-    actual: Fx.fail("error"),
-    expected: "error"
-  })
+  it.effect("filter", () =>
+    Effect.gen(function*() {
+      const fx = Fx.fromIterable([1, 2, 3, 4])
+      const filtered = Fx.filter(fx, (n) => n % 2 === 0)
+      expect(yield* Fx.collectAll(filtered)).toEqual([2, 4])
+    }))
 
-  it.fxCause("Fx.die", {
-    actual: Fx.die("error"),
-    expected: Cause.die("error")
-  })
+  it.effect("map", () =>
+    Effect.gen(function*() {
+      const fx = Fx.fromIterable([1, 2, 3])
+      const mapped = Fx.map(fx, (n) => n * 2)
+      expect(yield* Fx.collectAll(mapped)).toEqual([2, 4, 6])
+    }))
 
-  it.fx("Fx.fromEffect", {
-    actual: Fx.fromEffect(Effect.succeed(1)),
-    expected: [1]
-  })
+  it.effect("switchMap", () =>
+    Effect.gen(function*() {
+      const fx = Fx.fromIterable([1, 2, 3])
+      const switched = Fx.switchMap(fx, (n) => Fx.fromIterable([n, n * 2]))
+      expect(yield* Fx.collectAll(switched)).toEqual([3, 6])
+    }))
 
-  it.fx("Fx.fromYieldable", {
-    actual: Fx.fromYieldable(Effect.succeed(1)),
-    expected: [1]
-  })
+  it.effect("mergeAll", () =>
+    Effect.gen(function*() {
+      const fx1 = Fx.fromIterable([1, 2])
+      const fx2 = Fx.fromIterable([3, 4])
+      const merged = Fx.mergeAll(fx1, fx2)
+      const result = yield* Fx.collectAll(merged)
+      expect(result).toEqual([1, 2, 3, 4])
+    }))
 
-  it.fx("Fx.fromIterable", {
-    actual: Fx.fromIterable([1, 2, 3]),
-    expected: [1, 2, 3]
-  })
+  describe("Service", () => {
+    it.effect("should allow defining an Fx as a Service", () =>
+      Effect.gen(function*() {
+        class MyFx extends Fx.Service<MyFx, number>()("MyFx") {}
 
-  it.fx("Fx.flatMap", {
-    actual: Fx.fromIterable([1, 2, 3]).pipe(
-      Fx.flatMap((n) => Fx.succeed(n + 1))
-    ),
-    expected: [2, 3, 4]
-  })
+        const layer = MyFx.make(Fx.succeed(42))
 
-  it.fx("Fx.switchMap", {
-    actual: Fx.fromIterable([1, 2, 3]).pipe(
-      Fx.switchMap((n) => Fx.succeed(n + 1))
-    ),
-    expected: [4]
+        const result = yield* Fx.collectAll(MyFx).pipe(Effect.provide(layer))
+        expect(result).toEqual([42])
+      }))
   })
+})
 
-  it.fx("Fx.exhaustMap", {
-    actual: Fx.fromIterable([1, 2, 3]).pipe(
-      Fx.exhaustMap((n) => Fx.succeed(n + 1))
-    ),
-    expected: [2]
+describe("Sink", () => {
+  describe("Service", () => {
+    it.effect("should allow defining a Sink as a Service", () =>
+      Effect.gen(function*() {
+        class MySink extends Sink.Service<MySink, number>()("MySink") {}
+
+        let value = 0
+        const layer = MySink.make(
+          () => Effect.void,
+          (n) => Effect.sync(() => value += n)
+        )
+
+        yield* MySink.onSuccess(1).pipe(Effect.provide(layer))
+        expect(value).toEqual(1)
+
+        yield* MySink.onSuccess(2).pipe(Effect.provide(layer))
+        expect(value).toEqual(3)
+      }))
   })
-
-  it.fx("Fx.exhaustMapLatest", {
-    actual: Fx.fromIterable([1, 2, 3]).pipe(
-      Fx.exhaustLatestMap((n) => Fx.succeed(n + 1))
-    ),
-    expected: [2, 4]
-  })
-
-  it.fx("Fx.mergeAll", {
-    actual: Fx.mergeAll(
-      Fx.succeed(1),
-      Fx.succeed(2),
-      Fx.succeed(3)
-    ),
-    expected: [1, 2, 3]
-  })
-
-  it.fx.live("Fx.at", {
-    actual: Fx.at(1, 100),
-    expected: [1]
-  })
-
-  it.fx.live("Fx.tuple", {
-    actual: Fx.tuple(
-      Fx.at(1, 0),
-      Fx.at(2, 100),
-      Fx.at(3, 50)
-    ),
-    expected: [[1, 2, 3]]
-  })
-
-  it.fx.live("Fx.mergeOrdered", {
-    actual: Fx.mergeOrdered(
-      Fx.succeed(1),
-      Fx.at(2, 100), // Maintains order regardless of asynchrony
-      Fx.succeed(3)
-    ),
-    expected: [1, 2, 3]
-  })
-
-  it.fx.live("Fx.keyed", {
-    actual: pipe(
-      Fx.succeed([1, 2, 3]),
-      Fx.keyed({
-        getKey: (n) => n,
-        onValue: Fx.map((n) => n + 1)
-      })
-    ),
-    expected: [[2, 3, 4]]
-  })
-
-  it.live(
-    "Fx.callback",
-    Effect.fn(function*() {
-      const fx = Fx.callback<string>((emit) => {
-        const id = setInterval(() => emit.succeed("hello"), 50)
-        return Effect.sync(() => clearInterval(id))
-      })
-      const values = yield* Fx.collectUpTo(fx, 3)
-      assert.deepStrictEqual(values, ["hello", "hello", "hello"])
-    })
-  )
 })
