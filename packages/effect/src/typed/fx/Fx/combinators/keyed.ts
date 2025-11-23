@@ -133,6 +133,7 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
       const emit = Effect.suspend(() => sink.onSuccess(getReadyIndices(state)))
       const scheduleNextEmit = debounceFork(emit)
 
+      let first = true
       let previousKeyMap: Map<PropertyKey, number> = new Map()
 
       return fx.run(Sink.make(
@@ -141,7 +142,8 @@ function runKeyed<A, E, R, B extends PropertyKey, C, E2, R2, R3>(
           const previous = state.previousValues
           const keyMap = getKeyMap(values, options.getKey)
 
-          let changed = false
+          let changed = first
+          first = false
 
           for (
             const patch of diff<A, B>(previous, values, { getKey: options.getKey, previousKeyMap, keyMap })

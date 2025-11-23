@@ -73,7 +73,13 @@ export function diff<A, B extends PropertyKey>(
   b: ReadonlyArray<A>,
   options: Partial<DiffOptions<A, B>> = {}
 ): DiffResult<A, B> {
-  const { eq = Equal.equals, getKey = identity as any } = options
+  const getKey = options.getKey ?? identity as NonNullable<typeof options.getKey>
+
+  // Fast-path for empty arrays.
+  if (a.length === 0) return b.map((value, i) => add(value, i, getKey(value)))
+  if (b.length === 0) return a.map((value, i) => remove(value, i, getKey(value)))
+
+  const eq = options.eq ?? Equal.equals
   const diff: Array<Diff<A, B>> = []
   const oldKeyMap = options.previousKeyMap ?? getKeyMap(a, getKey)
   const keyMap = options.keyMap ?? getKeyMap(b, getKey)
