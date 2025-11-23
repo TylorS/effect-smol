@@ -2,12 +2,14 @@
  * Push is a type of Fx that can be used to push values to a sink.
  */
 
-import type { Cause } from "effect/Cause"
+import type * as Cause from "effect/Cause"
 import type * as Option from "effect/data/Option"
-import type * as Effect from "effect/Effect"
+import * as Effect from "effect/Effect"
 import { dual, identity } from "effect/Function"
 import { pipeArguments } from "effect/interfaces/Pipeable"
+import * as Layer from "effect/Layer"
 import type * as Scope from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
 import * as Fx from "../Fx/index.ts"
 import { FxTypeId } from "../Fx/TypeId.ts"
 import * as Sink from "../Sink/index.ts"
@@ -53,6 +55,19 @@ export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sin
 
 export namespace Push {
   export interface Any extends Push<any, any, any, any, any, any> {}
+
+  export interface Service<Self, Id extends string, A, E, B, E2> extends Push<A, E, Self, B, E2, Self> {
+    readonly id: Id
+    readonly service: ServiceMap.Service<Self, Push<A, E, never, B, E2, never>>
+    readonly make: <R = never, R2 = never>(
+      sink: Sink.Sink<A, E, R>,
+      fx: Fx.Fx<B, E2, R2>
+    ) => Layer.Layer<Self, never, Exclude<R | R2, Scope.Scope>>
+  }
+
+  export interface Class<Self, Id extends string, A, E, B, E2> extends Service<Self, Id, A, E, B, E2> {
+    new(): Service<Self, Id, A, E, B, E2>
+  }
 }
 
 /**
@@ -123,7 +138,7 @@ class PushImpl<A, E, R, B, E2, R2> implements Push<A, E, R, B, E2, R2> {
     return this.fx.run(sink)
   }
 
-  onFailure(cause: Cause<E>): Effect.Effect<unknown, never, R> {
+  onFailure(cause: Cause.Cause<E>): Effect.Effect<unknown, never, R> {
     return this.sink.onFailure(cause)
   }
 
@@ -150,7 +165,7 @@ class PushImpl<A, E, R, B, E2, R2> implements Push<A, E, R, B, E2, R2> {
  *   const push = Push.make(
  *     Sink.make(
  *       (cause) => Effect.void,
- *       (value: number) => Effect.sync(() => console.log("Number:", value))
+ *       (value) => Effect.sync(() => console.log("Number:", value))
  *     ),
  *     Fx.succeed("Output")
  *   )
@@ -613,3 +628,52 @@ export const exhaustLatestMapEffect: {
     Fx.exhaustLatestMapEffect(push, f)
   )
 })
+
+export function Service<Self, A, E = never, B = never, E2 = never>() {
+  return <const Id extends string>(id: Id): Push.Class<Self, Id, A, E, B, E2> => {
+    const service = ServiceMap.Service<Self, Push<A, E, never, B, E2, never>>(id)
+
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    return class PushService {
+      static readonly id = id
+      static readonly service = service
+
+      static readonly make = <R = never, R2 = never>(
+        sink: Sink.Sink<A, E, R>,
+        fx: Fx.Fx<B, E2, R2>
+      ): Layer.Layer<Self, never, Exclude<R | R2, Scope.Scope>> =>
+        Layer.effect(
+          service,
+          Effect.services<R | R2>().pipe(
+            Effect.map((context) =>
+              make(
+                Sink.make(
+                  (cause) => Effect.provideServices(sink.onFailure(cause), context),
+                  (value) => Effect.provideServices(sink.onSuccess(value), context)
+                ),
+                Fx.make(<RSink>(sink: Sink.Sink<B, E2, RSink>) => Effect.provideServices(fx.run(sink), context))
+              )
+            )
+          )
+        )
+
+      static readonly [FxTypeId] = VARIANCE
+      static readonly pipe = function(this: any) {
+        return pipeArguments(this, arguments)
+      }
+
+      // Fx methods
+      static readonly run = <R3>(sink: Sink.Sink<B, E2, R3>) =>
+        Effect.flatMap(service.asEffect(), (push) => push.run(sink))
+
+      // Sink methods
+      static readonly onSuccess = (value: A) => Effect.flatMap(service.asEffect(), (push) => push.onSuccess(value))
+      static readonly onFailure = (cause: Cause.Cause<E>) =>
+        Effect.flatMap(service.asEffect(), (push) => push.onFailure(cause))
+
+      constructor() {
+        return PushService
+      }
+    } as unknown as Push.Class<Self, Id, A, E, B, E2>
+  }
+}
