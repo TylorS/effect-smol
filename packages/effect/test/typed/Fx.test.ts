@@ -61,7 +61,7 @@ describe("Sink", () => {
 
         let value = 0
         const layer = MySink.make(
-          () => Effect.void,
+          Effect.failCause,
           (n) => Effect.sync(() => value += n)
         )
 
