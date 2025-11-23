@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect"
-import type * as Fiber from "effect/Fiber"
+import * as Fiber from "effect/Fiber"
 import type { Scheduler } from "effect/Scheduler"
 import * as Scope from "effect/Scope"
 
@@ -43,6 +43,8 @@ export const withScopedFork = <A, E, R>(
 
 export function awaitScopeClose(scope: Scope.Scope) {
   return Effect.callback<unknown, never, never>(function(this: Scheduler, cb) {
-    Effect.runFork(Scope.addFinalizerExit(scope, () => Effect.sync(() => cb(Effect.void))), { scheduler: this })
+    return Fiber.interrupt(
+      Effect.runFork(Scope.addFinalizerExit(scope, () => Effect.sync(() => cb(Effect.void))), { scheduler: this })
+    )
   })
 }
