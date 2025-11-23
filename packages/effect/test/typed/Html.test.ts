@@ -1,17 +1,18 @@
 import { describe, expect, it } from "@effect/vitest"
 import type { Scope } from "effect"
 import { Effect } from "effect"
-import { Fx } from "effect/typed/fx/index"
+import { Fx } from "effect/typed/fx"
 import {
+  html,
+  HtmlRenderEvent,
   HtmlRenderTemplate,
+  many,
+  type RenderEvent,
   renderToHtml,
   renderToHtmlString,
   StaticHtmlRenderTemplate
-} from "effect/typed/template/Html"
+} from "effect/typed/template"
 import { escape } from "effect/typed/template/internal/encoding"
-import { many } from "effect/typed/template/many"
-import { HtmlRenderEvent, type RenderEvent } from "effect/typed/template/RenderEvent"
-import { html } from "effect/typed/template/RenderTemplate"
 
 describe("Html", () => {
   it.live(
