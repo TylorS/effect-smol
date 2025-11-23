@@ -1,6 +1,9 @@
 import type * as Cause from "effect/Cause"
-import type * as Effect from "effect/Effect"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import type * as Ref from "effect/Ref"
+import type * as Scope from "effect/Scope"
+import * as ServiceMap from "effect/ServiceMap"
 
 /**
  * A Sink is a consumer of values. It consists of two effectful callbacks:
@@ -45,6 +48,19 @@ export declare namespace Sink {
    */
   export type Context<T> = T extends Sink<infer _A, infer _E, infer _R> ? _R
     : never
+
+  export interface Service<Self, Id extends string, A, E> extends Sink<A, E, Self> {
+    readonly id: Id
+    readonly service: ServiceMap.Service<Self, Sink<A, E>>
+    readonly make: <R = never>(
+      onFailure: (cause: Cause.Cause<E>) => Effect.Effect<unknown, never, R>,
+      onSuccess: (value: A) => Effect.Effect<unknown, never, R>
+    ) => Layer.Layer<Self, never, Exclude<R, Scope.Scope>>
+  }
+
+  export interface Class<Self, Id extends string, A, E> extends Service<Self, Id, A, E> {
+    new(): Service<Self, Id, A, E>
+  }
 }
 
 export type Success<T> = Sink.Success<T>
@@ -104,5 +120,39 @@ export declare namespace Sink {
     ) => Effect.Effect<B, E | E2, R | R2>
 
     readonly get: Effect.Effect<B, E, R>
+  }
+}
+
+export function Service<Self, A, E = never>() {
+  return <const Id extends string>(id: Id): Sink.Class<Self, Id, A, E> => {
+    const service = ServiceMap.Service<Self, Sink<A, E>>(id)
+
+    // eslint-disable-next-line @typescript-eslint/no-extraneous-class
+    return class SinkService {
+      static readonly id = id
+      static readonly service = service
+
+      static readonly make = <R = never, R2 = never>(
+        onFailure: (cause: Cause.Cause<E>) => Effect.Effect<unknown, never, R>,
+        onSuccess: (value: A) => Effect.Effect<unknown, never, R2>
+      ): Layer.Layer<Self, never, Exclude<R | R2, Scope.Scope>> =>
+        Layer.effect(
+          service,
+          Effect.map(Effect.services<R | R2>(), (context) =>
+            make(
+              (cause) => Effect.provide(onFailure(cause), context),
+              (value) => Effect.provide(onSuccess(value), context)
+            ))
+        )
+
+      static readonly onSuccess = (value: A) => Effect.flatMap(service.asEffect(), (sink) => sink.onSuccess(value))
+
+      static readonly onFailure = (cause: Cause.Cause<E>) =>
+        Effect.flatMap(service.asEffect(), (sink) => sink.onFailure(cause))
+
+      constructor() {
+        return SinkService
+      }
+    } as unknown as Sink.Class<Self, Id, A, E>
   }
 }
