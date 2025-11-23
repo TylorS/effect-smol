@@ -35,10 +35,7 @@ export const observe: {
       const onFailure = (cause: Cause<E | E2>) => Effect.sync(() => resume(Effect.failCause(cause)))
       const onSuccess = (value: A) => {
         const result = f(value)
-        if (Effect.isEffect(result)) {
-          return Effect.catchCause(result, onFailure)
-        }
-        return Effect.void
+        return Effect.isEffect(result) ? Effect.catchCause(result, onFailure) : Effect.void
       }
       const onDone = () => Effect.sync(() => resume(Effect.void))
 
