@@ -1,13 +1,13 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 import * as Fx from "effect/typed/fx/Fx"
-import * as Versioned from "effect/typed/fx/Versioned"
+import * as Versioned from "effect/typed/fx/Versioned/"
 
 describe("Versioned", () => {
   describe("Service", () => {
     it.effect("should allow defining a Versioned as a Service", () =>
       Effect.gen(function*() {
-        class MyVersioned extends Versioned.Service<MyVersioned, never, number, never, number, never>()(
+        class MyVersioned extends Versioned.Service<MyVersioned, never, number, never, number>()(
           "MyVersioned"
         ) {}
 
@@ -25,4 +25,3 @@ describe("Versioned", () => {
       }))
   })
 })
-
