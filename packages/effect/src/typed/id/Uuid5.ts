@@ -1,10 +1,11 @@
 import * as Effect from "effect/Effect"
+import { dual } from "effect/Function"
 import * as Schema from "effect/schema/Schema"
+import { sha1 } from "./_sha.ts"
 import { uuidStringify } from "./_uuid-stringify.js"
-import { Sha } from "./Sha.js"
 
 export const Uuid5 = Schema.String.pipe(Schema.check(Schema.isUUID(5)), Schema.brand<"@typed/id/UUID5">())
-export type Uuid5 = Schema.Schema.Type<typeof Uuid5>
+export type Uuid5 = typeof Uuid5.Type
 
 export const isUuid5: (value: string) => value is Uuid5 = Schema.is(Uuid5)
 
@@ -91,13 +92,19 @@ export const Uuid5Namespace = {
   ])
 } as const
 
-export function makeUuid5(
-  namespace: Uuid5Namespace,
-  name: string
-): Effect.Effect<Uuid5, never, Sha> {
+export const uuid5: {
+  (
+    namespace: Uuid5Namespace
+  ): (name: string) => Effect.Effect<Uuid5>
+  (
+    name: string,
+    namespace: Uuid5Namespace
+  ): Effect.Effect<Uuid5>
+} = dual(2, function uuid5(
+  name: string,
+  namespace: Uuid5Namespace
+): Effect.Effect<Uuid5> {
   return Effect.gen(function*() {
-    const { sha1 } = yield* Sha
-
     // Convert name to UTF-8 bytes
     const nameBytes = textEncoder.encode(name)
 
@@ -121,4 +128,9 @@ export function makeUuid5(
 
     return Uuid5.makeUnsafe(uuidStringify(result))
   })
-}
+})
+
+export const dnsUuid5 = uuid5(Uuid5Namespace.DNS)
+export const urlUuid5 = uuid5(Uuid5Namespace.URL)
+export const oidUuid5 = uuid5(Uuid5Namespace.OID)
+export const x500Uuid5 = uuid5(Uuid5Namespace.X500)

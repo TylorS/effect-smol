@@ -1,34 +1,14 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/schema/Schema"
 import { DateTimes } from "./DateTimes.js"
-import { GetRandomValues } from "./GetRandomValues.js"
+import { RandomValues } from "./RandomValues.js"
 
 export const Ulid = Schema.String.pipe(Schema.check(Schema.isULID()), Schema.brand<"@typed/id/ULID">())
-export type Ulid = Schema.Schema.Type<typeof Ulid>
+export type Ulid = typeof Ulid.Type
 
 export const isUlid: (value: string) => value is Ulid = Schema.is(Ulid)
 
-export type UlidSeed = {
-  readonly seed: readonly [
-    zero: number,
-    one: number,
-    two: number,
-    three: number,
-    four: number,
-    five: number,
-    six: number,
-    seven: number,
-    eight: number,
-    nine: number,
-    ten: number,
-    eleven: number,
-    twelve: number,
-    thirteen: number,
-    fourteen: number,
-    fifteen: number
-  ]
-  readonly now: number
-}
+type UlidSeed = Uint8Array & { length: 16 }
 
 // Crockford's Base32
 const ENCODING = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
@@ -37,10 +17,16 @@ const TIME_MAX = 2 ** 48 - 1
 const TIME_LEN = 10
 const RANDOM_LEN = 16
 
-export const makeUlid: Effect.Effect<Ulid, never, GetRandomValues | DateTimes> = Effect.zipWith(
+export const ulid: Effect.Effect<Ulid, never, RandomValues | DateTimes> = Effect.zipWith(
   DateTimes.now,
-  GetRandomValues.call<UlidSeed["seed"]>(16),
-  (now, seed) => ulidFromSeed({ now, seed })
+  RandomValues.call<UlidSeed>(16),
+  (now, seed) => {
+    if (now > TIME_MAX) {
+      throw new Error("Cannot generate ULID due to timestamp overflow")
+    }
+
+    return Ulid.makeUnsafe(encodeTime(now, TIME_LEN) + encodeRandom(seed))
+  }
 )
 
 function encodeTime(now: number, len: number): string {
@@ -53,18 +39,10 @@ function encodeTime(now: number, len: number): string {
   return str
 }
 
-function encodeRandom(seed: UlidSeed["seed"]): string {
+function encodeRandom(seed: UlidSeed): string {
   let str = ""
   for (let i = 0; i < RANDOM_LEN; i++) {
     str = str + ENCODING.charAt(seed[i] % ENCODING_LEN)
   }
   return str
-}
-
-function ulidFromSeed({ now, seed }: UlidSeed): Ulid {
-  if (now > TIME_MAX) {
-    throw new Error("Cannot generate ULID due to timestamp overflow")
-  }
-
-  return Ulid.makeUnsafe(encodeTime(now, TIME_LEN) + encodeRandom(seed))
 }

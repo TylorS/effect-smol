@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/schema/Schema"
 import { DateTimes } from "./DateTimes.js"
-import { GetRandomValues } from "./GetRandomValues.js"
+import { RandomValues } from "./RandomValues.ts"
 
 // Constants
 const EPOCH = 14e11 // 2014-03-01T00:00:00Z
@@ -15,15 +15,40 @@ export const Ksuid = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[0-9a-zA-Z]{27}$/)),
   Schema.brand<"@typed/id/KSUID">()
 )
-export type Ksuid = Schema.Schema.Type<typeof Ksuid>
+export type Ksuid = typeof Ksuid.Type
 
 export const isKsuid: (value: string) => value is Ksuid = Schema.is(Ksuid)
 
 // Types
-type KsuidSeed = {
-  readonly timestamp: number
-  readonly payload: Uint8Array
-}
+type KsuidSeed = Uint8Array & { length: 16 }
+
+// Public API
+export const ksuid: Effect.Effect<Ksuid, never, DateTimes | RandomValues> = Effect.zipWith(
+  DateTimes.now,
+  RandomValues.call<KsuidSeed>(PAYLOAD_BYTES),
+  (timestamp, payload) => {
+    // Create the combined bytes
+    const bytes = new Uint8Array(TOTAL_BYTES)
+
+    // Support for timestamps before the epoch, usually for testing
+    if (timestamp < EPOCH) {
+      timestamp += EPOCH
+    }
+
+    // Write timestamp (4 bytes, big-endian)
+    const seconds = Math.floor((timestamp - EPOCH) / 1000)
+    bytes[0] = (seconds >>> 24) & 0xff
+    bytes[1] = (seconds >>> 16) & 0xff
+    bytes[2] = (seconds >>> 8) & 0xff
+    bytes[3] = seconds & 0xff
+
+    // Copy payload
+    bytes.set(payload, TIMESTAMP_BYTES)
+
+    // Encode as base62
+    return Ksuid.makeUnsafe(base62Encode(bytes))
+  }
+)
 
 // Utilities
 const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -47,34 +72,3 @@ function base62Encode(bytes: Uint8Array): string {
 
   return chars.join("")
 }
-
-// Core Functions
-function ksuidFromSeed({ payload, timestamp }: KsuidSeed): Ksuid {
-  // Create the combined bytes
-  const bytes = new Uint8Array(TOTAL_BYTES)
-
-  // Support for timestamps before the epoch, usually for testing
-  if (timestamp < EPOCH) {
-    timestamp += EPOCH
-  }
-
-  // Write timestamp (4 bytes, big-endian)
-  const seconds = Math.floor((timestamp - EPOCH) / 1000)
-  bytes[0] = (seconds >>> 24) & 0xff
-  bytes[1] = (seconds >>> 16) & 0xff
-  bytes[2] = (seconds >>> 8) & 0xff
-  bytes[3] = seconds & 0xff
-
-  // Copy payload
-  bytes.set(payload, TIMESTAMP_BYTES)
-
-  // Encode as base62
-  return Ksuid.makeUnsafe(base62Encode(bytes))
-}
-
-// Public API
-export const makeKsuid: Effect.Effect<Ksuid, never, DateTimes | GetRandomValues> = Effect.zipWith(
-  DateTimes.now,
-  GetRandomValues.call<KsuidSeed["payload"]>(PAYLOAD_BYTES),
-  (timestamp, payload) => ksuidFromSeed({ timestamp, payload })
-)

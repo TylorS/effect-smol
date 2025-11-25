@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as ServiceMap from "effect/ServiceMap"
 
-export class DateTimes extends ServiceMap.Service<DateTimes>()("effect/typed/id/DateTimes", {
+export class DateTimes extends ServiceMap.Service<DateTimes>()("@typed/id/DateTimes", {
   make: Effect.succeed({
     now: Effect.sync(() => Date.now()),
     date: Effect.sync(() => new Date())
@@ -13,6 +13,7 @@ export class DateTimes extends ServiceMap.Service<DateTimes>()("effect/typed/id/
   static readonly date = Effect.flatMap(DateTimes.asEffect(), ({ date }) => date)
 
   static readonly Default = Layer.effect(DateTimes, DateTimes.make)
+
   static readonly Fixed = (baseDate: number | string | Date) =>
     Layer.effect(
       DateTimes,

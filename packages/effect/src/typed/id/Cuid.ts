@@ -3,7 +3,7 @@ import * as Schema from "effect/schema/Schema"
 import * as ServiceMap from "effect/ServiceMap"
 import { Layer } from "../../index.ts"
 import { DateTimes } from "./DateTimes.ts"
-import { GetRandomValues } from "./GetRandomValues.js"
+import { RandomValues } from "./RandomValues.ts"
 
 // Constants
 const DEFAULT_LENGTH = 24
@@ -26,6 +26,47 @@ export type CuidSeed = {
   readonly random: Uint8Array
   readonly fingerprint: string
 }
+
+export class CuidState extends ServiceMap.Service<CuidState>()("@typed/id/CuidState", {
+  make: (
+    envData: string
+  ) =>
+    Effect.gen(function*() {
+      const { now } = yield* DateTimes
+      const getRandomValues = yield* RandomValues
+      const initialBytes = yield* getRandomValues(4)
+      const initialValue = Math.abs(
+        (initialBytes[0] << 24) |
+          (initialBytes[1] << 16) |
+          (initialBytes[2] << 8) |
+          initialBytes[3]
+      ) % INITIAL_COUNT_MAX
+
+      // Create fingerprint from environment data
+      const fingerprint = yield* Effect.promise(() => hash(envData).then((h) => h.substring(0, BIG_LENGTH)))
+
+      let counter = initialValue
+
+      return Effect.gen(function*() {
+        const timestamp = yield* now
+        const random = yield* getRandomValues(32)
+        return {
+          timestamp,
+          counter: counter++,
+          random,
+          fingerprint
+        } satisfies CuidSeed
+      })
+    })
+}) {
+  static readonly next = Effect.flatten(CuidState.asEffect())
+
+  static readonly Default = Layer.effect(CuidState, CuidState.make("node")).pipe(
+    Layer.provideMerge([DateTimes.Default, RandomValues.Default])
+  )
+}
+
+export const cuid: Effect.Effect<Cuid, never, CuidState> = Effect.flatMap(CuidState.next, cuidFromSeed)
 
 // Utilities
 const ALPHABET = Array.from({ length: 26 }, (_, i) => String.fromCharCode(i + 97))
@@ -82,44 +123,3 @@ function cuidFromSeed({ counter, fingerprint, random, timestamp }: CuidSeed): Ef
     return Cuid.makeUnsafe(id)
   })
 }
-
-export class CuidState extends ServiceMap.Service<CuidState>()("@typed/id/CuidState", {
-  make: (
-    envData: string
-  ) =>
-    Effect.gen(function*() {
-      const { now } = yield* DateTimes
-      const { getRandomValues } = yield* GetRandomValues
-      const initialBytes = yield* getRandomValues(4)
-      const initialValue = Math.abs(
-        (initialBytes[0] << 24) |
-          (initialBytes[1] << 16) |
-          (initialBytes[2] << 8) |
-          initialBytes[3]
-      ) % INITIAL_COUNT_MAX
-
-      // Create fingerprint from environment data
-      const fingerprint = yield* Effect.promise(() => hash(envData).then((h) => h.substring(0, BIG_LENGTH)))
-
-      let counter = initialValue
-
-      return Effect.gen(function*() {
-        const timestamp = yield* now
-        const random = yield* getRandomValues(32)
-        return {
-          timestamp,
-          counter: counter++,
-          random,
-          fingerprint
-        } satisfies CuidSeed
-      })
-    })
-}) {
-  static readonly next = Effect.flatten(CuidState.asEffect())
-
-  static readonly Default = Layer.effect(CuidState, CuidState.make("node")).pipe(
-    Layer.provideMerge([DateTimes.Default, GetRandomValues.Default])
-  )
-}
-
-export const makeCuid: Effect.Effect<Cuid, never, CuidState> = Effect.flatMap(CuidState.next, cuidFromSeed)
