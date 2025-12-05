@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer"
 import type { Scope } from "effect/Scope"
 import * as ServiceMap from "effect/ServiceMap"
 import { Fx } from "effect/typed/fx"
-import * as RefSubject from "effect/typed/fx/RefSubject"
+import { CurrentComputedBehavior } from "../fx/RefSubject/RefSubject.ts"
 import {
   addTemplateHash,
   type HtmlChunk,
@@ -182,7 +182,7 @@ export const HtmlRenderTemplate = Layer.effect(
       )
   })
 ).pipe(
-  Layer.provideMerge(Layer.succeed(RefSubject.CurrentComputedBehavior, "one"))
+  Layer.provideMerge(Layer.succeed(CurrentComputedBehavior, "one"))
 )
 
 /**
