@@ -8,8 +8,8 @@ import { type Inspectable, NodeInspectSymbol } from "../../interfaces/Inspectabl
  *
  * @example
  * ```ts
- * import { parse } from "../../typed/template/Parser.ts"
- * import * as Template from "../../typed/template/Template.ts"
+ * import { parse } from "@typed/template/Parser"
+ * import * as Template from "@typed/template/Template"
  *
  * // Parse a template string
  * const template = parse`<div>Hello ${"world"}</div>`

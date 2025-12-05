@@ -36,11 +36,11 @@ const wrapInRenderEvent = Fx.map((events: ReadonlyArray<RenderEvent>): RenderEve
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html, many } from "../../typed/template.ts"
- * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
- * import { Fx } from "../../typed/fx.ts"
+ * import { html, many } from "@typed/template"
+ * import { DomRenderTemplate, render } from "@typed/template/Render"
+ * import { Fx } from "@typed/fx"
  * import { Layer } from "effect"
- * import * as RefSubject from "../../typed/fx/RefSubject.ts"
+ * import * as RefSubject from "@typed/fx/RefSubject"
  *
  * interface Todo {
  *   readonly id: string

@@ -17,8 +17,8 @@ type Handler<Ev extends Event> = EventHandler<Ev>
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { makeEventSource } from "../../typed/template/EventSource.ts"
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import { makeEventSource } from "@typed/template/EventSource"
+ * import * as EventHandler from "@typed/template/EventHandler"
  * import { Scope } from "effect"
  *
  * const program = Effect.gen(function* () {
@@ -74,8 +74,8 @@ const dispose = (d: Disposable): void => d[Symbol.dispose]()
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { makeEventSource } from "../../typed/template/EventSource.ts"
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import { makeEventSource } from "@typed/template/EventSource"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * const program = Effect.gen(function* () {
  *   const eventSource = makeEventSource()

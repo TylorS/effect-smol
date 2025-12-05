@@ -22,8 +22,8 @@ let parser: Parser | undefined
  *
  * @example
  * ```ts
- * import { parse } from "../../typed/template/Parser.ts"
- * import * as Template from "../../typed/template/Template.ts"
+ * import { parse } from "@typed/template/Parser"
+ * import * as Template from "@typed/template/Template"
  *
  * // Parse a template
  * const template = parse`<div id=${"my-id"} class="container">
