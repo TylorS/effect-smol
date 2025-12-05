@@ -1,4 +1,4 @@
-import type * as Cause from "effect/Cause"
+import type * as Cause from "../../../../Cause.ts"
 import type { Fx } from "../Fx.ts"
 import { make } from "./make.ts"
 

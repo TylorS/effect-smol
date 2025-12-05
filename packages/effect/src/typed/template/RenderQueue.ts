@@ -1,4 +1,4 @@
-import { constVoid } from "effect/Function"
+import { constVoid } from "../../Function.ts"
 
 export const RenderQueueTypeId = "@typed/template/RenderQueue"
 export type RenderQueueTypeId = typeof RenderQueueTypeId
@@ -12,7 +12,7 @@ type Entry = { task: () => void; dispose: () => void }
  *
  * @example
  * ```ts
- * import { MixedRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ * import { MixedRenderQueue, RenderPriority } from "../../typed/template/RenderQueue.ts"
  *
  * const queue = new MixedRenderQueue()
  *
@@ -100,7 +100,7 @@ const SYNC_DEADLINE: IdleDeadline = { timeRemaining: () => Infinity, didTimeout:
  *
  * @example
  * ```ts
- * import { SyncRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ * import { SyncRenderQueue, RenderPriority } from "../../typed/template/RenderQueue.ts"
  *
  * const queue = new SyncRenderQueue()
  * queue.add("task", () => console.log("Immediate"), () => {}, RenderPriority.Sync)
@@ -132,7 +132,7 @@ export class SetTimeoutRenderQueue extends RenderQueue {
  *
  * @example
  * ```ts
- * import { RequestAnimationFrameRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ * import { RequestAnimationFrameRenderQueue, RenderPriority } from "../../typed/template/RenderQueue.ts"
  *
  * const queue = new RequestAnimationFrameRenderQueue(16) // 16ms budget
  * queue.add("update", () => updateDOM(), () => {}, RenderPriority.Raf(5))
@@ -175,7 +175,7 @@ const NONE = disposable(constVoid)
  *
  * @example
  * ```ts
- * import { MixedRenderQueue, RenderPriority } from "effect/typed/template/RenderQueue"
+ * import { MixedRenderQueue, RenderPriority } from "../../typed/template/RenderQueue.ts"
  *
  * const queue = new MixedRenderQueue()
  *
@@ -233,7 +233,7 @@ const RAF_PRIORITY_RANGE = 10
  *
  * @example
  * ```ts
- * import { RenderPriority } from "effect/typed/template/RenderQueue"
+ * import { RenderPriority } from "../../typed/template/RenderQueue.ts"
  *
  * // Synchronous execution (highest priority)
  * const syncPriority = RenderPriority.Sync

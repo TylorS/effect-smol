@@ -1,4 +1,4 @@
-import { equals } from "effect/interfaces/Equal"
+import { equals } from "../../../../interfaces/Equal.ts"
 import type { Fx } from "../Fx.ts"
 import { skipRepeatsWith } from "./skipRepeatsWith.ts"
 

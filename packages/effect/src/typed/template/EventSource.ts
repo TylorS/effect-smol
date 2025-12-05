@@ -1,6 +1,6 @@
-import * as Effect from "effect/Effect"
-import * as Fiber from "effect/Fiber"
-import * as Scope from "effect/Scope"
+import * as Effect from "../../Effect.ts"
+import * as Fiber from "../../Fiber.ts"
+import * as Scope from "../../Scope.ts"
 import type { EventHandler } from "./EventHandler.ts"
 import { getElements, type Rendered } from "./Wire.ts"
 
@@ -17,8 +17,8 @@ type Handler<Ev extends Event> = EventHandler<Ev>
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { makeEventSource } from "effect/typed/template/EventSource"
- * import * as EventHandler from "effect/typed/template/EventHandler"
+ * import { makeEventSource } from "../../typed/template/EventSource.ts"
+ * import * as EventHandler from "../../typed/template/EventHandler.ts"
  * import { Scope } from "effect"
  *
  * const program = Effect.gen(function* () {
@@ -74,8 +74,8 @@ const dispose = (d: Disposable): void => d[Symbol.dispose]()
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { makeEventSource } from "effect/typed/template/EventSource"
- * import * as EventHandler from "effect/typed/template/EventHandler"
+ * import { makeEventSource } from "../../typed/template/EventSource.ts"
+ * import * as EventHandler from "../../typed/template/EventHandler.ts"
  *
  * const program = Effect.gen(function* () {
  *   const eventSource = makeEventSource()

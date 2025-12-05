@@ -1,4 +1,4 @@
-import { dual } from "effect/Function"
+import { dual } from "../../../../Function.ts"
 import type { Fx } from "../Fx.ts"
 import { slice } from "./slice.ts"
 

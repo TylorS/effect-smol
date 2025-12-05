@@ -1,9 +1,9 @@
 import type * as Template from "./Template.ts"
 
-import * as Array from "effect/collections/Array"
-import * as Order from "effect/data/Order"
-import * as Predicate from "effect/data/Predicate"
-import { constVoid } from "effect/Function"
+import * as Array from "../../collections/Array.ts"
+import * as Order from "../../data/Order.ts"
+import * as Predicate from "../../data/Predicate.ts"
+import { constVoid } from "../../Function.ts"
 import { renderToEscapedString, renderToString } from "./internal/encoding.ts"
 import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts"
 
@@ -15,9 +15,9 @@ import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts
  *
  * @example
  * ```ts
- * import type { HtmlChunk } from "effect/typed/template/HtmlChunk"
- * import { templateToHtmlChunks } from "effect/typed/template/HtmlChunk"
- * import { parse } from "effect/typed/template/Parser"
+ * import type { HtmlChunk } from "../../typed/template/HtmlChunk.ts"
+ * import { templateToHtmlChunks } from "../../typed/template/HtmlChunk.ts"
+ * import { parse } from "../../typed/template/Parser.ts"
  *
  * const template = parse`<div>Hello ${"world"}</div>`
  * const chunks = templateToHtmlChunks(template)
@@ -120,8 +120,8 @@ export class HtmlChunksBuilder {
  *
  * @example
  * ```ts
- * import { templateToHtmlChunks } from "effect/typed/template/HtmlChunk"
- * import { parse } from "effect/typed/template/Parser"
+ * import { templateToHtmlChunks } from "../../typed/template/HtmlChunk.ts"
+ * import { parse } from "../../typed/template/Parser.ts"
  *
  * const template = parse`<div class="container">Hello ${"world"}</div>`
  * const chunks = templateToHtmlChunks(template)
@@ -146,8 +146,8 @@ export function templateToHtmlChunks({ nodes }: Template.Template) {
  *
  * @example
  * ```ts
- * import { addTemplateHash, templateToHtmlChunks } from "effect/typed/template/HtmlChunk"
- * import { parse } from "effect/typed/template/Parser"
+ * import { addTemplateHash, templateToHtmlChunks } from "../../typed/template/HtmlChunk.ts"
+ * import { parse } from "../../typed/template/Parser.ts"
  *
  * const template = parse`<div>Hello</div>`
  * const chunks = templateToHtmlChunks(template)

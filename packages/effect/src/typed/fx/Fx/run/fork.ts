@@ -1,6 +1,6 @@
-import type { Effect, RunOptions } from "effect/Effect"
-import { fork as effectFork, runFork as effectRunFork } from "effect/Effect"
-import type { Fiber } from "effect/Fiber"
+import type { Effect, RunOptions } from "../../../../Effect.ts"
+import { fork as effectFork, runFork as effectRunFork } from "../../../../Effect.ts"
+import type { Fiber } from "../../../../Fiber.ts"
 import type { Fx } from "../Fx.ts"
 import { drain } from "./observe.ts"
 

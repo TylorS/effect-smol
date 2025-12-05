@@ -1,10 +1,10 @@
-import * as Option from "effect/data/Option"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import type { Scope } from "effect/Scope"
-import * as ServiceMap from "effect/ServiceMap"
-import { Fx } from "effect/typed/fx"
-import { RefSubject } from "effect/typed/fx/RefSubject"
+import * as Option from "../../data/Option.ts"
+import * as Effect from "../../Effect.ts"
+import * as Layer from "../../Layer.ts"
+import type { Scope } from "../../Scope.ts"
+import * as ServiceMap from "../../ServiceMap.ts"
+import * as Fx from "../fx/Fx.js"
+import * as RefSubject from "../fx/RefSubject/RefSubject.ts"
 import { HydrateContext } from "./HydrateContext.ts"
 import { renderToString } from "./internal/encoding.ts"
 import { DomRenderEvent, HtmlRenderEvent, isHtmlRenderEvent, type RenderEvent } from "./RenderEvent.ts"
@@ -36,11 +36,11 @@ const wrapInRenderEvent = Fx.map((events: ReadonlyArray<RenderEvent>): RenderEve
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html, many } from "effect/typed/template"
- * import { DomRenderTemplate, render } from "effect/typed/template/Render"
- * import { Fx } from "effect/typed/fx"
+ * import { html, many } from "../../typed/template.ts"
+ * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
+ * import { Fx } from "../../typed/fx.ts"
  * import { Layer } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../typed/fx/RefSubject.ts"
  *
  * interface Todo {
  *   readonly id: string

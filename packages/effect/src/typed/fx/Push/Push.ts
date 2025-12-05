@@ -2,14 +2,14 @@
  * Push is a type of Fx that can be used to push values to a sink.
  */
 
-import type * as Cause from "effect/Cause"
-import type * as Option from "effect/data/Option"
-import * as Effect from "effect/Effect"
-import { dual, identity } from "effect/Function"
-import { pipeArguments } from "effect/interfaces/Pipeable"
-import * as Layer from "effect/Layer"
-import type * as Scope from "effect/Scope"
-import * as ServiceMap from "effect/ServiceMap"
+import type * as Cause from "../../../Cause.ts"
+import type * as Option from "../../../data/Option.ts"
+import * as Effect from "../../../Effect.ts"
+import { dual, identity } from "../../../Function.ts"
+import { pipeArguments } from "../../../interfaces/Pipeable.ts"
+import * as Layer from "../../../Layer.ts"
+import type * as Scope from "../../../Scope.ts"
+import * as ServiceMap from "../../../ServiceMap.ts"
 import * as Fx from "../Fx/index.ts"
 import { FxTypeId } from "../Fx/TypeId.ts"
 import * as Sink from "../Sink/index.ts"
@@ -22,9 +22,9 @@ import * as Sink from "../Sink/index.ts"
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Push from "effect/typed/fx/Push"
- * import { Fx } from "effect/typed/fx"
- * import * as Sink from "effect/typed/fx/Sink"
+ * import * as Push from "../../../typed/fx/Push.ts"
+ * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
  *
  * const program = Effect.gen(function* () {
  *   // Create a Push that accepts numbers and emits strings
@@ -76,9 +76,9 @@ export namespace Push {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Push from "effect/typed/fx/Push"
- * import { Fx } from "effect/typed/fx"
- * import * as Sink from "effect/typed/fx/Sink"
+ * import * as Push from "../../../typed/fx/Push.ts"
+ * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
  *
  * const program = Effect.gen(function* () {
  *   const sink = Sink.make(
@@ -157,9 +157,9 @@ class PushImpl<A, E, R, B, E2, R2> implements Push<A, E, R, B, E2, R2> {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Push from "effect/typed/fx/Push"
- * import { Fx } from "effect/typed/fx"
- * import * as Sink from "effect/typed/fx/Sink"
+ * import * as Push from "../../../typed/fx/Push.ts"
+ * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
  *
  * const program = Effect.gen(function* () {
  *   const push = Push.make(
@@ -295,9 +295,9 @@ export const filterMapInputEffect: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Push from "effect/typed/fx/Push"
- * import { Fx } from "effect/typed/fx"
- * import * as Sink from "effect/typed/fx/Sink"
+ * import * as Push from "../../../typed/fx/Push.ts"
+ * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
  *
  * const program = Effect.gen(function* () {
  *   const push = Push.make(
@@ -423,9 +423,9 @@ export const filterMapEffect: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Push from "effect/typed/fx/Push"
- * import { Fx } from "effect/typed/fx"
- * import * as Sink from "effect/typed/fx/Sink"
+ * import * as Push from "../../../typed/fx/Push.ts"
+ * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
  *
  * const program = Effect.gen(function* () {
  *   const push = Push.make(
@@ -493,9 +493,9 @@ export const switchMapEffect: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Push from "effect/typed/fx/Push"
- * import { Fx } from "effect/typed/fx"
- * import * as Sink from "effect/typed/fx/Sink"
+ * import * as Push from "../../../typed/fx/Push.ts"
+ * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
  *
  * const program = Effect.gen(function* () {
  *   const push = Push.make(

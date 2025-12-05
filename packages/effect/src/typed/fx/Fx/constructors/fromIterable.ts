@@ -1,4 +1,4 @@
-import { forEach } from "effect/Effect"
+import { forEach } from "../../../../Effect.ts"
 import type { Fx } from "../Fx.ts"
 import { make } from "./make.ts"
 
