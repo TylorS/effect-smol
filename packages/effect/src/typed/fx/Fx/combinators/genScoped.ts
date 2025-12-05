@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect"
-import type * as Scope from "effect/Scope"
+import * as Effect from "../../../../Effect.ts"
+import type * as Scope from "../../../../Scope.ts"
 import type { Fx } from "../Fx.ts"
 import { unwrapScoped } from "./unwrapScoped.ts"
 

@@ -1,10 +1,11 @@
-import * as Effect from "effect/Effect"
-import { identity } from "effect/Function"
-import { type Pipeable, pipeArguments } from "effect/interfaces/Pipeable"
-import * as Layer from "effect/Layer"
-import type * as Scope from "effect/Scope"
-import * as ServiceMap from "effect/ServiceMap"
-import type { Types } from "effect/types"
+import * as Effect from "../../../Effect.ts"
+import { identity } from "../../../Function.ts"
+import { type Pipeable, pipeArguments } from "../../../interfaces/Pipeable.ts"
+import type { Layer } from "../../../Layer.ts"
+import { effect } from "../../../Layer.ts"
+import type * as Scope from "../../../Scope.ts"
+import * as ServiceMap from "../../../ServiceMap.ts"
+import type * as Types from "../../../types/Types.ts"
 import type * as Sink from "../Sink/Sink.ts"
 import { provideServices } from "./combinators/provide.ts"
 import { FxTypeId, isFx } from "./TypeId.ts"
@@ -85,7 +86,7 @@ export declare namespace Fx {
     readonly service: ServiceMap.Service<Self, Fx<A, E>>
     readonly make: <R = never>(
       fx: Fx<A, E, R> | Effect.Effect<Fx<A, E, R>, E, R>
-    ) => Layer.Layer<Self, E, Exclude<R, Scope.Scope>>
+    ) => Layer<Self, E, Exclude<R, Scope.Scope>>
   }
 
   export interface Class<Self, Id extends string, A, E> extends Service<Self, Id, A, E> {
@@ -131,8 +132,8 @@ export function Service<Self, A, E = never>() {
 
       static readonly make = <R = never>(
         fx: Fx<A, E, R> | Effect.Effect<Fx<A, E, R>, E, R>
-      ): Layer.Layer<Self, E, Exclude<R, Scope.Scope>> =>
-        Layer.effect(
+      ): Layer<Self, E, Exclude<R, Scope.Scope>> =>
+        effect(
           service,
           Effect.gen(function*() {
             const services = yield* Effect.services<R>()

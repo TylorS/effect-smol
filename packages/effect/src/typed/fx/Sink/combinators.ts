@@ -1,12 +1,12 @@
-import * as Cause from "effect/Cause"
-import * as Option from "effect/data/Option"
-import type { Predicate } from "effect/data/Predicate"
-import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
-import { dual, flow, identity } from "effect/Function"
-import * as MutableRef from "effect/MutableRef"
-import * as Ref from "effect/Ref"
-import type { Scheduler } from "effect/Scheduler"
+import * as Cause from "../../../Cause.ts"
+import * as Option from "../../../data/Option.ts"
+import type { Predicate } from "../../../data/Predicate.ts"
+import * as Effect from "../../../Effect.ts"
+import * as Exit from "../../../Exit.ts"
+import { dual, flow, identity } from "../../../Function.ts"
+import * as MutableRef from "../../../MutableRef.ts"
+import * as Ref from "../../../Ref.ts"
+import type { Scheduler } from "../../../Scheduler.ts"
 import type { Sink } from "./Sink.ts"
 
 class MapSink<A, E, R, B> implements Sink<B, E, R> {
@@ -47,8 +47,8 @@ class MapSink<A, E, R, B> implements Sink<B, E, R> {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Sink from "effect/typed/fx/Sink"
- * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
+ * import { Fx } from "../../../typed/fx.ts"
  *
  * const program = Effect.gen(function* () {
  *   const sink = Sink.make(
@@ -117,8 +117,8 @@ class FilterMapSink<A, E, R, B> implements Sink<B, E, R> {
  * @example
  * ```ts
  * import { Effect, Option } from "effect"
- * import * as Sink from "effect/typed/fx/Sink"
- * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
+ * import { Fx } from "../../../typed/fx.ts"
  *
  * const program = Effect.gen(function* () {
  *   const sink = Sink.make(
@@ -158,8 +158,8 @@ export function compact<A, E, R>(
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Sink from "effect/typed/fx/Sink"
- * import { Fx } from "effect/typed/fx"
+ * import * as Sink from "../../../typed/fx/Sink.ts"
+ * import { Fx } from "../../../typed/fx.ts"
  *
  * const program = Effect.gen(function* () {
  *   const sink = Sink.make(

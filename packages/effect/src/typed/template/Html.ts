@@ -1,11 +1,11 @@
-import { none, type Option, some } from "effect/data/Option"
-import { isNullish, isObject } from "effect/data/Predicate"
-import { map as mapRecord } from "effect/data/Record"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import type { Scope } from "effect/Scope"
-import * as ServiceMap from "effect/ServiceMap"
-import { Fx } from "effect/typed/fx"
+import { none, type Option, some } from "../../data/Option.ts"
+import { isNullish, isObject } from "../../data/Predicate.ts"
+import { map as mapRecord } from "../../data/Record.ts"
+import * as Effect from "../../Effect.ts"
+import * as Layer from "../../Layer.ts"
+import type { Scope } from "../../Scope.ts"
+import * as ServiceMap from "../../ServiceMap.ts"
+import * as Fx from "../fx/Fx.js"
 import { CurrentComputedBehavior } from "../fx/RefSubject/RefSubject.ts"
 import {
   addTemplateHash,
@@ -38,9 +38,9 @@ const toHtmlString = (event: RenderEvent | null | undefined): Option<string> => 
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "effect/typed/template"
- * import { renderToHtml, HtmlRenderTemplate } from "effect/typed/template/Html"
- * import { Fx } from "effect/typed/fx"
+ * import { html } from "../../typed/template.ts"
+ * import { renderToHtml, HtmlRenderTemplate } from "../../typed/template/Html.ts"
+ * import { Fx } from "../../typed/fx.ts"
  * import { Layer } from "effect"
  *
  * const program = Effect.gen(function* () {
@@ -77,9 +77,9 @@ export function renderToHtml<E, R>(
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "effect/typed/template"
- * import { renderToHtmlString, HtmlRenderTemplate } from "effect/typed/template/Html"
- * import { Fx } from "effect/typed/fx"
+ * import { html } from "../../typed/template.ts"
+ * import { renderToHtmlString, HtmlRenderTemplate } from "../../typed/template/Html.ts"
+ * import { Fx } from "../../typed/fx.ts"
  * import { Layer } from "effect"
  *
  * const program = Effect.gen(function* () {
@@ -133,9 +133,9 @@ type HtmlEntry = ReadonlyArray<HtmlChunk>
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "effect/typed/template"
- * import { renderToHtmlString, HtmlRenderTemplate } from "effect/typed/template/Html"
- * import { Fx } from "effect/typed/fx"
+ * import { html } from "../../typed/template.ts"
+ * import { renderToHtmlString, HtmlRenderTemplate } from "../../typed/template/Html.ts"
+ * import { Fx } from "../../typed/fx.ts"
  * import { Layer } from "effect"
  *
  * const program = Effect.gen(function* () {

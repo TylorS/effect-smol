@@ -1,6 +1,6 @@
-import type * as Effect from "effect/Effect"
-import type { Stream } from "effect/stream"
-import type { Fx } from "effect/typed/fx"
+import type * as Effect from "../../Effect.ts"
+import type * as Stream from "../../stream/Stream.ts"
+import type { Fx } from "../fx/Fx.js"
 import type { RenderEvent } from "./RenderEvent.ts"
 
 /**
@@ -16,9 +16,9 @@ import type { RenderEvent } from "./RenderEvent.ts"
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "effect/typed/template"
- * import { Fx } from "effect/typed/fx"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import { html } from "../../typed/template.ts"
+ * import { Fx } from "../../typed/fx.ts"
+ * import * as RefSubject from "../../typed/fx/RefSubject.ts"
  *
  * // Primitives
  * const primitive = html`<div>${"Hello"}</div>`
@@ -49,7 +49,7 @@ export type Renderable<A, E = never, R = never> =
   | ReadonlyArray<Renderable<A, E, R>>
   | Effect.Effect<A, E, R>
   | Stream.Stream<A, E, R>
-  | Fx.Fx<A, E, R>
+  | Fx<A, E, R>
 
 export declare namespace Renderable {
   /**

@@ -1,4 +1,4 @@
-import type * as Option from "effect/data/Option"
+import type * as Option from "../../../../data/Option.ts"
 import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"

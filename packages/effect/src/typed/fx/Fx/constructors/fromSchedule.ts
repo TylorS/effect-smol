@@ -1,5 +1,5 @@
-import { schedule as schedule_Effect } from "effect/Effect"
-import type { Schedule } from "effect/Schedule"
+import { schedule as schedule_Effect } from "../../../../Effect.ts"
+import type { Schedule } from "../../../../Schedule.ts"
 import type { Fx } from "../Fx.ts"
 import { make } from "./make.ts"
 

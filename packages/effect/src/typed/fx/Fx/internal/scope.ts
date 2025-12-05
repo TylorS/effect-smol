@@ -1,7 +1,7 @@
-import * as Effect from "effect/Effect"
-import * as Fiber from "effect/Fiber"
-import type { Scheduler } from "effect/Scheduler"
-import * as Scope from "effect/Scope"
+import * as Effect from "../../../../Effect.ts"
+import * as Fiber from "../../../../Fiber.ts"
+import type { Scheduler } from "../../../../Scheduler.ts"
+import * as Scope from "../../../../Scope.ts"
 
 export type ExecutionStrategy = "sequential" | "parallel"
 
