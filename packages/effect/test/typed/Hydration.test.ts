@@ -1,12 +1,17 @@
 import { assert, describe, it } from "@effect/vitest"
 import type { Scope } from "effect"
 import { Effect } from "effect"
-import { Fx } from "effect/typed/fx/index"
-import * as EventHandler from "effect/typed/template/EventHandler"
-import { HtmlRenderTemplate, renderToHtmlString } from "effect/typed/template/Html"
-import { html, many, type Renderable, type RenderTemplate } from "effect/typed/template/index"
-import { DomRenderTemplate, render } from "effect/typed/template/Render"
-import type { Rendered } from "effect/typed/template/Wire"
+import { Fx } from "effect/typed/fx"
+import type { Renderable, Rendered, RenderTemplate } from "effect/typed/template"
+import {
+  DomRenderTemplate,
+  EventHandler,
+  html,
+  HtmlRenderTemplate,
+  many,
+  render,
+  renderToHtmlString
+} from "effect/typed/template"
 import { Window } from "happy-dom"
 
 describe("Hydration", () => {
