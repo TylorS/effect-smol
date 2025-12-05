@@ -1,2 +1,2 @@
 export * as RefArray from "./RefArray.ts"
-export * from "./RefSubject.ts"
+export * as RefSubject from "./RefSubject.ts"
