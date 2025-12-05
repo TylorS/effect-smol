@@ -280,9 +280,6 @@ importers:
       toml:
         specifier: ^3.0.0
         version: 3.0.0
-      udomdiff:
-        specifier: ^1.1.2
-        version: 1.1.2
       uuid:
         specifier: ^13.0.0
         version: 13.0.0
@@ -6101,9 +6098,6 @@ packages:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
     hasBin: true
-
-  udomdiff@1.1.2:
-    resolution: {integrity: sha512-v+Z8Jal+GtmKGtJ34GIQlCJAxrDt9kbjpNsNvYoAXFyr4gNfWlD4uJJuoNNu/0UTVaKvQwHaSU095YDl71lKPw==}
 
   ufo@1.6.1:
     resolution: {integrity: sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==}
@@ -12328,8 +12322,6 @@ snapshots:
       - supports-color
 
   typescript@5.9.3: {}
-
-  udomdiff@1.1.2: {}
 
   ufo@1.6.1: {}
 
