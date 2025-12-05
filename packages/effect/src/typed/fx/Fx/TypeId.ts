@@ -1,4 +1,4 @@
-import { hasProperty } from "effect/data/Predicate"
+import { hasProperty } from "../../../data/Predicate.ts"
 import type { Fx } from "./Fx.ts"
 
 /**

@@ -1,4 +1,4 @@
-import type * as Exit from "effect/Exit"
+import type * as Exit from "../../../../Exit.ts"
 import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"

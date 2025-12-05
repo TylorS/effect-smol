@@ -1,4 +1,4 @@
-import { type Inspectable, NodeInspectSymbol } from "effect/interfaces/Inspectable"
+import { type Inspectable, NodeInspectSymbol } from "../../interfaces/Inspectable.ts"
 
 /**
  * Represents a parsed HTML template.
@@ -8,8 +8,8 @@ import { type Inspectable, NodeInspectSymbol } from "effect/interfaces/Inspectab
  *
  * @example
  * ```ts
- * import { parse } from "effect/typed/template/Parser"
- * import * as Template from "effect/typed/template/Template"
+ * import { parse } from "../../typed/template/Parser.ts"
+ * import * as Template from "../../typed/template/Template.ts"
  *
  * // Parse a template string
  * const template = parse`<div>Hello ${"world"}</div>`

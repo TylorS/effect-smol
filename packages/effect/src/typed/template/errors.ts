@@ -3,7 +3,7 @@
  *
  * @example
  * ```ts
- * import { CouldNotFindCommentError } from "effect/typed/template/errors"
+ * import { CouldNotFindCommentError } from "../../typed/template/errors.ts"
  *
  * try {
  *   // Hydration code that might fail
@@ -30,7 +30,7 @@ export class CouldNotFindCommentError extends Error {
  *
  * @example
  * ```ts
- * import { CouldNotFindRootElement } from "effect/typed/template/errors"
+ * import { CouldNotFindRootElement } from "../../typed/template/errors.ts"
  *
  * try {
  *   // Hydration code
@@ -57,7 +57,7 @@ export class CouldNotFindRootElement extends Error {
  *
  * @example
  * ```ts
- * import { CouldNotFindManyCommentError } from "effect/typed/template/errors"
+ * import { CouldNotFindManyCommentError } from "../../typed/template/errors.ts"
  *
  * try {
  *   // Hydration code for many()
@@ -84,7 +84,7 @@ export class CouldNotFindManyCommentError extends Error {
  *
  * @example
  * ```ts
- * import { CouldNotFindTemplateHashError } from "effect/typed/template/errors"
+ * import { CouldNotFindTemplateHashError } from "../../typed/template/errors.ts"
  *
  * try {
  *   // Hydration code
@@ -111,7 +111,7 @@ export class CouldNotFindTemplateHashError extends Error {
  *
  * @example
  * ```ts
- * import { CouldNotFindTemplateEndError } from "effect/typed/template/errors"
+ * import { CouldNotFindTemplateEndError } from "../../typed/template/errors.ts"
  *
  * try {
  *   // Hydration code
@@ -154,7 +154,7 @@ export type HydrationError = InstanceType<typeof constructors[number]>
  *
  * @example
  * ```ts
- * import { isHydrationError } from "effect/typed/template/errors"
+ * import { isHydrationError } from "../../typed/template/errors.ts"
  *
  * try {
  *   // Hydration code

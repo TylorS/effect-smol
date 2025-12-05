@@ -1,9 +1,9 @@
-import type * as Equivalence from "effect/data/Equivalence"
-import * as Option from "effect/data/Option"
-import * as Deferred from "effect/Deferred"
-import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
-import * as MutableRef from "effect/MutableRef"
+import type * as Equivalence from "../../../../data/Equivalence.ts"
+import * as Option from "../../../../data/Option.ts"
+import * as Deferred from "../../../../Deferred.ts"
+import * as Effect from "../../../../Effect.ts"
+import * as Exit from "../../../../Exit.ts"
+import * as MutableRef from "../../../../MutableRef.ts"
 
 /**
  * This is the core piece of state for {@link RefSubject}. It presents an Yieldable/Effect interface

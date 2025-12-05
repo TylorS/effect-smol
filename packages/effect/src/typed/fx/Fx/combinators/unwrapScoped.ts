@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect"
-import type * as Scope from "effect/Scope"
+import * as Effect from "../../../../Effect.ts"
+import type * as Scope from "../../../../Scope.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 
