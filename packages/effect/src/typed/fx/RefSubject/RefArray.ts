@@ -29,7 +29,7 @@ export interface RefArray<in out A, in out E = never, out R = never>
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefArray from "../../../typed/fx/RefSubject/RefArray.ts"
+ * import * as RefArray from "@typed/fx/RefSubject/RefArray"
  *
  * // From a plain array
  * const program1 = Effect.gen(function* () {
@@ -481,7 +481,7 @@ export const dedupeWith =
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefArray from "../../../typed/fx/RefSubject/RefArray.ts"
+ * import * as RefArray from "@typed/fx/RefSubject/RefArray"
  *
  * const program = Effect.gen(function* () {
  *   const items = yield* RefArray.make([1, 2, 3, 4, 5])
@@ -508,7 +508,7 @@ export const last = <A, E, R>(ref: RefArray<A, E, R>): RefSubject.Filtered<A, E,
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefArray from "../../../typed/fx/RefSubject/RefArray.ts"
+ * import * as RefArray from "@typed/fx/RefSubject/RefArray"
  *
  * const program = Effect.gen(function* () {
  *   const items = yield* RefArray.make([1, 2, 3, 4, 5])

@@ -15,9 +15,9 @@ import { TEMPLATE_END_COMMENT, TEMPLATE_START_COMMENT } from "./internal/meta.ts
  *
  * @example
  * ```ts
- * import type { HtmlChunk } from "../../typed/template/HtmlChunk.ts"
- * import { templateToHtmlChunks } from "../../typed/template/HtmlChunk.ts"
- * import { parse } from "../../typed/template/Parser.ts"
+ * import type { HtmlChunk } from "@typed/template/HtmlChunk"
+ * import { templateToHtmlChunks } from "@typed/template/HtmlChunk"
+ * import { parse } from "@typed/template/Parser"
  *
  * const template = parse`<div>Hello ${"world"}</div>`
  * const chunks = templateToHtmlChunks(template)
@@ -120,8 +120,8 @@ export class HtmlChunksBuilder {
  *
  * @example
  * ```ts
- * import { templateToHtmlChunks } from "../../typed/template/HtmlChunk.ts"
- * import { parse } from "../../typed/template/Parser.ts"
+ * import { templateToHtmlChunks } from "@typed/template/HtmlChunk"
+ * import { parse } from "@typed/template/Parser"
  *
  * const template = parse`<div class="container">Hello ${"world"}</div>`
  * const chunks = templateToHtmlChunks(template)
@@ -146,8 +146,8 @@ export function templateToHtmlChunks({ nodes }: Template.Template) {
  *
  * @example
  * ```ts
- * import { addTemplateHash, templateToHtmlChunks } from "../../typed/template/HtmlChunk.ts"
- * import { parse } from "../../typed/template/Parser.ts"
+ * import { addTemplateHash, templateToHtmlChunks } from "@typed/template/HtmlChunk"
+ * import { parse } from "@typed/template/Parser"
  *
  * const template = parse`<div>Hello</div>`
  * const chunks = templateToHtmlChunks(template)

@@ -9,7 +9,7 @@
  *
  * @example
  * ```ts
- * import { persistent } from "../../typed/template/Wire.ts"
+ * import { persistent } from "@typed/template/Wire"
  *
  * // Wire is created internally by the template renderer
  * // It wraps DocumentFragments with multiple children
@@ -140,7 +140,7 @@ export function getAllSiblingsBetween(start: Node, end: Node): Array<Node> {
  *
  * @example
  * ```ts
- * import type { Rendered } from "../../typed/template/Wire.ts"
+ * import type { Rendered } from "@typed/template/Wire"
  *
  * // Rendered can be various DOM node types
  * const node: Rendered = document.createElement("div")
@@ -253,7 +253,7 @@ export function isArray(node: Rendered): node is ReadonlyArray<Rendered> {
  *
  * @example
  * ```ts
- * import { toHtml } from "../../typed/template/Wire.ts"
+ * import { toHtml } from "@typed/template/Wire"
  *
  * const div = document.createElement("div")
  * div.textContent = "Hello"
@@ -282,7 +282,7 @@ export function toHtml(node: Rendered): string {
  *
  * @example
  * ```ts
- * import { getElements } from "../../typed/template/Wire.ts"
+ * import { getElements } from "@typed/template/Wire"
  *
  * const div = document.createElement("div")
  * const span = document.createElement("span")

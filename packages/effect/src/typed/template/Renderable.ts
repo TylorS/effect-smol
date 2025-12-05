@@ -16,9 +16,9 @@ import type { RenderEvent } from "./RenderEvent.ts"
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { Fx } from "../../typed/fx.ts"
- * import * as RefSubject from "../../typed/fx/RefSubject.ts"
+ * import { html } from "@typed/template"
+ * import { Fx } from "@typed/fx"
+ * import * as RefSubject from "@typed/fx/RefSubject"
  *
  * // Primitives
  * const primitive = html`<div>${"Hello"}</div>`
