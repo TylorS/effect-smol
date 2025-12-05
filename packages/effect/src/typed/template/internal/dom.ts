@@ -1,6 +1,3 @@
-/// <reference types="./udomdiff.d.ts" />
-
-import udomdiff from "udomdiff"
 import { isNullish, isObject } from "../../../data/Predicate.ts"
 import * as Effect from "../../../Effect.ts"
 import { CouldNotFindCommentError } from "../errors.ts"
@@ -13,6 +10,7 @@ import {
   RenderEventTypeId
 } from "../RenderEvent.js"
 import { diffable, isComment } from "../Wire.ts"
+import { diff } from "./diff.ts"
 import { renderToString } from "./encoding.ts"
 
 export function makeTextContentUpdater(element: Node) {
@@ -249,8 +247,7 @@ export function diffChildren(
   nextNodes: Array<Node>,
   document: Document
 ) {
-  return udomdiff(
-    comment.parentNode!,
+  return diff(
     currentNodes,
     nextNodes,
     diffable(document),
