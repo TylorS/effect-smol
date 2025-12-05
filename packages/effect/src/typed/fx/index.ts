@@ -1,4 +1,4 @@
-export * as Fx from "./Fx/index.ts"
+export * as Fx from "./Fx.ts"
 export * as Push from "./Push.ts"
 export * as RefArray from "./RefSubject/RefArray.ts"
 export * as RefSubject from "./RefSubject/RefSubject.ts"

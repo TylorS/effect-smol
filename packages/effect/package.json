@@ -49,6 +49,7 @@
     "./unstable/workflow": "./src/unstable/workflow/index.ts",
     "./unstable/workers": "./src/unstable/workers/index.ts",
     "./typed/fx": "./src/typed/fx/index.ts",
+    "./typed/fx/Fx": "./src/typed/fx/Fx/index.ts",
     "./typed/template": "./src/typed/template/index.ts",
     "./*": "./src/*.ts",
     "./internal/*": null,
