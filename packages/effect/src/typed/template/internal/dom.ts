@@ -245,12 +245,12 @@ export function diffChildren(
   comment: Comment,
   currentNodes: Array<Node>,
   nextNodes: Array<Node>,
-  document: Document
+  get: (entry: Node, action: number) => Node
 ) {
   return diff(
     currentNodes,
     nextNodes,
-    diffable(document),
+    get,
     comment
   )
 }
@@ -293,6 +293,7 @@ export function makeNodeUpdater(
   nodes: Array<Node> = []
 ) {
   const element = comment.parentNode as HTMLElement | SVGElement
+  const get = diffable(document)
   const updateCommentText = (value: unknown) => {
     if (text === null) {
       text = document.createTextNode("")
@@ -300,11 +301,11 @@ export function makeNodeUpdater(
     }
 
     text.textContent = renderToString(value, "")
-    nodes = diffChildren(comment, nodes, [text], document)
+    nodes = diffChildren(comment, nodes, [text], get)
   }
 
   const updateNodes = (updatedNodes: Array<Node>) => {
-    nodes = diffChildren(comment, nodes, updatedNodes, document)
+    nodes = diffChildren(comment, nodes, updatedNodes, get)
   }
 
   return (value: unknown) => {
