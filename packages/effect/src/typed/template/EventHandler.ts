@@ -17,8 +17,8 @@ export type EventHandlerTypeId = typeof EventHandlerTypeId
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
- * import { html } from "../../typed/template.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
+ * import { html } from "@typed/template"
  *
  * // Simple event handler
  * const handleClick = EventHandler.make((event: MouseEvent) => {
@@ -65,8 +65,8 @@ export type EventOptions = {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
- * import { html } from "../../typed/template.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
+ * import { html } from "@typed/template"
  *
  * // Simple handler
  * const clickHandler = EventHandler.make((event) => {
@@ -123,7 +123,7 @@ export function make<Ev extends Event, E = never, R = never>(
  * @example
  * ```ts
  * import { Effect, Context } from "effect"
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * interface Database {
  *   readonly save: (data: string) => Effect.Effect<void>
@@ -163,7 +163,7 @@ export const provide: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * const handler = EventHandler.make((event) =>
  *   Effect.fail("Something went wrong")
@@ -212,7 +212,7 @@ export function fromEffectOrEventHandler<Ev extends Event, E = never, R = never>
  *
  * @example
  * ```ts
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * const handler = EventHandler.make((event) => console.log("Click"))
  * const isHandler = EventHandler.isEventHandler(handler)
@@ -251,8 +251,8 @@ export function handleEventOptions<Ev extends Event>(
  *
  * @example
  * ```ts
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
- * import { html } from "../../typed/template.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
+ * import { html } from "@typed/template"
  *
  * const handler = EventHandler.make((event) => {
  *   console.log("Form submit prevented")
@@ -277,7 +277,7 @@ export function preventDefault<Ev extends Event, E = never, R = never>(
  *
  * @example
  * ```ts
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * const handler = EventHandler.make((event) => {
  *   console.log("Event stopped")
@@ -300,7 +300,7 @@ export function stopPropagation<Ev extends Event, E = never, R = never>(
  *
  * @example
  * ```ts
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * const handler = EventHandler.make((event) => {
  *   console.log("Immediate propagation stopped")
@@ -323,7 +323,7 @@ export function stopImmediatePropagation<Ev extends Event, E = never, R = never>
  *
  * @example
  * ```ts
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * const handler = EventHandler.make((event) => {
  *   console.log("This will only run once")
@@ -346,7 +346,7 @@ export function once<Ev extends Event, E = never, R = never>(
  *
  * @example
  * ```ts
- * import * as EventHandler from "../../typed/template/EventHandler.ts"
+ * import * as EventHandler from "@typed/template/EventHandler"
  *
  * const handler = EventHandler.make((event) => {
  *   // Passive handlers can't call preventDefault

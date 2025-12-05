@@ -53,7 +53,7 @@ import { getAllSiblingsBetween, isText, persistent, type Rendered } from "./Wire
  *
  * @example
  * ```ts
- * import { CurrentRenderDocument } from "../../typed/template/Render.ts"
+ * import { CurrentRenderDocument } from "@typed/template/Render"
  * import { Layer } from "effect"
  *
  * // Override document for testing
@@ -76,8 +76,8 @@ export const CurrentRenderDocument = ServiceMap.Reference<Document>("RenderDocum
  *
  * @example
  * ```ts
- * import { CurrentRenderQueue } from "../../typed/template/Render.ts"
- * import { MixedRenderQueue } from "../../typed/template/RenderQueue.ts"
+ * import { CurrentRenderQueue } from "@typed/template/Render"
+ * import { MixedRenderQueue } from "@typed/template/RenderQueue"
  * import { Layer } from "effect"
  *
  * // Use a custom render queue
@@ -100,8 +100,8 @@ export const CurrentRenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQu
  *
  * @example
  * ```ts
- * import { CurrentRenderPriority } from "../../typed/template/Render.ts"
- * import { RenderPriority } from "../../typed/template/RenderQueue.ts"
+ * import { CurrentRenderPriority } from "@typed/template/Render"
+ * import { RenderPriority } from "@typed/template/RenderQueue"
  * import { Layer } from "effect"
  *
  * // Use synchronous priority for immediate updates
@@ -128,9 +128,9 @@ export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRender
  * @example
  * ```ts
  * import { Effect, Layer } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
- * import { Fx } from "../../typed/fx.ts"
+ * import { html } from "@typed/template"
+ * import { DomRenderTemplate, render } from "@typed/template/Render"
+ * import { Fx } from "@typed/fx"
  *
  * const program = Effect.gen(function* () {
  *   const template = html`<div>Hello, world!</div>`
@@ -289,10 +289,10 @@ export type ToRendered<T extends RenderEvent | null> = Rendered | (T extends nul
  * @example
  * ```ts
  * import { Effect, Layer } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
- * import { Fx } from "../../typed/fx.ts"
- * import * as RefSubject from "../../typed/fx/RefSubject.ts"
+ * import { html } from "@typed/template"
+ * import { DomRenderTemplate, render } from "@typed/template/Render"
+ * import { Fx } from "@typed/fx"
+ * import * as RefSubject from "@typed/fx/RefSubject"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(0)
