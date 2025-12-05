@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 import * as Fx from "effect/typed/fx/Fx"
-import * as Versioned from "effect/typed/fx/Versioned/"
+import * as Versioned from "effect/typed/fx/Versioned"
 
 describe("Versioned", () => {
   describe("Service", () => {
