@@ -1,4 +1,4 @@
-import * as ServiceMap from "effect/ServiceMap"
+import * as ServiceMap from "../../ServiceMap.ts"
 import { getHydrationRoot, type HydrationNode } from "./internal/hydration.ts"
 
 /**

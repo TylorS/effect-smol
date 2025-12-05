@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect"
-import { dual } from "effect/Function"
+import * as Effect from "../../../../Effect.ts"
+import { dual } from "../../../../Function.ts"
 import { make } from "../constructors/make.ts"
 import { succeed } from "../constructors/succeed.ts"
 import type { Fx } from "../Fx.ts"

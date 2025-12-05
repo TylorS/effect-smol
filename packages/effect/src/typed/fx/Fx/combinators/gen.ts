@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect"
+import * as Effect from "../../../../Effect.ts"
 import type { Fx } from "../Fx.ts"
 import { unwrap } from "./unwrap.ts"
 

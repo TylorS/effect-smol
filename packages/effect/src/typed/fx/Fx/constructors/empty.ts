@@ -1,4 +1,4 @@
-import { void as void_ } from "effect/Effect"
+import { void as void_ } from "../../../../Effect.ts"
 import type { Fx } from "../Fx.ts"
 import { make } from "./make.ts"
 

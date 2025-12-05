@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect"
-import * as Fiber from "effect/Fiber"
+import * as Effect from "../../../../Effect.ts"
+import * as Fiber from "../../../../Fiber.ts"
 
 export class MulticastEffect<A, E, R> extends Effect.YieldableClass<A, E, R> {
   private _fiber: Fiber.Fiber<A, E> | null = null

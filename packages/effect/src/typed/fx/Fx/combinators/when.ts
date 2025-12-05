@@ -1,5 +1,5 @@
-import { dual } from "effect/Function"
-import type { Scope } from "effect/Scope"
+import { dual } from "../../../../Function.ts"
+import type { Scope } from "../../../../Scope.ts"
 import { succeed } from "../constructors/succeed.ts"
 import type { Fx } from "../Fx.ts"
 import { switchMap } from "./switchMap.ts"

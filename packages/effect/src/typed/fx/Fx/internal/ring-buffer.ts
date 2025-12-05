@@ -1,4 +1,4 @@
-import { type Effect, flatMap, forEach, void as void_ } from "effect/Effect"
+import { type Effect, flatMap, forEach, void as void_ } from "../../../../Effect.ts"
 
 export class RingBuffer<A> {
   readonly capacity: number

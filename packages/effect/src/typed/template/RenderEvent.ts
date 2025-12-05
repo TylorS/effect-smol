@@ -1,4 +1,4 @@
-import { hasProperty } from "effect/data/Predicate"
+import { hasProperty } from "../../data/Predicate.ts"
 import { type Rendered, toHtml } from "./Wire.ts"
 
 /**
@@ -7,9 +7,9 @@ import { type Rendered, toHtml } from "./Wire.ts"
  *
  * @example
  * ```ts
- * import { html } from "effect/typed/template"
- * import { DomRenderEvent, HtmlRenderEvent } from "effect/typed/template/RenderEvent"
- * import { Fx } from "effect/typed/fx"
+ * import { html } from "../../typed/template.ts"
+ * import { DomRenderEvent, HtmlRenderEvent } from "../../typed/template/RenderEvent.ts"
+ * import { Fx } from "../../typed/fx.ts"
  *
  * const template = html`<div>Hello</div>`
  *
@@ -42,7 +42,7 @@ export type RenderEventTypeId = typeof RenderEventTypeId
  *
  * @example
  * ```ts
- * import { DomRenderEvent } from "effect/typed/template/RenderEvent"
+ * import { DomRenderEvent } from "../../typed/template/RenderEvent.ts"
  *
  * const node = document.createElement("div")
  * const event = DomRenderEvent(node)
@@ -72,7 +72,7 @@ export interface DomRenderEvent {
  *
  * @example
  * ```ts
- * import { DomRenderEvent } from "effect/typed/template/RenderEvent"
+ * import { DomRenderEvent } from "../../typed/template/RenderEvent.ts"
  *
  * const div = document.createElement("div")
  * div.textContent = "Hello"
@@ -94,7 +94,7 @@ export const DomRenderEvent = (content: Rendered): DomRenderEvent => ({
  *
  * @example
  * ```ts
- * import { HtmlRenderEvent } from "effect/typed/template/RenderEvent"
+ * import { HtmlRenderEvent } from "../../typed/template/RenderEvent.ts"
  *
  * const event = HtmlRenderEvent("<div>Hello</div>", true)
  *
@@ -129,7 +129,7 @@ export interface HtmlRenderEvent {
  *
  * @example
  * ```ts
- * import { HtmlRenderEvent } from "effect/typed/template/RenderEvent"
+ * import { HtmlRenderEvent } from "../../typed/template/RenderEvent.ts"
  *
  * // Create a single-chunk HTML event
  * const event = HtmlRenderEvent("<div>Hello</div>", true)
@@ -156,7 +156,7 @@ export const HtmlRenderEvent = (html: string, last: boolean): HtmlRenderEvent =>
  *
  * @example
  * ```ts
- * import { isRenderEvent, DomRenderEvent } from "effect/typed/template/RenderEvent"
+ * import { isRenderEvent, DomRenderEvent } from "../../typed/template/RenderEvent.ts"
  *
  * const event = DomRenderEvent(document.createElement("div"))
  * console.log(isRenderEvent(event)) // true
@@ -175,7 +175,7 @@ export function isRenderEvent(event: unknown): event is RenderEvent {
  *
  * @example
  * ```ts
- * import { isDomRenderEvent, DomRenderEvent } from "effect/typed/template/RenderEvent"
+ * import { isDomRenderEvent, DomRenderEvent } from "../../typed/template/RenderEvent.ts"
  *
  * const event = DomRenderEvent(document.createElement("div"))
  * console.log(isDomRenderEvent(event)) // true
@@ -193,7 +193,7 @@ export function isDomRenderEvent(event: unknown): event is DomRenderEvent {
  *
  * @example
  * ```ts
- * import { isHtmlRenderEvent, HtmlRenderEvent } from "effect/typed/template/RenderEvent"
+ * import { isHtmlRenderEvent, HtmlRenderEvent } from "../../typed/template/RenderEvent.ts"
  *
  * const event = HtmlRenderEvent("<div>Hello</div>", true)
  * console.log(isHtmlRenderEvent(event)) // true

@@ -1,6 +1,6 @@
-import type { RunOptions } from "effect/Effect"
-import * as Effect from "effect/Effect"
-import type * as Exit from "effect/Exit"
+import type { RunOptions } from "../../../../Effect.ts"
+import * as Effect from "../../../../Effect.ts"
+import type * as Exit from "../../../../Exit.ts"
 import type { Fx } from "../Fx.ts"
 import { drain } from "./observe.ts"
 

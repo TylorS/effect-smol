@@ -1,6 +1,6 @@
-import type * as Duration from "effect/Duration"
-import { flatMap, sleep } from "effect/Effect"
-import { dual } from "effect/Function"
+import type * as Duration from "../../../../Duration.ts"
+import { flatMap, sleep } from "../../../../Effect.ts"
+import { dual } from "../../../../Function.ts"
 import type { Fx } from "../Fx.ts"
 import { make } from "./make.ts"
 

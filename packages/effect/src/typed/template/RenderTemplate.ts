@@ -1,7 +1,8 @@
-import { map } from "effect/Effect"
-import type { Scope } from "effect/Scope"
-import * as ServiceMap from "effect/ServiceMap"
-import { Fx } from "effect/typed/fx"
+import { map } from "../../Effect.ts"
+import type { Scope } from "../../Scope.ts"
+import * as ServiceMap from "../../ServiceMap.ts"
+import type { Fx } from "../fx/Fx.js"
+import { unwrap } from "../fx/Fx.js"
 import type { Renderable } from "./Renderable.ts"
 import type { RenderEvent } from "./RenderEvent.ts"
 
@@ -14,10 +15,10 @@ import type { RenderEvent } from "./RenderEvent.ts"
  * @example
  * ```ts
  * import { Effect, Layer } from "effect"
- * import { html } from "effect/typed/template"
- * import { DomRenderTemplate } from "effect/typed/template/Render"
- * import { HtmlRenderTemplate } from "effect/typed/template/Html"
- * import { Fx } from "effect/typed/fx"
+ * import { html } from "../../typed/template.ts"
+ * import { DomRenderTemplate } from "../../typed/template/Render.ts"
+ * import { HtmlRenderTemplate } from "../../typed/template/Html.ts"
+ * import { Fx } from "../../typed/fx.ts"
  *
  * // Use DOM rendering for browser
  * const browserApp = Effect.gen(function* () {
@@ -44,7 +45,7 @@ export class RenderTemplate extends ServiceMap.Service<RenderTemplate, {
   <const Values extends ArrayLike<Renderable.Any>>(
     template: TemplateStringsArray,
     values: Values
-  ): Fx.Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope>
+  ): Fx<RenderEvent, Renderable.Error<Values[number]>, Renderable.Services<Values[number]> | Scope>
 }>()("RenderTemplate") {}
 
 /**
@@ -56,9 +57,9 @@ export class RenderTemplate extends ServiceMap.Service<RenderTemplate, {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "effect/typed/template"
- * import { DomRenderTemplate, render } from "effect/typed/template/Render"
- * import { Fx } from "effect/typed/fx"
+ * import { html } from "../../typed/template.ts"
+ * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
+ * import { Fx } from "../../typed/fx.ts"
  * import { Layer } from "effect"
  *
  * // Simple static template
@@ -94,10 +95,10 @@ export class RenderTemplate extends ServiceMap.Service<RenderTemplate, {
 export function html<const Values extends ReadonlyArray<Renderable.Any> = readonly []>(
   template: TemplateStringsArray,
   ...values: Values
-): Fx.Fx<
+): Fx<
   RenderEvent,
   Renderable.Error<Values[number]>,
   Renderable.Services<Values[number]> | Scope | RenderTemplate
 > {
-  return Fx.unwrap(map(RenderTemplate.asEffect(), (render) => render(template, values)))
+  return unwrap(map(RenderTemplate.asEffect(), (render) => render(template, values)))
 }

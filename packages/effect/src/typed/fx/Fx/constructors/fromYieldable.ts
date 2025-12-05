@@ -1,5 +1,5 @@
-import type { Yieldable } from "effect/Effect"
-import { matchCauseEffect } from "effect/Effect"
+import type { Yieldable } from "../../../../Effect.ts"
+import { matchCauseEffect } from "../../../../Effect.ts"
 import type { Fx } from "../Fx.ts"
 import { make } from "./make.ts"
 

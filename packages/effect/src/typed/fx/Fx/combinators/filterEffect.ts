@@ -1,5 +1,5 @@
-import type * as Effect from "effect/Effect"
-import { dual } from "effect/Function"
+import type * as Effect from "../../../../Effect.ts"
+import { dual } from "../../../../Function.ts"
 import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"

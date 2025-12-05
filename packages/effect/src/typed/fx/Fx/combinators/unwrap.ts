@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect"
+import * as Effect from "../../../../Effect.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 

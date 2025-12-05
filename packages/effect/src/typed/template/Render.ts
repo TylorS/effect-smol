@@ -1,14 +1,14 @@
-import * as Cause from "effect/Cause"
-import { getOrUndefined, isNone, isOption } from "effect/data/Option"
-import { isFunction, isNullish, isObject } from "effect/data/Predicate"
-import { map as mapRecord } from "effect/data/Record"
-import * as Effect from "effect/Effect"
-import { constVoid, dual, flow, identity } from "effect/Function"
-import * as Layer from "effect/Layer"
-import * as Scope from "effect/Scope"
-import * as ServiceMap from "effect/ServiceMap"
-import { Fx } from "effect/typed/fx"
-import * as Sink from "effect/typed/fx/Sink"
+import * as Cause from "../../Cause.ts"
+import { getOrUndefined, isNone, isOption } from "../../data/Option.ts"
+import { isFunction, isNullish, isObject } from "../../data/Predicate.ts"
+import { map as mapRecord } from "../../data/Record.ts"
+import * as Effect from "../../Effect.ts"
+import { constVoid, dual, flow, identity } from "../../Function.ts"
+import * as Layer from "../../Layer.ts"
+import * as Scope from "../../Scope.ts"
+import * as ServiceMap from "../../ServiceMap.ts"
+import * as Fx from "../fx/Fx.js"
+import * as Sink from "../fx/Sink/Sink.ts"
 import { CouldNotFindCommentError, isHydrationError } from "./errors.ts"
 import * as EventHandler from "./EventHandler.ts"
 import { type EventSource, makeEventSource } from "./EventSource.ts"
@@ -53,7 +53,7 @@ import { getAllSiblingsBetween, isText, persistent, type Rendered } from "./Wire
  *
  * @example
  * ```ts
- * import { CurrentRenderDocument } from "effect/typed/template/Render"
+ * import { CurrentRenderDocument } from "../../typed/template/Render.ts"
  * import { Layer } from "effect"
  *
  * // Override document for testing
@@ -76,8 +76,8 @@ export const CurrentRenderDocument = ServiceMap.Reference<Document>("RenderDocum
  *
  * @example
  * ```ts
- * import { CurrentRenderQueue } from "effect/typed/template/Render"
- * import { MixedRenderQueue } from "effect/typed/template/RenderQueue"
+ * import { CurrentRenderQueue } from "../../typed/template/Render.ts"
+ * import { MixedRenderQueue } from "../../typed/template/RenderQueue.ts"
  * import { Layer } from "effect"
  *
  * // Use a custom render queue
@@ -100,8 +100,8 @@ export const CurrentRenderQueue = ServiceMap.Reference<RQ.RenderQueue>("RenderQu
  *
  * @example
  * ```ts
- * import { CurrentRenderPriority } from "effect/typed/template/Render"
- * import { RenderPriority } from "effect/typed/template/RenderQueue"
+ * import { CurrentRenderPriority } from "../../typed/template/Render.ts"
+ * import { RenderPriority } from "../../typed/template/RenderQueue.ts"
  * import { Layer } from "effect"
  *
  * // Use synchronous priority for immediate updates
@@ -128,9 +128,9 @@ export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRender
  * @example
  * ```ts
  * import { Effect, Layer } from "effect"
- * import { html } from "effect/typed/template"
- * import { DomRenderTemplate, render } from "effect/typed/template/Render"
- * import { Fx } from "effect/typed/fx"
+ * import { html } from "../../typed/template.ts"
+ * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
+ * import { Fx } from "../../typed/fx.ts"
  *
  * const program = Effect.gen(function* () {
  *   const template = html`<div>Hello, world!</div>`
@@ -289,10 +289,10 @@ export type ToRendered<T extends RenderEvent | null> = Rendered | (T extends nul
  * @example
  * ```ts
  * import { Effect, Layer } from "effect"
- * import { html } from "effect/typed/template"
- * import { DomRenderTemplate, render } from "effect/typed/template/Render"
- * import { Fx } from "effect/typed/fx"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import { html } from "../../typed/template.ts"
+ * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
+ * import { Fx } from "../../typed/fx.ts"
+ * import * as RefSubject from "../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(0)

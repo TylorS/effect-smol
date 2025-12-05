@@ -1,15 +1,17 @@
-import * as Effect from "effect/Effect"
-import { Fx, Sink } from "effect/typed/fx"
+import * as Effect from "../../../Effect.ts"
+import type { Fx } from "../../fx/Fx.js"
+import { make } from "../../fx/Fx.js"
+import { make as makeSink, withEarlyExit } from "../../fx/Sink/index.ts"
 import type { HtmlRenderEvent } from "../RenderEvent.ts"
 import { isHtmlRenderEvent } from "../RenderEvent.ts"
 
 export function takeOneIfNotRenderEvent<A, E, R>(
-  fx: Fx.Fx<A, E, R>
-): Fx.Fx<A | HtmlRenderEvent, E, R> {
-  return Fx.make<A | HtmlRenderEvent, E, R>((sink) =>
-    Sink.withEarlyExit(sink, (sink) =>
+  fx: Fx<A, E, R>
+): Fx<A | HtmlRenderEvent, E, R> {
+  return make<A | HtmlRenderEvent, E, R>((sink) =>
+    withEarlyExit(sink, (sink) =>
       fx.run(
-        Sink.make(sink.onFailure, (event) => {
+        makeSink(sink.onFailure, (event) => {
           if (isHtmlRenderEvent(event) && !event.last) return sink.onSuccess(event)
           return Effect.flatMap(sink.onSuccess(event), () => sink.earlyExit)
         })

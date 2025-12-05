@@ -1,4 +1,4 @@
-import { dual } from "effect/Function"
+import { dual } from "../../../../Function.ts"
 import * as combinators from "../../Sink/combinators.ts"
 import { make as makeSink } from "../../Sink/Sink.ts"
 import { make as makeFx } from "../constructors/make.ts"

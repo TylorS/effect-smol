@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect"
+import * as Effect from "../../../../Effect.ts"
 import * as Sink from "../../Sink/index.ts"
 import { make } from "../constructors/make.ts"
 import { succeed } from "../constructors/succeed.ts"

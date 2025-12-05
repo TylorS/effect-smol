@@ -1,5 +1,5 @@
-import * as Cause from "effect/Cause"
-import { flow } from "effect/Function"
+import * as Cause from "../../../../Cause.ts"
+import { flow } from "../../../../Function.ts"
 import type { Fx } from "../Fx.ts"
 import { failCause } from "./failCause.ts"
 

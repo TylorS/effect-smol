@@ -1,5 +1,5 @@
-import type * as Duration from "effect/Duration"
-import { spaced } from "effect/Schedule"
+import type * as Duration from "../../../../Duration.ts"
+import { spaced } from "../../../../Schedule.ts"
 import type { Fx } from "../Fx.ts"
 import { fromSchedule } from "./fromSchedule.ts"
 

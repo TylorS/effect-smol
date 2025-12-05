@@ -1,18 +1,18 @@
-import type * as Cause from "effect/Cause"
-import * as Array from "effect/collections/Array"
-import type { Equivalence } from "effect/data/Equivalence"
-import * as Option from "effect/data/Option"
-import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
-import * as Fiber from "effect/Fiber"
-import { dual, identity } from "effect/Function"
-import { equals } from "effect/interfaces/Equal"
-import { pipeArguments } from "effect/interfaces/Pipeable"
-import * as Layer from "effect/Layer"
-import * as MutableRef from "effect/MutableRef"
-import { sum } from "effect/Number"
-import * as Scope from "effect/Scope"
-import * as ServiceMap from "effect/ServiceMap"
+import type * as Cause from "../../../Cause.ts"
+import * as Array from "../../../collections/Array.ts"
+import type { Equivalence } from "../../../data/Equivalence.ts"
+import * as Option from "../../../data/Option.ts"
+import * as Effect from "../../../Effect.ts"
+import * as Exit from "../../../Exit.ts"
+import * as Fiber from "../../../Fiber.ts"
+import { dual, identity } from "../../../Function.ts"
+import { equals } from "../../../interfaces/Equal.ts"
+import { pipeArguments } from "../../../interfaces/Pipeable.ts"
+import * as Layer from "../../../Layer.ts"
+import * as MutableRef from "../../../MutableRef.ts"
+import { sum } from "../../../Number.ts"
+import * as Scope from "../../../Scope.ts"
+import * as ServiceMap from "../../../ServiceMap.ts"
 import type { Bounds } from "../Fx/combinators/slice.ts"
 import * as Fx from "../Fx/index.ts"
 import * as DeferredRef from "../Fx/internal/DeferredRef.ts"
@@ -41,8 +41,8 @@ export type FilteredTypeId = typeof FilteredTypeId
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
- * import { Fx } from "effect/typed/fx"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
+ * import { Fx } from "../../../typed/fx.ts"
  *
  * // Create a RefSubject and derive a Computed from it
  * const program = Effect.gen(function* () {
@@ -88,7 +88,7 @@ export declare namespace Computed {
  * @example
  * ```ts
  * import { Effect, Option } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * // Create a RefSubject and filter it
  * const program = Effect.gen(function* () {
@@ -125,7 +125,7 @@ export interface Filtered<out A, out E = never, out R = never>
    * @example
    * ```ts
    * import { Effect, Option } from "effect"
-   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
    *
    * const program = Effect.gen(function* () {
    *   const filtered = RefSubject.filterMap(
@@ -169,8 +169,8 @@ export interface GetSetDelete<A, E, R> {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
- * import { Fx } from "effect/typed/fx"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
+ * import { Fx } from "../../../typed/fx.ts"
  *
  * // Create a RefSubject with an initial value
  * const program = Effect.gen(function* () {
@@ -210,7 +210,7 @@ export interface RefSubject<A, E = never, R = never> extends Computed<A, E, R>, 
    * @example
    * ```ts
    * import { Effect } from "effect"
-   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
    *
    * const program = Effect.gen(function* () {
    *   const balance = yield* RefSubject.make(100)
@@ -239,7 +239,7 @@ export interface RefSubject<A, E = never, R = never> extends Computed<A, E, R>, 
    * @example
    * ```ts
    * import { Effect } from "effect"
-   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
    *
    * const program = Effect.gen(function* () {
    *   const ref = yield* RefSubject.make(0)
@@ -527,8 +527,8 @@ class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Sco
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
- * import { Fx } from "effect/typed/fx"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
+ * import { Fx } from "../../../typed/fx.ts"
  *
  * // From a plain value
  * const program1 = Effect.gen(function* () {
@@ -578,7 +578,7 @@ export function make<A, E = never, R = never>(
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const ref = yield* RefSubject.fromEffect(
@@ -606,8 +606,8 @@ export function fromEffect<A, E, R>(
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
- * import { Fx } from "effect/typed/fx"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
+ * import { Fx } from "../../../typed/fx.ts"
  *
  * const program = Effect.gen(function* () {
  *   // Create an Fx that emits multiple values
@@ -805,7 +805,7 @@ function sendEvent<A, E, R, R2>(
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(0)
@@ -838,7 +838,7 @@ export const set: {
  * @example
  * ```ts
  * import { Effect, Option } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(0)
@@ -871,7 +871,7 @@ export {
    * @example
    * ```ts
    * import { Effect, Option } from "effect"
-   * import * as RefSubject from "effect/typed/fx/RefSubject"
+   * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
    *
    * const program = Effect.gen(function* () {
    *   const ref = yield* RefSubject.make(10)
@@ -900,7 +900,7 @@ export {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(5)
@@ -939,7 +939,7 @@ export const updateEffect: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(5)
@@ -972,7 +972,7 @@ export const update: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(5)
@@ -1018,7 +1018,7 @@ export const modifyEffect: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(5)
@@ -1048,7 +1048,7 @@ export const modify: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const ref = yield* RefSubject.make(42)
@@ -1076,7 +1076,7 @@ const isRefSubjectDataFirst = (args: IArguments) => isRefSubject(args[0])
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const balance = yield* RefSubject.make(100)
@@ -1157,7 +1157,7 @@ export const runUpdates: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(0)
@@ -1185,7 +1185,7 @@ export function increment<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<nu
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(10)
@@ -1296,7 +1296,7 @@ function getDefaultBounds(options?: Partial<Bounds>): Bounds | undefined {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const user = yield* RefSubject.make({ name: "Alice", age: 30 })
@@ -1370,7 +1370,7 @@ export type Identifier<T> = T extends RefSubject.Service<infer R, infer _Id, inf
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(5)
@@ -1435,7 +1435,7 @@ export const mapEffect: {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const count = yield* RefSubject.make(5)
@@ -1489,7 +1489,7 @@ export const map: {
  * @example
  * ```ts
  * import { Effect, Option } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const numbers = yield* RefSubject.make([1, 2, 3, 4, 5])
@@ -1540,7 +1540,7 @@ export const filterMapEffect: {
  * @example
  * ```ts
  * import { Effect, Option } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const numbers = yield* RefSubject.make([1, 2, 3, 4, 5])
@@ -1589,7 +1589,7 @@ export const filterMap: {
  * @example
  * ```ts
  * import { Effect, Option } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const maybeValue = yield* RefSubject.make(Option.some(42))
@@ -1832,7 +1832,7 @@ type RefSubjectTupleFrom<
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const firstName = yield* RefSubject.make("Alice")
@@ -1880,7 +1880,7 @@ export function struct<
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as RefSubject from "effect/typed/fx/RefSubject"
+ * import * as RefSubject from "../../../typed/fx/RefSubject.ts"
  *
  * const program = Effect.gen(function* () {
  *   const x = yield* RefSubject.make(10)
