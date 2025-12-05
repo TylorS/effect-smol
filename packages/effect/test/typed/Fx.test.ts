@@ -1,7 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
-import * as Fx from "effect/typed/fx/Fx"
-import * as Sink from "effect/typed/fx/Sink"
+import { Fx, Sink } from "effect/typed/fx"
 
 describe("Fx", () => {
   it.effect("fromIterable", () =>
