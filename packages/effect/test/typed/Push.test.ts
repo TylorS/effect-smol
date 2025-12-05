@@ -1,8 +1,6 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
-import * as Fx from "effect/typed/fx/Fx"
-import * as Push from "effect/typed/fx/Push"
-import * as Sink from "effect/typed/fx/Sink"
+import { Fx, Push, Sink } from "effect/typed/fx"
 
 describe("Push", () => {
   describe("Service", () => {
