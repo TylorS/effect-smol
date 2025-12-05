@@ -47,8 +47,8 @@ class MapSink<A, E, R, B> implements Sink<B, E, R> {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Sink from "../../../typed/fx/Sink.ts"
- * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "@typed/fx/Sink"
+ * import { Fx } from "@typed/fx"
  *
  * const program = Effect.gen(function* () {
  *   const sink = Sink.make(
@@ -117,8 +117,8 @@ class FilterMapSink<A, E, R, B> implements Sink<B, E, R> {
  * @example
  * ```ts
  * import { Effect, Option } from "effect"
- * import * as Sink from "../../../typed/fx/Sink.ts"
- * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "@typed/fx/Sink"
+ * import { Fx } from "@typed/fx"
  *
  * const program = Effect.gen(function* () {
  *   const sink = Sink.make(
@@ -158,8 +158,8 @@ export function compact<A, E, R>(
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import * as Sink from "../../../typed/fx/Sink.ts"
- * import { Fx } from "../../../typed/fx.ts"
+ * import * as Sink from "@typed/fx/Sink"
+ * import { Fx } from "@typed/fx"
  *
  * const program = Effect.gen(function* () {
  *   const sink = Sink.make(

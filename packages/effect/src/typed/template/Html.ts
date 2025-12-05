@@ -38,9 +38,9 @@ const toHtmlString = (event: RenderEvent | null | undefined): Option<string> => 
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { renderToHtml, HtmlRenderTemplate } from "../../typed/template/Html.ts"
- * import { Fx } from "../../typed/fx.ts"
+ * import { html } from "@typed/template"
+ * import { renderToHtml, HtmlRenderTemplate } from "@typed/template/Html"
+ * import { Fx } from "@typed/fx"
  * import { Layer } from "effect"
  *
  * const program = Effect.gen(function* () {
@@ -77,9 +77,9 @@ export function renderToHtml<E, R>(
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { renderToHtmlString, HtmlRenderTemplate } from "../../typed/template/Html.ts"
- * import { Fx } from "../../typed/fx.ts"
+ * import { html } from "@typed/template"
+ * import { renderToHtmlString, HtmlRenderTemplate } from "@typed/template/Html"
+ * import { Fx } from "@typed/fx"
  * import { Layer } from "effect"
  *
  * const program = Effect.gen(function* () {
@@ -133,9 +133,9 @@ type HtmlEntry = ReadonlyArray<HtmlChunk>
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { renderToHtmlString, HtmlRenderTemplate } from "../../typed/template/Html.ts"
- * import { Fx } from "../../typed/fx.ts"
+ * import { html } from "@typed/template"
+ * import { renderToHtmlString, HtmlRenderTemplate } from "@typed/template/Html"
+ * import { Fx } from "@typed/fx"
  * import { Layer } from "effect"
  *
  * const program = Effect.gen(function* () {

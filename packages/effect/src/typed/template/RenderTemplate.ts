@@ -15,10 +15,10 @@ import type { RenderEvent } from "./RenderEvent.ts"
  * @example
  * ```ts
  * import { Effect, Layer } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { DomRenderTemplate } from "../../typed/template/Render.ts"
- * import { HtmlRenderTemplate } from "../../typed/template/Html.ts"
- * import { Fx } from "../../typed/fx.ts"
+ * import { html } from "@typed/template"
+ * import { DomRenderTemplate } from "@typed/template/Render"
+ * import { HtmlRenderTemplate } from "@typed/template/Html"
+ * import { Fx } from "@typed/fx"
  *
  * // Use DOM rendering for browser
  * const browserApp = Effect.gen(function* () {
@@ -57,9 +57,9 @@ export class RenderTemplate extends ServiceMap.Service<RenderTemplate, {
  * @example
  * ```ts
  * import { Effect } from "effect"
- * import { html } from "../../typed/template.ts"
- * import { DomRenderTemplate, render } from "../../typed/template/Render.ts"
- * import { Fx } from "../../typed/fx.ts"
+ * import { html } from "@typed/template"
+ * import { DomRenderTemplate, render } from "@typed/template/Render"
+ * import { Fx } from "@typed/fx"
  * import { Layer } from "effect"
  *
  * // Simple static template
