@@ -31,7 +31,7 @@ export namespace Guard {
   /**
    * @since 1.0.0
    */
-  export type Context<T> = [T] extends [Guard<infer _I, infer _O, infer _E, infer R>] ? R :
+  export type Services<T> = [T] extends [Guard<infer _I, infer _O, infer _E, infer R>] ? R :
     [T] extends [AsGuard<infer _I, infer _O, infer _E, infer R>] ? R
     : never
 
@@ -176,7 +176,7 @@ export const filter: {
  */
 export function any<const GS extends Readonly<Record<string, GuardInput<any, any, any, any>>>>(
   guards: GS
-): Guard<AnyInput<GS>, AnyOutput<GS>, Guard.Error<GS[keyof GS]>, Guard.Context<GS[keyof GS]>> {
+): Guard<AnyInput<GS>, AnyOutput<GS>, Guard.Error<GS[keyof GS]>, Guard.Services<GS[keyof GS]>> {
   const entries = Object.entries(guards).map(([k, v]) => [k, getGuard(v)] as const)
   return (i: AnyInput<GS>) =>
     Effect.gen(function*() {
