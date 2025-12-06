@@ -1,23 +1,28 @@
 import { describe, expect, it } from "@effect/vitest"
-import { Effect } from "effect"
-import { Fx, Push, Sink } from "effect/typed/fx"
+import { Effect, Fiber, Layer } from "effect"
+import { Fx, Push, Sink, Subject } from "effect/typed/fx"
 
 describe("Push", () => {
   describe("Service", () => {
-    it.effect("should allow defining a Push as a Service", () =>
-      Effect.gen(function*() {
+    it.live("should allow defining a Push as a Service", () => {
+      return Effect.gen(function*() {
         class MyPush extends Push.Service<MyPush, number, never, string, never>()("MyPush") {}
 
-        const layer = MyPush.make(
-          Sink.make(
-            () => Effect.void,
-            () => Effect.void
-          ),
-          Fx.succeed("foo")
-        )
+        const layer = Layer.unwrap(Effect.gen(function*() {
+          const subject = yield* Subject.make<string>()
+          const sink = Sink.map(subject, String.fromCharCode)
+          return MyPush.make(sink, subject)
+        }))
 
-        const result = yield* Fx.collectAll(MyPush).pipe(Effect.provide(layer))
-        expect(result).toEqual(["foo"])
-      }))
+        yield* Effect.gen(function*() {
+          const fiber = yield* Fx.collectUpToFork(MyPush, 3)
+          yield* Effect.forEach(
+            ["f", "o", "o"],
+            (char) => MyPush.onSuccess(char.charCodeAt(0))
+          )
+          expect(yield* Fiber.join(fiber)).toEqual(["f", "o", "o"])
+        }).pipe(Effect.provide(layer))
+      })
+    })
   })
 })

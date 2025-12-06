@@ -195,9 +195,9 @@ export function withEarlyExit<A, E, R, R2>(
   return Effect.servicesWith((services) =>
     Effect.callback<unknown, never, R2>(function(this: Scheduler, resume, signal) {
       let exited = false
-      const earlyExit = Effect.callback<never>(() => {
+      const earlyExit = Effect.sync<void>(() => {
         exited = true
-        return resume(Effect.void)
+        resume(Effect.void)
       })
       const onSuccess = (a: A) => {
         if (exited) return Effect.void
@@ -911,5 +911,12 @@ class DropAfterSink<A, E, R> implements Sink<A, E, R> {
       return Effect.flatMap(this.sink.onSuccess(value), () => this.sink.earlyExit)
     }
     return this.sink.onSuccess(value)
+  }
+}
+
+export const skipInterrupt = <A, E, R>(sink: Sink<A, E, R>): Sink<A, E, R> => {
+  return {
+    onSuccess: (value) => sink.onSuccess(value),
+    onFailure: (cause) => Cause.isInterruptedOnly(cause) ? Effect.void : sink.onFailure(cause)
   }
 }

@@ -95,7 +95,7 @@ export declare namespace Sink {
    * @category models
    */
   export interface WithEarlyExit<A, E, R> extends Sink<A, E, R> {
-    readonly earlyExit: Effect<never>
+    readonly earlyExit: Effect<void>
   }
 
   /**
