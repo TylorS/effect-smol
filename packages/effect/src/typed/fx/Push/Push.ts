@@ -54,7 +54,7 @@ import * as Sink from "../Sink/index.ts"
 export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sink<A, E, R>, Fx.Fx<B, E2, R2> {}
 
 export namespace Push {
-  export interface Any extends Push<any, any, any, any, any, any> {}
+  export type Any = Push<any, any, any, any, any, any>
 
   export interface Service<Self, Id extends string, A, E, B, E2> extends Push<A, E, Self, B, E2, Self> {
     readonly id: Id
@@ -645,13 +645,19 @@ export function Service<Self, A, E = never, B = never, E2 = never>() {
         Layer.effect(
           service,
           Effect.services<R | R2>().pipe(
-            Effect.map((context) =>
+            Effect.map((services) =>
               make(
                 Sink.make(
-                  (cause) => Effect.provideServices(sink.onFailure(cause), context),
-                  (value) => Effect.provideServices(sink.onSuccess(value), context)
+                  (cause) => Effect.provideServices(sink.onFailure(cause), services),
+                  (value) => Effect.provideServices(sink.onSuccess(value), services)
                 ),
-                Fx.make(<RSink>(sink: Sink.Sink<B, E2, RSink>) => Effect.provideServices(fx.run(sink), context))
+                Fx.make(<RSink>(sink: Sink.Sink<B, E2, RSink>) =>
+                  Effect.services<RSink>().pipe(
+                    Effect.flatMap((services2) =>
+                      Effect.provideServices(fx.run(sink), ServiceMap.merge(services, services2))
+                    )
+                  )
+                )
               )
             )
           )
