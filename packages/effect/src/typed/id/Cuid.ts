@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/schema/Schema"
 import * as ServiceMap from "effect/ServiceMap"
 import { Layer } from "../../index.ts"
+import { sha512 } from "./_sha.ts"
 import { DateTimes } from "./DateTimes.ts"
 import { RandomValues } from "./RandomValues.ts"
 
@@ -43,7 +44,7 @@ export class CuidState extends ServiceMap.Service<CuidState>()("@typed/id/CuidSt
       ) % INITIAL_COUNT_MAX
 
       // Create fingerprint from environment data
-      const fingerprint = yield* Effect.promise(() => hash(envData).then((h) => h.substring(0, BIG_LENGTH)))
+      const fingerprint = (yield* hash(envData)).substring(0, BIG_LENGTH)
 
       let counter = initialValue
 
@@ -85,12 +86,8 @@ function createEntropy(length: number, random: Uint8Array): string {
   return entropy
 }
 
-function hash(input: string): Promise<string> {
-  // Convert string to bytes
-  const data = encoder.encode(input)
-
-  // Create a hash using the Web Crypto API
-  return crypto.subtle.digest("SHA-512", data).then((buffer) => {
+function hash(input: string): Effect.Effect<string> {
+  return Effect.map(sha512(encoder.encode(input)), (buffer) => {
     const view = new Uint8Array(buffer)
     let value = 0n
     for (const byte of view) {
@@ -115,7 +112,7 @@ function cuidFromSeed({ counter, fingerprint, random, timestamp }: CuidSeed): Ef
 
     // Hash all components together
     const hashInput = `${time}${salt}${count}${fingerprint}`
-    const hashed = yield* Effect.promise(() => hash(hashInput))
+    const hashed = yield* hash(hashInput)
 
     // Construct the final CUID
     const id = `${firstLetter}${hashed.substring(0, DEFAULT_LENGTH - 1)}`
