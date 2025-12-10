@@ -1,5 +1,5 @@
-import * as Effect from "effect/Effect"
-import * as Schema from "effect/schema/Schema"
+import * as Effect from "../../Effect.ts"
+import * as Schema from "../../schema/Schema.ts"
 import { DateTimes } from "./DateTimes.ts"
 import { RandomValues } from "./RandomValues.ts"
 

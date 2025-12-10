@@ -1,14 +1,14 @@
 /**
  * @since 4.0.0
  */
-import * as Predicate from "effect/data/Predicate"
-import { constTrue } from "effect/Function"
 import * as Array_ from "../../collections/Array.ts"
 import * as Combiner from "../../data/Combiner.ts"
 import { formatPath } from "../../data/Formatter.ts"
+import * as Predicate from "../../data/Predicate.ts"
 import * as Record_ from "../../data/Record.ts"
 import * as Struct from "../../data/Struct.ts"
 import * as UndefinedOr from "../../data/UndefinedOr.ts"
+import { constTrue } from "../../Function.ts"
 import type * as Schema from "../../schema/Schema.ts"
 
 /**
