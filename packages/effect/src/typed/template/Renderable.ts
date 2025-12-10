@@ -1,6 +1,6 @@
 import type * as Effect from "../../Effect.ts"
 import type * as Stream from "../../stream/Stream.ts"
-import type { Fx } from "../fx/Fx.js"
+import type { Fx } from "../fx/Fx.ts"
 import type { RenderEvent } from "./RenderEvent.ts"
 
 /**

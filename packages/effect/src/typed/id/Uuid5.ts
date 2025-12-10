@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect"
 import { dual } from "effect/Function"
 import * as Schema from "effect/schema/Schema"
 import { sha1 } from "./_sha.ts"
-import { uuidStringify } from "./_uuid-stringify.js"
+import { uuidStringify } from "./_uuid-stringify.ts"
 
 export const Uuid5 = Schema.String.pipe(Schema.check(Schema.isUUID(5)), Schema.brand<"@typed/id/UUID5">())
 export type Uuid5 = typeof Uuid5.Type

@@ -5,7 +5,7 @@ import * as Effect from "../../Effect.ts"
 import * as Layer from "../../Layer.ts"
 import type { Scope } from "../../Scope.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
-import * as Fx from "../fx/Fx.js"
+import * as Fx from "../fx/Fx.ts"
 import { CurrentComputedBehavior } from "../fx/RefSubject/RefSubject.ts"
 import {
   addTemplateHash,

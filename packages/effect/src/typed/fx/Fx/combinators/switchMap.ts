@@ -1,7 +1,7 @@
 import * as Effect from "../../../../Effect.ts"
 import * as Fiber from "../../../../Fiber.ts"
 import { dual } from "../../../../Function.ts"
-import * as Scope from "../../../../Scope.js"
+import * as Scope from "../../../../Scope.ts"
 import * as ServiceMap from "../../../../ServiceMap.ts"
 import * as SyncronizedRef from "../../../../SynchronizedRef.ts"
 import { make as makeSink } from "../../Sink/Sink.ts"
