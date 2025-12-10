@@ -1,7 +1,7 @@
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as Random from "effect/Random"
-import * as ServiceMap from "effect/ServiceMap"
+import * as Effect from "../../Effect.ts"
+import * as Layer from "../../Layer.ts"
+import * as Random from "../../Random.ts"
+import * as ServiceMap from "../../ServiceMap.ts"
 
 export class RandomValues extends ServiceMap.Service<RandomValues>()("@typed/id/RandomValues", {
   make: Effect.succeed(<A extends Uint8Array>(length: A["length"]): Effect.Effect<A> =>
