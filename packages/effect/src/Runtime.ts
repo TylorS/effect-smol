@@ -26,11 +26,11 @@
  *
  * @since 4.0.0
  */
-import * as Cause from "effect/Cause"
-import * as Effect from "effect/Effect"
-import * as Exit from "effect/Exit"
-import { dual } from "effect/Function"
+import * as Cause from "./Cause.ts"
+import * as Effect from "./Effect.ts"
+import * as Exit from "./Exit.ts"
 import type * as Fiber from "./Fiber.ts"
+import { dual } from "./Function.ts"
 
 /**
  * Represents a teardown function that handles program completion and determines the exit code.

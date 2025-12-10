@@ -1,7 +1,7 @@
-import * as Clock from "effect/Clock"
-import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
-import * as ServiceMap from "effect/ServiceMap"
+import * as Clock from "../../Clock.ts"
+import * as Effect from "../../Effect.ts"
+import * as Layer from "../../Layer.ts"
+import * as ServiceMap from "../../ServiceMap.ts"
 
 export class DateTimes extends ServiceMap.Service<DateTimes>()("@typed/id/DateTimes", {
   make: Effect.succeed({

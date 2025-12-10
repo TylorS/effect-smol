@@ -1,4 +1,4 @@
-import * as Effect from "effect/Effect"
+import * as Effect from "../../Effect.ts"
 
 export const sha1 = (data: BufferSource) =>
   Effect.promise(() => crypto.subtle.digest("SHA-1", data).then((buffer) => new Uint8Array(buffer)))
