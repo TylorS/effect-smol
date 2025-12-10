@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/schema/Schema"
-import { DateTimes } from "./DateTimes.js"
+import { DateTimes } from "./DateTimes.ts"
 import { RandomValues } from "./RandomValues.ts"
 
 // Constants
