@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/schema/Schema"
-import { RandomValues } from "./RandomValues.js"
+import { RandomValues } from "./RandomValues.ts"
 
 export const NanoId = Schema.String.pipe(
   Schema.check(Schema.isPattern(/[0-9a-zA-Z_-]/)),

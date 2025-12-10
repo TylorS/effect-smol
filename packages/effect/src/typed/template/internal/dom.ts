@@ -8,7 +8,7 @@ import {
   isRenderEvent,
   type RenderEvent,
   RenderEventTypeId
-} from "../RenderEvent.js"
+} from "../RenderEvent.ts"
 import { diffable, isComment } from "../Wire.ts"
 import { diff } from "./diff.ts"
 import { renderToString } from "./encoding.ts"

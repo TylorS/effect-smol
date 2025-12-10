@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/schema/Schema"
-import { DateTimes } from "./DateTimes.js"
-import { RandomValues } from "./RandomValues.js"
+import { DateTimes } from "./DateTimes.ts"
+import { RandomValues } from "./RandomValues.ts"
 
 export const Ulid = Schema.String.pipe(Schema.check(Schema.isULID()), Schema.brand<"@typed/id/ULID">())
 export type Ulid = typeof Ulid.Type
