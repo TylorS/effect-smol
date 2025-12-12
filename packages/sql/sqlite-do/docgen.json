@@ -14,7 +14,7 @@
     "allowImportingTsExtensions": true,
     "paths": {
       "effect": ["../../../effect/src/index.js"],
-      "effect/*": ["../../../effect/src/*.js"]
+      "effect/*": ["../../../effect/src/*/index.js", "../../../effect/src/*.js"]
     }
   }
 }

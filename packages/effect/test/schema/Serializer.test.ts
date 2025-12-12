@@ -1,6 +1,6 @@
 import { Cause, DateTime, Duration, Effect } from "effect"
 import { Option, Redacted, Result } from "effect/data"
-import { Issue, Parser, Schema, Transformation } from "effect/schema"
+import { Getter, Issue, Parser, Schema, Transformation } from "effect/schema"
 import { TestSchema } from "effect/testing"
 import { describe, it } from "vitest"
 import { assertTrue, deepStrictEqual, strictEqual, throws } from "../utils/assert.ts"
@@ -17,6 +17,21 @@ const FiniteFromDate = Schema.Date.pipe(Schema.decodeTo(
 
 describe("Serializers", () => {
   describe("toSerializerJson", () => {
+    it("should reorder the types in the Union based on the encoded side", async () => {
+      const schema = Schema.Union([
+        Schema.String,
+        Schema.String.pipe(Schema.encodeTo(Schema.BigInt, {
+          decode: Getter.transform((n: bigint) => String(n) + "a"),
+          encode: Getter.transform(() => 0n)
+        }))
+      ])
+      const serializer = Schema.toSerializerJson(schema)
+      const asserts = new TestSchema.Asserts(Schema.toSerializerJson(serializer))
+
+      const decoding = asserts.decoding()
+      await decoding.succeed("1", "1a")
+    })
+
     describe("Schemas without encoding", () => {
       describe("Unsupported schemas", () => {
         it("Struct with Symbol property name", () => {
@@ -837,6 +852,27 @@ describe("Serializers", () => {
         )
       })
 
+      it("RegExp", async () => {
+        const schema = Schema.RegExp
+        const asserts = new TestSchema.Asserts(Schema.toSerializerJson(schema))
+
+        const encoding = asserts.encoding()
+        await encoding.succeed(new RegExp("a"), { source: "a", flags: "" })
+        await encoding.succeed(new RegExp("a", "i"), { source: "a", flags: "i" })
+
+        const decoding = asserts.decoding()
+        await decoding.succeed({ source: "a", flags: "" }, new RegExp("a"))
+        await decoding.succeed({ source: "a", flags: "i" }, new RegExp("a", "i"))
+        await decoding.fail(
+          { source: "(", flags: "" },
+          `SyntaxError: Invalid regular expression: /(/: Unterminated group`
+        )
+        await decoding.fail(
+          { source: "a", flags: "x" },
+          `SyntaxError: Invalid flags supplied to RegExp constructor 'x'`
+        )
+      })
+
       it("Uint8Array", async () => {
         const schema = Schema.Uint8Array
         const asserts = new TestSchema.Asserts(Schema.toSerializerJson(schema))
@@ -1188,7 +1224,7 @@ describe("Serializers", () => {
     })
   })
 
-  describe("toSerializerStringTreeLoose", () => {
+  describe("keepDeclarations: true", () => {
     describe("Unsupported schemas", () => {
       it("Struct with Symbol property name", () => {
         const a = Symbol.for("a")
@@ -1196,10 +1232,25 @@ describe("Serializers", () => {
           [a]: Schema.String
         })
         throws(
-          () => Schema.toSerializerStringTreeLoose(schema),
+          () => Schema.toSerializerStringTree(schema, { keepDeclarations: true }),
           "Objects property names must be strings"
         )
       })
+    })
+
+    it("should reorder the types in the Union based on the encoded side", async () => {
+      const schema = Schema.Union([
+        Schema.String,
+        Schema.String.pipe(Schema.encodeTo(Schema.BigInt, {
+          decode: Getter.transform((n: bigint) => String(n) + "a"),
+          encode: Getter.transform(() => 0n)
+        }))
+      ])
+      const serializer = Schema.toSerializerStringTree(schema, { keepDeclarations: true })
+      const asserts = new TestSchema.Asserts(Schema.toSerializerJson(serializer))
+
+      const decoding = asserts.decoding()
+      await decoding.succeed("1", "1a")
     })
 
     it("should passthrough the schema if it's a declaration without an annotation", async () => {
@@ -1207,7 +1258,7 @@ describe("Serializers", () => {
         a: Schema.instanceOf(URL),
         b: Schema.Number
       })
-      const asserts = new TestSchema.Asserts(Schema.toSerializerStringTreeLoose(schema))
+      const asserts = new TestSchema.Asserts(Schema.toSerializerStringTree(schema, { keepDeclarations: true }))
 
       const encoding = asserts.encoding()
       await encoding.succeed({ a: new URL("https://effect.website"), b: 1 }, {
@@ -1224,6 +1275,21 @@ describe("Serializers", () => {
   })
 
   describe("toSerializerStringTree", () => {
+    it("should reorder the types in the Union based on the encoded side", async () => {
+      const schema = Schema.Union([
+        Schema.String,
+        Schema.String.pipe(Schema.encodeTo(Schema.BigInt, {
+          decode: Getter.transform((n: bigint) => String(n) + "a"),
+          encode: Getter.transform(() => 0n)
+        }))
+      ])
+      const serializer = Schema.toSerializerStringTree(schema)
+      const asserts = new TestSchema.Asserts(Schema.toSerializerJson(serializer))
+
+      const decoding = asserts.decoding()
+      await decoding.succeed("1", "1a")
+    })
+
     describe("should return the same reference if nothing changed", () => {
       it("String", async () => {
         const schema = Schema.String
@@ -1351,10 +1417,10 @@ describe("Serializers", () => {
         const asserts = new TestSchema.Asserts(Schema.toSerializerStringTree(schema))
 
         const encoding = asserts.encoding()
-        await encoding.succeed(null, undefined)
+        await encoding.succeed(null, "null")
 
         const decoding = asserts.decoding()
-        await decoding.succeed(undefined, null)
+        await decoding.succeed("null", null)
       })
 
       it("String", async () => {
@@ -1603,13 +1669,13 @@ describe("Serializers", () => {
           await encoding.succeed({ a: new Date("2021-01-01") }, {
             a: "2021-01-01T00:00:00.000Z"
           })
-          await encoding.succeed({ a: null }, { a: undefined })
+          await encoding.succeed({ a: null }, { a: "null" })
 
           const decoding = asserts.decoding()
           await decoding.succeed({ a: "2021-01-01T00:00:00.000Z" }, {
             a: new Date("2021-01-01")
           })
-          await decoding.succeed({ a: undefined }, { a: null })
+          await decoding.succeed({ a: "null" }, { a: null })
         })
 
         it("optionalKey(Date)", async () => {
@@ -1714,13 +1780,13 @@ describe("Serializers", () => {
           await encoding.succeed([new Date("2021-01-01")], [
             "2021-01-01T00:00:00.000Z"
           ])
-          await encoding.succeed([null], [undefined])
+          await encoding.succeed([null], ["null"])
 
           const decoding = asserts.decoding()
           await decoding.succeed(["2021-01-01T00:00:00.000Z"], [
             new Date("2021-01-01")
           ])
-          await decoding.succeed([undefined], [null])
+          await decoding.succeed(["null"], [null])
         })
 
         it("optionalKey(Date)", async () => {
@@ -1778,10 +1844,10 @@ describe("Serializers", () => {
 
           const encoding = asserts.encoding()
           await encoding.succeed("a", "a")
-          await encoding.succeed(null, undefined)
+          await encoding.succeed(null, "null")
 
           const decoding = asserts.decoding()
-          await decoding.succeed(undefined, null)
+          await decoding.succeed("null", null)
           await decoding.succeed("a", "a")
         })
 
@@ -1791,10 +1857,10 @@ describe("Serializers", () => {
 
           const encoding = asserts.encoding()
           await encoding.succeed(1, "1")
-          await encoding.succeed(null, undefined)
+          await encoding.succeed(null, "null")
 
           const decoding = asserts.decoding()
-          await decoding.succeed(undefined, null)
+          await decoding.succeed("null", null)
           await decoding.succeed("1", 1)
         })
 
@@ -1803,10 +1869,10 @@ describe("Serializers", () => {
           const asserts = new TestSchema.Asserts(Schema.toSerializerStringTree(schema))
 
           const encoding = asserts.encoding()
-          await encoding.succeed([1, null], ["1", undefined])
+          await encoding.succeed([1, null], ["1", "null"])
 
           const decoding = asserts.decoding()
-          await decoding.succeed(["1", undefined], [1, null])
+          await decoding.succeed(["1", "null"], [1, null])
         })
 
         it("Union(Date, Finite)", async () => {
@@ -1961,6 +2027,23 @@ describe("Serializers", () => {
         )
       })
 
+      it("RegExp", async () => {
+        const schema = Schema.RegExp
+        const asserts = new TestSchema.Asserts(Schema.toSerializerStringTree(schema))
+
+        const encoding = asserts.encoding()
+        await encoding.succeed(new RegExp("a"), { source: "a", flags: "" })
+        await encoding.succeed(new RegExp("a", "i"), { source: "a", flags: "i" })
+
+        const decoding = asserts.decoding()
+        await decoding.succeed({ source: "a", flags: "" }, new RegExp("a"))
+        await decoding.succeed({ source: "a", flags: "i" }, new RegExp("a", "i"))
+        await decoding.fail(
+          { source: "a", flags: "x" },
+          `SyntaxError: Invalid flags supplied to RegExp constructor 'x'`
+        )
+      })
+
       it("Option(Date)", async () => {
         const schema = Schema.Option(Schema.Date)
         const asserts = new TestSchema.Asserts(Schema.toSerializerStringTree(schema))
@@ -2035,30 +2118,12 @@ describe("Serializers", () => {
         )
       })
     })
-  })
-
-  describe("toSerializerEnsureArray", () => {
-    describe("should memoize the result", () => {
-      it("Struct", async () => {
-        const schema = Schema.Struct({
-          a: Schema.Finite
-        })
-        const serializer = Schema.toSerializerEnsureArray(Schema.toSerializerStringTree(schema))
-        strictEqual(serializer.ast, Schema.toSerializerEnsureArray(Schema.toSerializerStringTree(serializer)).ast)
-      })
-
-      it("Array", async () => {
-        const schema = Schema.Array(Schema.Finite)
-        const serializer = Schema.toSerializerEnsureArray(Schema.toSerializerStringTree(schema))
-        strictEqual(serializer.ast, Schema.toSerializerEnsureArray(Schema.toSerializerStringTree(serializer)).ast)
-      })
-    })
 
     it("should handle optional keys", async () => {
       const schema = Schema.Struct({
         a: Schema.optionalKey(Schema.NonEmptyArray(Schema.String))
       })
-      const serializer = Schema.toSerializerEnsureArray(Schema.toSerializerStringTree(schema))
+      const serializer = Schema.toSerializerStringTree(schema)
       const asserts = new TestSchema.Asserts(Schema.toSerializerStringTree(serializer))
 
       const decoding = asserts.decoding()
@@ -2129,12 +2194,12 @@ describe("Serializers", () => {
 
     it("Any", async () => {
       await assertXml(Schema.Any, "test", "<root>test</root>")
-      await assertXml(Schema.Any, 42, "<root/>")
+      await assertXml(Schema.Any, 42, "<root>42</root>")
       await assertXml(
         Schema.Any,
         { a: 1 },
         `<root>
-  <a/>
+  <a>1</a>
 </root>`
       )
     })
@@ -2148,7 +2213,7 @@ describe("Serializers", () => {
     })
 
     it("Null", async () => {
-      await assertXml(Schema.Null, null, "<root/>")
+      await assertXml(Schema.Null, null, "<root>null</root>")
     })
 
     it("Number", async () => {
@@ -2254,7 +2319,7 @@ describe("Serializers", () => {
 
     it("NullOr", async () => {
       await assertXml(Schema.NullOr(Schema.String), "test", "<root>test</root>")
-      await assertXml(Schema.NullOr(Schema.String), null, "<root/>")
+      await assertXml(Schema.NullOr(Schema.String), null, "<root>null</root>")
     })
 
     it("TaggedUnion", async () => {

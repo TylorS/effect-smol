@@ -1,0 +1,23 @@
+{
+  "name": "typed-counter",
+  "version": "1.0.0",
+  "description": "Simple Vite counter example",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "packageManager": "pnpm@10.17.1",
+  "dependencies": {
+    "effect": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vite": "^5.0.0",
+    "vite-plugin-compression": "^0.5.1"
+  }
+}

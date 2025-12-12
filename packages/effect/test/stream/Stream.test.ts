@@ -1,11 +1,11 @@
 /* eslint-disable no-restricted-syntax */
 import { assert, describe, it } from "@effect/vitest"
-import { assertExitFailure, assertTrue, deepStrictEqual, strictEqual } from "@effect/vitest/utils"
-import { Cause, Deferred, Duration, Effect, Exit, Fiber, Queue, Ref, Schedule } from "effect"
+import { assertExitFailure, assertSuccess, assertTrue, deepStrictEqual, strictEqual } from "@effect/vitest/utils"
+import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber, Queue, Ref, Schedule } from "effect"
 import { Array } from "effect/collections"
 import { isReadonlyArrayNonEmpty, type NonEmptyArray } from "effect/collections/Array"
 import { Filter, Option } from "effect/data"
-import { constTrue, constVoid, pipe } from "effect/Function"
+import { constFalse, constTrue, constVoid, pipe } from "effect/Function"
 import { Sink, Stream } from "effect/stream"
 import { TestClock } from "effect/testing"
 import * as fc from "effect/testing/FastCheck"
@@ -193,6 +193,17 @@ describe("Stream", () => {
           Stream.runCollect
         )
         assert.deepStrictEqual(result, [1, 2])
+      }))
+
+    it.effect("takeRight", () =>
+      Effect.gen(function*() {
+        const take = 3
+        const stream = Stream.range(1, 5)
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.takeRight(take), Stream.runCollect),
+          result2: pipe(Stream.runCollect(stream), Effect.map(Array.takeRight(take)))
+        }))
+        deepStrictEqual(result1, result2)
       }))
   })
 
@@ -929,7 +940,7 @@ describe("Stream", () => {
           ),
           Stream.take(5),
           Stream.runCollect,
-          Effect.fork
+          Effect.forkScoped
         )
         yield* TestClock.adjust("5 second")
         const result = yield* Fiber.join(fiber)
@@ -1165,7 +1176,7 @@ describe("Stream", () => {
           Stream.make(1, 1, 2),
           Stream.aggregateWithin(sink, Schedule.spaced(Duration.minutes(30))),
           Stream.runCollect,
-          Effect.fork
+          Effect.forkScoped
         )
         yield* Deferred.await(latch)
         yield* Fiber.interrupt(fiber)
@@ -1184,7 +1195,7 @@ describe("Stream", () => {
         const fiber = yield* Stream.make(1, 1, 2).pipe(
           Stream.aggregateWithin(sink, Schedule.spaced(Duration.minutes(30))),
           Stream.runCollect,
-          Effect.fork({ startImmediately: true })
+          Effect.forkScoped({ startImmediately: true })
         )
         yield* Fiber.interrupt(fiber)
         const result = yield* Ref.get(ref)
@@ -1207,7 +1218,7 @@ describe("Stream", () => {
     //       ),
     //       Stream.flattenIterable,
     //       Stream.runCollect,
-    //       Effect.fork
+    //       Effect.forkScoped
     //     )
     //     yield* TestClock.adjust(Duration.minutes(31))
     //     const result = yield* Fiber.join(fiber)
@@ -1229,22 +1240,22 @@ describe("Stream", () => {
           Stream.chunks,
           Stream.debounce(Duration.seconds(1))
         )
-        const fiber = yield* pipe(stream, Stream.runCollect, Effect.fork)
+        const fiber = yield* pipe(stream, Stream.runCollect, Effect.forkScoped)
         yield* coordination.offer
         yield* pipe(
           Effect.sleep(Duration.millis(500)),
           Effect.andThen(coordination.offer),
-          Effect.fork
+          Effect.forkScoped
         )
         yield* pipe(
           Effect.sleep(Duration.seconds(2)),
           Effect.andThen(coordination.offer),
-          Effect.fork
+          Effect.forkScoped
         )
         yield* pipe(
           Effect.sleep(Duration.millis(2500)),
           Effect.andThen(coordination.offer),
-          Effect.fork
+          Effect.forkScoped
         )
         yield* TestClock.adjust(Duration.millis(3500))
         const result = yield* Fiber.join(fiber)
@@ -1266,7 +1277,7 @@ describe("Stream", () => {
           Stream.chunks,
           Stream.debounce(Duration.seconds(1))
         )
-        const fiber = yield* pipe(stream, Stream.runCollect, Effect.fork)
+        const fiber = yield* pipe(stream, Stream.runCollect, Effect.forkScoped)
         yield* pipe(
           coordination.offer,
           Effect.andThen(coordination.offer),
@@ -1289,7 +1300,7 @@ describe("Stream", () => {
           Stream.chunks,
           Stream.debounce(Duration.seconds(1))
         )
-        const fiber = yield* pipe(stream, Stream.runCollect, Effect.fork)
+        const fiber = yield* pipe(stream, Stream.runCollect, Effect.forkScoped)
         yield* Effect.all([
           coordination.offer,
           coordination.offer,
@@ -1307,7 +1318,7 @@ describe("Stream", () => {
           Stream.tap(() => Effect.sleep(Duration.millis(500))),
           Stream.debounce(Duration.seconds(1)),
           Stream.runCollect,
-          Effect.fork({ startImmediately: true })
+          Effect.forkScoped({ startImmediately: true })
         )
         yield* TestClock.adjust(Duration.seconds(3))
         const result = yield* Fiber.join(fiber)
@@ -1341,7 +1352,7 @@ describe("Stream", () => {
           Stream.make(1, 2, 3),
           Stream.debounce(Duration.seconds(1)),
           Stream.runCollect,
-          Effect.fork
+          Effect.forkScoped
         )
         yield* TestClock.adjust(Duration.seconds(1))
         const result = yield* Fiber.join(fiber)
@@ -1364,7 +1375,7 @@ describe("Stream", () => {
           // Stream.interruptWhen(Effect.never),
           Stream.take(1),
           Stream.runCollect,
-          Effect.fork
+          Effect.forkScoped
         )
         yield* pipe(
           coordination.offer,
@@ -1388,7 +1399,7 @@ describe("Stream", () => {
           ))),
           Stream.debounce(Duration.millis(800)),
           Stream.runDrain,
-          Effect.fork
+          Effect.forkScoped
         )
         yield* TestClock.adjust(Duration.minutes(1))
         yield* Fiber.interrupt(fiber)
@@ -1440,7 +1451,7 @@ describe("Stream", () => {
             strategy: "enforce"
           }),
           Stream.runCollect,
-          Effect.fork
+          Effect.forkScoped
         )
         yield* TestClock.adjust(Duration.seconds(1))
         const result = yield* Fiber.join(fiber)
@@ -1472,7 +1483,7 @@ describe("Stream", () => {
             })
           ),
           Effect.scoped,
-          Effect.fork
+          Effect.forkScoped
         )
         yield* TestClock.adjust(Duration.seconds(8))
         const result = yield* Fiber.join(fiber)
@@ -1532,7 +1543,7 @@ describe("Stream", () => {
             })
           ),
           Effect.scoped,
-          Effect.fork
+          Effect.forkScoped
         )
         const result = yield* Fiber.join(fiber)
         deepStrictEqual(result, [[1], [2], [3]])
@@ -2274,7 +2285,7 @@ describe("Stream", () => {
           const queue1 = yield* Queue.unbounded<number>()
           const queue2 = yield* Queue.unbounded<string>()
 
-          const fiber = yield* Effect.fork(
+          const fiber = yield* Effect.forkScoped(
             Stream.zipLatest(
               Stream.fromQueue(queue1),
               Stream.fromQueue(queue2)
@@ -2463,6 +2474,1213 @@ describe("Stream", () => {
           assert.isTrue(result.every((item) => typeof item === "string" && item.includes(" ")))
         }))
     })
+  })
+
+  describe("tapSink", () => {
+    it.effect("sink that is done after stream", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(0)
+        const sink = Sink.forEach((i: number) => Ref.update(ref, (n) => i + n))
+        const result = yield* pipe(
+          Stream.make(1, 1, 2, 3, 5, 8),
+          Stream.tapSink(sink),
+          Stream.runCollect
+        )
+        const sum = yield* (Ref.get(ref))
+        strictEqual(sum, 20)
+        deepStrictEqual(result, [1, 1, 2, 3, 5, 8])
+      }))
+
+    it.effect("sink that is done before stream", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(0)
+        const sink = pipe(
+          Sink.take<number>(3),
+          Sink.map(Array.reduce(0, (x, y) => x + y)),
+          Sink.mapEffect((i) => Ref.update(ref, (n) => n + i))
+        )
+        const result = yield* pipe(
+          Stream.make(1, 1, 2, 3, 5, 8),
+          Stream.rechunk(1),
+          Stream.tapSink(sink),
+          Stream.runCollect
+        )
+        const sum = yield* (Ref.get(ref))
+        strictEqual(sum, 4)
+        deepStrictEqual(result, [1, 1, 2, 3, 5, 8])
+      }))
+
+    it.effect("sink that fails before stream", () =>
+      Effect.gen(function*() {
+        const sink = Sink.fail("error")
+        const result = yield* pipe(
+          Stream.make(1, 2, 3),
+          Stream.tapSink(sink),
+          Stream.runCollect,
+          Effect.flip
+        )
+        strictEqual(result, "error")
+      }))
+
+    it.effect("does not read ahead", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(0)
+        const sink = Sink.forEach((i: number) => Ref.update(ref, (n) => i + n))
+        yield* pipe(
+          Stream.make(1, 2, 3, 4, 5),
+          Stream.rechunk(1),
+          Stream.forever,
+          Stream.tapSink(sink),
+          Stream.take(3),
+          Stream.runDrain
+        )
+        const result = yield* Ref.get(ref)
+        strictEqual(result, 6)
+      }))
+  })
+
+  describe("dropping", () => {
+    it.effect("drop - simple example", () =>
+      Effect.gen(function*() {
+        const n = 2
+        const stream = Stream.make(1, 2, 3, 4, 5)
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.drop(n), Stream.runCollect),
+          result2: pipe(stream, Stream.runCollect, Effect.map(Array.drop(n)))
+        }))
+        deepStrictEqual(result1, result2)
+      }))
+
+    it.effect("drop - does not swallow errors", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.fail("Ouch"),
+          Stream.concat(Stream.make(1)),
+          Stream.drop(1),
+          Stream.runDrain,
+          Effect.result
+        )
+        assertFailure(result, "Ouch")
+      }))
+
+    it.effect("dropRight - simple example", () =>
+      Effect.gen(function*() {
+        const n = 2
+        const stream = Stream.make(1, 2, 3, 4, 5)
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.dropRight(n), Stream.runCollect),
+          result2: pipe(stream, Stream.runCollect, Effect.map(Array.dropRight(n)))
+        }))
+        deepStrictEqual(result1, result2)
+      }))
+
+    it.effect("dropRight - does not swallow errors", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1),
+          Stream.concat(Stream.fail("Ouch")),
+          Stream.dropRight(1),
+          Stream.runDrain,
+          Effect.result
+        )
+        assertFailure(result, "Ouch")
+      }))
+
+    it.effect("dropUntil", () =>
+      Effect.gen(function*() {
+        const stream = Stream.make(1, 2, 3, 4, 5)
+        const f = (n: number) => n < 3
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.dropUntil(f), Stream.runCollect),
+          result2: pipe(
+            Stream.runCollect(stream),
+            Effect.map((chunk) => pipe(chunk, Array.dropWhile((n) => !f(n)), Array.drop(1)))
+          )
+        }))
+        deepStrictEqual(result1, result2)
+      }))
+
+    it.effect("dropWhile", () =>
+      Effect.gen(function*() {
+        const stream = Stream.make(1, 2, 3, 4, 5)
+        const f = (n: number) => n < 3
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.dropWhile(f), Stream.runCollect),
+          result2: pipe(stream, Stream.runCollect, Effect.map(Array.dropWhile(f)))
+        }))
+        deepStrictEqual(result1, result2)
+      }))
+
+    it.effect("dropWhile - short circuits", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1),
+          Stream.concat(Stream.fail("Ouch")),
+          Stream.take(1),
+          Stream.dropWhile(constTrue),
+          Stream.runDrain,
+          Effect.result
+        )
+        assertSuccess(result, void 0)
+      }))
+  })
+
+  describe("haltWhen", () => {
+    it.effect("halts after the current element", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(false)
+        const latch = yield* Deferred.make<void>()
+        const halt = yield* Deferred.make<void>()
+        yield* pipe(
+          Deferred.await(latch),
+          Effect.onInterrupt(() => Ref.set(ref, true)),
+          Stream.fromEffect,
+          Stream.haltWhen(Deferred.await(halt)),
+          Stream.runDrain,
+          Effect.forkChild
+        )
+        yield* Deferred.succeed(halt, void 0)
+        yield* Deferred.succeed(latch, void 0)
+        const result = yield* Ref.get(ref)
+        assert.strictEqual(result, false)
+      }))
+
+    it.effect("propagates errors", () =>
+      Effect.gen(function*() {
+        const halt = yield* Deferred.make<void, string>()
+        yield* Deferred.fail(halt, "fail")
+        const result = yield* pipe(
+          Stream.make(0),
+          Stream.forever,
+          Stream.haltWhen(Deferred.await(halt)),
+          Stream.runDrain,
+          Effect.flip
+        )
+        assert.strictEqual(result, "fail")
+      }))
+  })
+
+  describe("intersperse", () => {
+    it.effect("intersperse - several values", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3, 4),
+          Stream.map(String),
+          Stream.intersperse("."),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["1", ".", "2", ".", "3", ".", "4"])
+      }))
+
+    it.effect("intersperseAffixes - several values", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3, 4),
+          Stream.map(String),
+          Stream.intersperseAffixes({ start: "[", middle: ".", end: "]" }),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["[", "1", ".", "2", ".", "3", ".", "4", "]"])
+      }))
+
+    it.effect("intersperse - single value", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1),
+          Stream.map(String),
+          Stream.intersperse("."),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["1"])
+      }))
+
+    it.effect("intersperseAffixes - single value", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1),
+          Stream.map(String),
+          Stream.intersperseAffixes({ start: "[", middle: ".", end: "]" }),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["[", "1", "]"])
+      }))
+
+    it.effect("intersperse - several from repeat effect (ZIO #3729)", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.fromEffectRepeat(Effect.succeed(42)),
+          Stream.map(String),
+          Stream.take(4),
+          Stream.intersperse("."),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["42", ".", "42", ".", "42", ".", "42"])
+      }))
+
+    it.effect("intersperse - several from repeat effect chunk single element (ZIO #3729)", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.fromIterableEffectRepeat(Effect.succeed(Array.of(42))),
+          Stream.map(String),
+          Stream.intersperse("."),
+          Stream.take(4),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["42", ".", "42", "."])
+      }))
+  })
+
+  describe("interleave", () => {
+    it.effect("interleave", () =>
+      Effect.gen(function*() {
+        const stream1 = Stream.make(2, 3)
+        const stream2 = Stream.make(5, 6, 7)
+        const result = yield* pipe(
+          stream1,
+          Stream.interleave(stream2),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [2, 5, 3, 6, 7])
+      }))
+
+    it.effect("interleaveWith", () =>
+      Effect.gen(function*() {
+        const interleave = (
+          bools: ReadonlyArray<boolean>,
+          numbers1: ReadonlyArray<number>,
+          numbers2: ReadonlyArray<number>
+        ): ReadonlyArray<number> =>
+          pipe(
+            Array.head(bools),
+            Option.map((head) => {
+              if (head) {
+                if (Array.isReadonlyArrayNonEmpty(numbers1)) {
+                  const head = pipe(numbers1, Array.getUnsafe(0))
+                  const tail = pipe(numbers1, Array.drop(1))
+                  return pipe(
+                    interleave(pipe(bools, Array.drop(1)), tail, numbers2),
+                    Array.prepend(head)
+                  )
+                }
+                if (Array.isReadonlyArrayNonEmpty(numbers2)) {
+                  return interleave(pipe(bools, Array.drop(1)), Array.empty<number>(), numbers2)
+                }
+                return Array.empty<number>()
+              }
+              if (Array.isReadonlyArrayNonEmpty(numbers2)) {
+                const head = pipe(numbers2, Array.getUnsafe(0))
+                const tail = pipe(numbers2, Array.drop(1))
+                return pipe(
+                  interleave(pipe(bools, Array.drop(1)), numbers1, tail),
+                  Array.prepend(head)
+                )
+              }
+              if (Array.isReadonlyArrayNonEmpty(numbers1)) {
+                return interleave(pipe(bools, Array.drop(1)), numbers1, Array.empty<number>())
+              }
+              return Array.empty<number>()
+            }),
+            Option.getOrElse(() => Array.empty<number>())
+          )
+        const boolStream = Stream.make(true, true, false, true, false)
+        const stream1 = Stream.make(1, 2, 3, 4, 5)
+        const stream2 = Stream.make(4, 5, 6, 7, 8)
+        const interleavedStream = yield* pipe(
+          stream1,
+          Stream.interleaveWith(stream2, boolStream),
+          Stream.runCollect
+        )
+        const bools = yield* (Stream.runCollect(boolStream))
+        const numbers1 = yield* (Stream.runCollect(stream1))
+        const numbers2 = yield* (Stream.runCollect(stream2))
+        const interleavedChunks = interleave(bools, numbers1, numbers2)
+        deepStrictEqual(interleavedStream, interleavedChunks)
+      }))
+  })
+
+  describe("partition", () => {
+    it.effect("partitionEffect - allows repeated runs without hanging", () =>
+      Effect.gen(function*() {
+        const stream = pipe(
+          Stream.fromIterable(Array.empty<number>()),
+          Stream.partitionEffect((n) => Effect.succeed(n % 2 === 0 ? n : Filter.fail(n))),
+          Effect.map(([evens, odds]) => pipe(evens, Stream.mergeResult(odds))),
+          Effect.flatMap(Stream.runCollect),
+          Effect.scoped
+        )
+        const result = yield* pipe(
+          Effect.all(Array.makeBy(100, () => stream)),
+          Effect.as(0)
+        )
+        strictEqual(result, 0)
+      }))
+
+    it.effect("partition - values", () =>
+      Effect.gen(function*() {
+        const { result1, result2 } = yield* pipe(
+          Stream.range(0, 5),
+          Stream.partition((n) => n % 2 === 0 ? n : Filter.fail(n)),
+          Effect.flatMap(([evens, odds]) =>
+            Effect.all({
+              result1: Stream.runCollect(evens),
+              result2: Stream.runCollect(odds)
+            })
+          ),
+          Effect.scoped
+        )
+        deepStrictEqual(result1, [0, 2, 4])
+        deepStrictEqual(result2, [1, 3, 5])
+      }))
+
+    it.effect("partition - errors", () =>
+      Effect.gen(function*() {
+        const { result1, result2 } = yield* pipe(
+          Stream.make(0),
+          Stream.concat(Stream.fail("boom")),
+          Stream.partition((n) => n % 2 === 0 ? n : Filter.fail(n)),
+          Effect.flatMap(([evens, odds]) =>
+            Effect.all({
+              result1: Effect.flip(Stream.runCollect(evens)),
+              result2: Effect.flip(Stream.runCollect(odds))
+            })
+          ),
+          Effect.scoped
+        )
+        assert.strictEqual(result1, "boom")
+        assert.strictEqual(result2, "boom")
+      }))
+
+    it.effect("partition - backpressure", () =>
+      Effect.gen(function*() {
+        const { result1, result2, result3 } = yield* pipe(
+          Stream.range(0, 5),
+          Stream.partition((n) => (n % 2 === 0 ? n : Filter.fail(n)), { capacity: 1 }),
+          Effect.flatMap(([evens, odds]) =>
+            Effect.gen(function*() {
+              const ref = yield* Ref.make(Array.empty<number>())
+              const latch = yield* (Deferred.make<void>())
+              const fiber = yield* pipe(
+                evens,
+                Stream.tap((n) =>
+                  pipe(
+                    Ref.update(ref, Array.prepend(n)),
+                    Effect.andThen(
+                      pipe(
+                        Deferred.succeed(latch, void 0),
+                        Effect.when(() => n === 2)
+                      )
+                    )
+                  )
+                ),
+                Stream.runDrain,
+                Effect.forkChild
+              )
+              yield* (Deferred.await(latch))
+              const result1 = yield* (Ref.get(ref))
+              const result2 = yield* (Stream.runCollect(odds))
+              yield* (Fiber.await(fiber))
+              const result3 = yield* (Ref.get(ref))
+              return { result1, result2, result3 }
+            })
+          ),
+          Effect.scoped
+        )
+        deepStrictEqual(result1, [2, 0])
+        deepStrictEqual(result2, [1, 3, 5])
+        deepStrictEqual(result3, [4, 2, 0])
+      }))
+  })
+
+  describe("peel", () => {
+    it.effect("peel", () =>
+      Effect.gen(function*() {
+        const sink = Sink.take<number>(3)
+        const [peeled, rest] = yield* pipe(
+          Stream.fromArrays(Array.range(1, 3), Array.range(4, 6)),
+          Stream.peel(sink),
+          Effect.flatMap(([peeled, rest]) =>
+            pipe(
+              Stream.runCollect(rest),
+              Effect.map((rest) => [peeled, rest])
+            )
+          ),
+          Effect.scoped
+        )
+        deepStrictEqual(peeled, [1, 2, 3])
+        deepStrictEqual(rest, [4, 5, 6])
+      }))
+
+    it.effect("peel - propagates errors", () =>
+      Effect.gen(function*() {
+        const stream = Stream.fromEffectRepeat(Effect.fail("fail"))
+        const sink = Sink.fold<ReadonlyArray<number>, number>(
+          Array.empty,
+          constTrue,
+          Array.append
+        )
+        const result = yield* pipe(
+          stream,
+          Stream.peel(sink),
+          Effect.exit,
+          Effect.scoped
+        )
+        deepStrictEqual(result, Exit.fail("fail"))
+      }))
+  })
+
+  describe("repeat", () => {
+    it.effect("repeat", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1),
+          Stream.repeat(Schedule.recurs(4)),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [1, 1, 1, 1, 1])
+      }))
+
+    // it.effect("tick", () =>
+    //   Effect.gen(function*() {
+    //     const fiber = yield* pipe(
+    //       Stream.tick("10 millis"),
+    //       Stream.take(2),
+    //       Stream.runCollect,
+    //       Effect.fork
+    //     )
+    //     yield* (TestClock.adjust(Duration.millis(50)))
+    //     const result = yield* (Fiber.join(fiber))
+    //     deepStrictEqual(Array.from(result), [undefined, undefined])
+    //   }))
+
+    it.effect("repeat - short circuits", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(Array.empty<number>())
+        const fiber = yield* pipe(
+          Stream.fromEffect(Ref.update(ref, Array.prepend(1))),
+          Stream.repeat(Schedule.spaced(Duration.millis(10))),
+          Stream.take(2),
+          Stream.runDrain,
+          Effect.forkChild
+        )
+        yield* TestClock.adjust(Duration.millis(50))
+        yield* Fiber.join(fiber)
+        const result = yield* Ref.get(ref)
+        deepStrictEqual(result, [1, 1])
+      }))
+
+    // it.effect("repeat - Schedule.CurrentIterationMetadata", () =>
+    //   Effect.gen(function*() {
+    //     const ref = yield* (Ref.make(Chunk.empty<undefined | Schedule.IterationMetadata>()))
+    //     const fiber = yield* pipe(
+    //       Stream.fromEffect(
+    //         Schedule.CurrentIterationMetadata.pipe(
+    //           Effect.flatMap((currentIterationMetadata) => Ref.update(ref, Chunk.append(currentIterationMetadata)))
+    //         )
+    //       ),
+    //       Stream.repeat(Schedule.exponential(Duration.millis(10))),
+    //       Stream.runDrain,
+    //       Effect.fork
+    //     )
+    //
+    //     yield* (TestClock.adjust(Duration.millis(70)))
+    //     yield* (Fiber.interrupt(fiber))
+    //     const result = yield* (Ref.get(ref))
+    //     deepStrictEqual(Array.from(result), [
+    //       {
+    //         elapsed: Duration.zero,
+    //         elapsedSincePrevious: Duration.zero,
+    //         input: undefined,
+    //         output: undefined,
+    //         now: 0,
+    //         recurrence: 0,
+    //         start: 0
+    //       },
+    //       {
+    //         elapsed: Duration.zero,
+    //         elapsedSincePrevious: Duration.zero,
+    //         input: undefined,
+    //         output: Duration.millis(10),
+    //         now: 0,
+    //         recurrence: 1,
+    //         start: 0
+    //       },
+    //       {
+    //         elapsed: Duration.millis(10),
+    //         elapsedSincePrevious: Duration.millis(10),
+    //         input: undefined,
+    //         output: Duration.millis(20),
+    //         now: 10,
+    //         recurrence: 2,
+    //         start: 0
+    //       },
+    //       {
+    //         elapsed: Duration.millis(30),
+    //         elapsedSincePrevious: Duration.millis(20),
+    //         input: undefined,
+    //         output: Duration.millis(40),
+    //         now: 30,
+    //         recurrence: 3,
+    //         start: 0
+    //       }
+    //     ])
+    //   }))
+
+    it.effect("repeat - does not swallow errors on a repetition", () =>
+      Effect.gen(function*() {
+        const ref = yield* (Ref.make(0))
+        const result = yield* pipe(
+          Stream.fromEffect(pipe(
+            Ref.getAndUpdate(ref, (n) => n + 1),
+            Effect.flatMap((n) => n <= 2 ? Effect.succeed(n) : Effect.fail("boom"))
+          )),
+          Stream.repeat(Schedule.recurs(3)),
+          Stream.runDrain,
+          Effect.exit
+        )
+        deepStrictEqual(result, Exit.fail("boom"))
+      }))
+
+    it.effect("repeatElements - simple", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make("A", "B", "C"),
+          Stream.repeatElements(Schedule.recurs(1)),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["A", "A", "B", "B", "C", "C"])
+      }))
+
+    it.effect("repeatElements - short circuits in a schedule", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make("A", "B", "C"),
+          Stream.repeatElements(Schedule.recurs(1)),
+          Stream.take(4),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["A", "A", "B", "B"])
+      }))
+
+    it.effect("repeatElements - short circuits after schedule", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make("A", "B", "C"),
+          Stream.repeatElements(Schedule.recurs(1)),
+          Stream.take(3),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, ["A", "A", "B"])
+      }))
+  })
+
+  describe("retry", () => {
+    it.effect("retry - retries a failing stream", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(0)
+        const stream = pipe(
+          Stream.fromEffect(Ref.getAndUpdate(ref, (n) => n + 1)),
+          Stream.concat(Stream.fail(Option.none()))
+        )
+        const result = yield* pipe(
+          stream,
+          Stream.retry(Schedule.forever),
+          Stream.take(2),
+          Stream.runCollect
+        )
+        deepStrictEqual(Array.fromIterable(result), [0, 1])
+      }))
+
+    it.effect("retry - cleans up resources before restarting the stream", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(0)
+        const stream = pipe(
+          Effect.addFinalizer(() => Ref.getAndUpdate(ref, (n) => n + 1)),
+          Effect.as(
+            pipe(
+              Stream.fromEffect(Ref.get(ref)),
+              Stream.concat(Stream.fail(Option.none()))
+            )
+          ),
+          Stream.unwrap
+        )
+        const result = yield* pipe(
+          stream,
+          Stream.retry(Schedule.forever),
+          Stream.take(2),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [0, 1])
+      }))
+
+    it.effect("retry - retries a failing stream according to a schedule", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(Array.empty<number>())
+        const stream = pipe(
+          Stream.fromEffect(
+            pipe(
+              Clock.currentTimeMillis,
+              Effect.flatMap((n) => Ref.update(ref, Array.prepend(n)))
+            )
+          ),
+          Stream.flatMap(() => Stream.fail(Option.none()))
+        )
+        const fiber = yield* pipe(
+          stream,
+          Stream.retry(Schedule.exponential(Duration.seconds(1))),
+          Stream.take(3),
+          Stream.runDrain,
+          Effect.forkChild
+        )
+        yield* TestClock.adjust(Duration.seconds(1))
+        yield* TestClock.adjust(Duration.seconds(2))
+        yield* Fiber.interrupt(fiber)
+        const result = yield* pipe(Ref.get(ref), Effect.map(Array.map((n) => new Date(n).getSeconds())))
+        deepStrictEqual(Array.fromIterable(result), [3, 1, 0])
+      }))
+
+    it.effect("retry - reset the schedule after a successful pull", () =>
+      Effect.gen(function*() {
+        const times = yield* Ref.make(Array.empty<number>())
+        const ref = yield* Ref.make(0)
+        const effect = pipe(
+          Clock.currentTimeMillis,
+          Effect.flatMap((time) =>
+            pipe(
+              Ref.update(times, Array.prepend(time / 1000)),
+              Effect.andThen(Ref.updateAndGet(ref, (n) => n + 1))
+            )
+          )
+        )
+        const stream = pipe(
+          Stream.fromEffect(effect),
+          Stream.flatMap((attempt) =>
+            attempt === 3 || attempt === 5 ?
+              Stream.succeed(attempt) :
+              Stream.fail(Option.none())
+          ),
+          Stream.forever
+        )
+        const fiber = yield* pipe(
+          stream,
+          Stream.retry(Schedule.exponential(Duration.seconds(1))),
+          Stream.take(2),
+          Stream.runDrain,
+          Effect.forkChild
+        )
+        yield* TestClock.adjust(Duration.seconds(1))
+        yield* TestClock.adjust(Duration.seconds(2))
+        yield* TestClock.adjust(Duration.seconds(1))
+        yield* Fiber.join(fiber)
+        const result = yield* Ref.get(times)
+        deepStrictEqual(result, [4, 3, 3, 1, 0])
+      }))
+
+    it.effect("retry - Schedule.CurrentMetadata", () =>
+      Effect.gen(function*() {
+        const metadata = yield* Ref.make(Array.empty<undefined | Schedule.Metadata>())
+        const fiber = yield* pipe(
+          Stream.fail(1),
+          Stream.tapError(Effect.fnUntraced(function*(_) {
+            const currentMeta = yield* Schedule.CurrentMetadata
+            yield* Ref.update(metadata, Array.append(currentMeta))
+          })),
+          Stream.retry(Schedule.exponential(Duration.seconds(1))),
+          Stream.runDrain,
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* TestClock.adjust(Duration.seconds(7))
+        yield* Fiber.interrupt(fiber)
+        const result = yield* Ref.get(metadata)
+        deepStrictEqual(result, [
+          {
+            elapsed: 0,
+            elapsedSincePrevious: 0,
+            input: undefined,
+            output: undefined,
+            now: 0,
+            attempt: 0,
+            start: 0,
+            duration: Duration.zero
+          },
+          {
+            elapsed: 0,
+            elapsedSincePrevious: 0,
+            input: 1,
+            output: Duration.millis(1000),
+            now: 0,
+            attempt: 1,
+            start: 0,
+            duration: Duration.millis(1000)
+          },
+          {
+            elapsed: 1000,
+            elapsedSincePrevious: 1000,
+            input: 1,
+            output: Duration.millis(2000),
+            now: 1000,
+            attempt: 2,
+            start: 0,
+            duration: Duration.millis(2000)
+          },
+          {
+            elapsed: 3000,
+            elapsedSincePrevious: 2000,
+            input: 1,
+            output: Duration.millis(4000),
+            now: 3000,
+            attempt: 3,
+            start: 0,
+            duration: Duration.millis(4000)
+          }
+        ])
+      }))
+  })
+
+  describe("schedule", () => {
+    it.effect("schedule", () =>
+      Effect.gen(function*() {
+        const start = yield* Clock.currentTimeMillis
+        const fiber = yield* pipe(
+          Stream.range(1, 8),
+          Stream.schedule(Schedule.fixed(Duration.millis(100))),
+          Stream.mapEffect((n) =>
+            pipe(
+              Clock.currentTimeMillis,
+              Effect.map((now) => [n, now - start] as const)
+            )
+          ),
+          Stream.runCollect,
+          Effect.forkChild
+        )
+        yield* TestClock.adjust(Duration.millis(800))
+        const result = yield* Fiber.join(fiber)
+        deepStrictEqual(result, [
+          [1, 100],
+          [2, 200],
+          [3, 300],
+          [4, 400],
+          [5, 500],
+          [6, 600],
+          [7, 700],
+          [8, 800]
+        ])
+      }))
+  })
+
+  describe("sliding", () => {
+    it.effect("sliding - returns a sliding window", () =>
+      Effect.gen(function*() {
+        const stream0 = Stream.fromArrays(
+          Array.empty<number>(),
+          Array.make(1),
+          Array.empty<number>(),
+          Array.make(2, 3, 4, 5)
+        )
+        const stream1 = pipe(
+          Stream.empty,
+          Stream.concat(Stream.make(1)),
+          Stream.concat(Stream.empty),
+          Stream.concat(Stream.make(2)),
+          Stream.concat(Stream.make(3, 4, 5))
+        )
+        const stream2 = pipe(
+          Stream.make(1),
+          Stream.concat(Stream.empty),
+          Stream.concat(Stream.make(2)),
+          Stream.concat(Stream.empty),
+          Stream.concat(Stream.make(3, 4, 5))
+        )
+        const stream3 = pipe(
+          Stream.make(1),
+          Stream.concat(Stream.make(2)),
+          Stream.concat(Stream.make(3, 4, 5))
+        )
+        const result1 = yield* pipe(
+          Stream.make(1, 2, 3, 4, 5),
+          Stream.sliding(2),
+          Stream.runCollect
+        )
+        const result2 = yield* pipe(
+          stream0,
+          Stream.sliding(2),
+          Stream.runCollect
+        )
+        const result3 = yield* pipe(
+          stream1,
+          Stream.sliding(2),
+          Stream.runCollect
+        )
+        const result4 = yield* pipe(
+          stream2,
+          Stream.sliding(2),
+          Stream.runCollect
+        )
+        const result5 = yield* pipe(
+          stream3,
+          Stream.sliding(2),
+          Stream.runCollect
+        )
+        const expected = [[1, 2], [2, 3], [3, 4], [4, 5]]
+        deepStrictEqual(result1, expected as any)
+        deepStrictEqual(result2, expected as any)
+        deepStrictEqual(result3, expected as any)
+        deepStrictEqual(result4, expected as any)
+        deepStrictEqual(result5, expected as any)
+      }))
+
+    it.effect("sliding - returns all elements if chunkSize is greater than the size of the stream", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.range(1, 5),
+          Stream.sliding(6),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [[1, 2, 3, 4, 5]])
+      }))
+
+    it.effect("sliding - is mostly equivalent to ZStream#grouped when stepSize and chunkSize are equal", () =>
+      Effect.gen(function*() {
+        const stream = Stream.range(1, 5)
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.slidingSize(3, 3), Stream.runCollect),
+          result2: pipe(stream, Stream.grouped(3), Stream.runCollect)
+        }))
+        deepStrictEqual(result1, result2)
+      }))
+
+    it.effect("sliding - fails if upstream produces an error", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3),
+          Stream.concat(Stream.fail("Ouch")),
+          Stream.concat(Stream.make(4, 5)),
+          Stream.sliding(2),
+          Stream.runCollect,
+          Effect.flip
+        )
+        assert.strictEqual(result, "Ouch")
+      }))
+
+    it.effect("sliding - should return an empty chunk when the stream is empty", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(Stream.empty, Stream.sliding(2), Stream.runCollect)
+        deepStrictEqual(result, [])
+      }))
+
+    it.effect("sliding - emits elements properly when a failure occurs", () =>
+      Effect.gen(function*() {
+        const ref = yield* Ref.make(Array.empty<Array.NonEmptyReadonlyArray<number>>())
+        const streamChunks = Stream.fromArrays(
+          Array.range(1, 4),
+          Array.range(5, 7),
+          Array.of(8)
+        )
+        const stream = pipe(
+          streamChunks,
+          Stream.concat(Stream.fail("Ouch")),
+          Stream.slidingSize(3, 3)
+        )
+        const either = yield* pipe(
+          stream,
+          Stream.mapEffect((chunk) => Ref.update(ref, Array.append(chunk))),
+          Stream.runCollect,
+          Effect.flip
+        )
+        const result = yield* (Ref.get(ref))
+        assert.strictEqual(either, "Ouch")
+        deepStrictEqual(result, [[1, 2, 3], [4, 5, 6], [7, 8]])
+      }))
+  })
+
+  describe("split", () => {
+    it.effect("split - should split properly", () =>
+      Effect.gen(function*() {
+        const chunks = Array.make(
+          Array.range(1, 2),
+          Array.range(3, 4),
+          Array.range(5, 6),
+          Array.make(7, 8, 9),
+          Array.of(10)
+        )
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(
+            Stream.range(0, 9),
+            Stream.split((n) => n % 4 === 0 ? n : Filter.fail(n)),
+            Stream.runCollect
+          ),
+          result2: pipe(
+            Stream.fromArrays(...chunks),
+            Stream.split((n) => n % 3 === 0 ? n : Filter.fail(n)),
+            Stream.runCollect
+          )
+        }))
+        deepStrictEqual(
+          result1,
+          [[1, 2, 3], [5, 6, 7], [9]]
+        )
+        deepStrictEqual(
+          result2,
+          [[1, 2], [4, 5], [7, 8], [10]]
+        )
+      }))
+
+    it.effect("split - is equivalent to identity when the predicate is not satisfied", () =>
+      Effect.gen(function*() {
+        const stream = Stream.range(1, 10)
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.split((n) => n % 11 === 0 ? n : Filter.fail(n)), Stream.runCollect),
+          result2: pipe(
+            Stream.runCollect(stream),
+            Effect.map((chunk) => pipe(Array.of(chunk), Array.filter(Array.isArrayNonEmpty)))
+          )
+        }))
+        deepStrictEqual(result1, [Array.range(1, 10)])
+        deepStrictEqual(result1, result2)
+      }))
+
+    it.effect("split - should output empty chunk when stream is empty", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.empty,
+          Stream.split((n: number) => n % 11 === 0 ? n : Filter.fail(n)),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [])
+      }))
+  })
+
+  describe("timeout", () => {
+    it.effect("timeout - succeed", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.succeed(1),
+          Stream.timeout(Duration.infinity),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [1])
+      }))
+
+    it.effect("timeout - should end the stream", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.range(0, 4),
+          Stream.tap(() => Effect.sleep(Duration.infinity)),
+          Stream.timeout(Duration.zero),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [])
+      }))
+  })
+
+  describe("when", () => {
+    it.effect("when - returns the stream if the condition is satisfied", () =>
+      Effect.gen(function*() {
+        const stream = Stream.make(1, 2, 3, 4, 5)
+        const { result1, result2 } = yield* (Effect.all({
+          result1: pipe(stream, Stream.when(constTrue), Stream.runCollect),
+          result2: Stream.runCollect(stream)
+        }))
+        deepStrictEqual(result1, result2)
+      }))
+
+    it.effect("when - returns an empty stream if the condition is not satisfied", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3, 4, 5),
+          Stream.when(constFalse),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [])
+      }))
+
+    it.effect("when - dies if the condition throws an exception", () =>
+      Effect.gen(function*() {
+        const error = "boom"
+        const result = yield* pipe(
+          Stream.make(1, 2, 3),
+          Stream.when(() => {
+            throw error
+          }),
+          Stream.runDrain,
+          Effect.exit
+        )
+        deepStrictEqual(result, Exit.die(error))
+      }))
+
+    it.effect("when - returns the stream if the effectful condition is satisfied", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3, 4, 5),
+          Stream.when(Effect.succeed(true)),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [1, 2, 3, 4, 5])
+      }))
+
+    it.effect("when - returns an empty stream if the effectful condition is not satisfied", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3, 4, 5),
+          Stream.when(Effect.succeed(false)),
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [])
+      }))
+
+    it.effect("when - fails if the effectful condition fails", () =>
+      Effect.gen(function*() {
+        const error = "boom"
+        const result = yield* pipe(
+          Stream.make(1, 2, 3),
+          Stream.when(Effect.fail(error)),
+          Stream.runDrain,
+          Effect.exit
+        )
+        deepStrictEqual(result, Exit.fail(error))
+      }))
+  })
+
+  describe("zipWithNext", () => {
+    it.effect("zipWithNext", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3),
+          Stream.zipWithNext,
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [
+          [1, Option.some(2)],
+          [2, Option.some(3)],
+          [3, Option.none()]
+        ])
+      }))
+
+    it.effect("zipWithNext - should work with multiple chunks", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.fromArrays([1], [2], [3]),
+          Stream.zipWithNext,
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [
+          [1, Option.some(2)],
+          [2, Option.some(3)],
+          [3, Option.none()]
+        ])
+      }))
+
+    it.effect("zipWithNext - should work with an empty stream", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.empty,
+          Stream.zipWithNext,
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [])
+      }))
+
+    it.effect("zipWithPrevious - should zip with previous element for a single chunk", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3),
+          Stream.zipWithPrevious,
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [
+          [Option.none(), 1],
+          [Option.some(1), 2],
+          [Option.some(2), 3]
+        ])
+      }))
+
+    it.effect("zipWithPrevious - should work with multiple chunks", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.fromArrays([1], [2], [3]),
+          Stream.zipWithPrevious,
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [
+          [Option.none(), 1],
+          [Option.some(1), 2],
+          [Option.some(2), 3]
+        ])
+      }))
+
+    it.effect("zipWithPrevious - should work with an empty stream", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.empty,
+          Stream.zipWithPrevious,
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [])
+      }))
+
+    it("zipWithPrevious - should output same values as first element plus zipping with init", () =>
+      fc.assert(fc.asyncProperty(fc.array(fc.array(fc.integer())), async (chunks) => {
+        const stream = Stream.fromArrays(...chunks)
+        const { result1, result2 } = await Effect.runPromise(Effect.all({
+          result1: pipe(
+            stream,
+            Stream.zipWithPrevious,
+            Stream.runCollect
+          ),
+          result2: pipe(
+            Stream.make(Option.none()),
+            Stream.concat(pipe(stream, Stream.map(Option.some))),
+            Stream.zip(stream),
+            Stream.runCollect
+          )
+        }))
+        deepStrictEqual(result1, result2)
+      })))
+
+    it.effect("zipWithPreviousAndNext", () =>
+      Effect.gen(function*() {
+        const result = yield* pipe(
+          Stream.make(1, 2, 3),
+          Stream.zipWithPreviousAndNext,
+          Stream.runCollect
+        )
+        deepStrictEqual(result, [
+          [Option.none(), 1, Option.some(2)],
+          [Option.some(1), 2, Option.some(3)],
+          [Option.some(2), 3, Option.none()]
+        ])
+      }))
+
+    it("zipWithPreviousAndNext - should output same values as zipping with both previous and next element", () =>
+      fc.assert(fc.asyncProperty(fc.array(fc.array(fc.integer()), { minLength: 0, maxLength: 5 }), async (chunks) => {
+        const stream = Stream.fromArrays(...chunks)
+        const previous = pipe(
+          Stream.make(Option.none()),
+          Stream.concat(pipe(stream, Stream.map(Option.some)))
+        )
+        const next = pipe(
+          stream,
+          Stream.drop(1),
+          Stream.map(Option.some),
+          Stream.concat(Stream.make(Option.none()))
+        )
+        const { result1, result2 } = await pipe(
+          Effect.all({
+            result1: pipe(
+              stream,
+              Stream.zipWithPreviousAndNext,
+              Stream.runCollect
+            ),
+            result2: pipe(
+              previous,
+              Stream.zip(stream),
+              Stream.zipFlatten(next),
+              Stream.runCollect
+            )
+          }),
+          Effect.runPromise
+        )
+        deepStrictEqual(result1, result2)
+      })))
   })
 })
 

@@ -46,7 +46,7 @@ export const make = Effect.gen(function*() {
   }
 
   function generate(
-    source: FromJsonSchema.Source,
+    source: Schema.JsonSchema.Source,
     spec: OpenAPISpec,
     typeOnly: boolean
   ): { schemas: string; imports: string } {
@@ -88,7 +88,7 @@ export const make = Effect.gen(function*() {
 
     for (const { generation, name } of generations) {
       addImportDeclarations(generation.importDeclarations)
-      const jsDocs = FromJsonSchema.defaultExtractJsDocs(generation.annotations)
+      const jsDocs = generation.jsDocs ?? ""
       if (name) {
         const strings = [
           jsDocs + `export type ${name} = ${generation.types.Type}`,
@@ -97,7 +97,7 @@ export const make = Effect.gen(function*() {
             : `export type ${name}Encoded = ${name}`
         ]
         if (!typeOnly) {
-          strings.push(jsDocs + `export const ${name} = ${generation.runtime}`)
+          strings.push(jsDocs + `export const ${name} = ${generation.code}`)
         }
         schemas.push(strings.join("\n"))
       }

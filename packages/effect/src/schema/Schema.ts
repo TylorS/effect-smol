@@ -846,7 +846,7 @@ export function make<S extends Top>(ast: S["ast"]): S {
  * @category Guards
  * @since 4.0.0
  */
-export function isSchema(u: unknown): u is Schema<unknown> {
+export function isSchema(u: unknown): u is Top {
   return Predicate.hasProperty(u, TypeId) && u[TypeId] === TypeId
 }
 
@@ -3419,12 +3419,13 @@ export function isTrimmed(annotations?: Annotations.Filter) {
  * **Arbitrary**
  *
  * When generating test data with fast-check, this applies a `patterns`
- * constraint to ensure generated strings match the specified regex pattern.
+ * constraint to ensure generated strings match the specified RegExp pattern.
  *
  * @category String checks
  * @since 4.0.0
  */
-export const isPattern: (regex: RegExp, annotations?: Annotations.Filter) => AST.Filter<string> = AST.isPattern
+export const isPattern: (regExp: globalThis.RegExp, annotations?: Annotations.Filter) => AST.Filter<string> =
+  AST.isPattern
 
 /**
  * Validates that a string represents a valid number (can be parsed as a number).
@@ -3481,13 +3482,13 @@ export const isBigIntString: (annotations?: Annotations.Filter) => AST.Filter<st
 export const isSymbolString: (annotations?: Annotations.Filter) => AST.Filter<string> = AST.isSymbolString
 
 /**
- * Returns a regex for validating an RFC 4122 UUID.
+ * Returns a RegExp for validating an RFC 4122 UUID.
  *
- * Optionally specify a version 1-8. If no version is specified, all versions are supported.
+ * Optionally specify a version 1-8. If no version is specified (`undefined`), all versions are supported.
  */
-const getUUIDRegex = (version?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8): RegExp => {
+const getUUIDRegExp = (version?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8): globalThis.RegExp => {
   if (version) {
-    return new RegExp(
+    return new globalThis.RegExp(
       `^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-${version}[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$`
     )
   }
@@ -3497,6 +3498,7 @@ const getUUIDRegex = (version?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8): RegExp => {
 /**
  * Validates that a string is a valid Universally Unique Identifier (UUID).
  * Optionally specify a version (1-8) to validate against a specific UUID version.
+ * If no version is specified (`undefined`), all versions are supported.
  *
  * **JSON Schema**
  *
@@ -3511,15 +3513,23 @@ const getUUIDRegex = (version?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8): RegExp => {
  * @category String checks
  * @since 4.0.0
  */
-export function isUUID(version?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) {
-  const re = getUUIDRegex(version)
-  return isPattern(re, {
-    expected: version ? `a UUID v${version}` : "a UUID",
-    jsonSchemaConstraint: () => ({
-      pattern: re.source,
-      format: "uuid"
-    })
-  })
+export function isUUID(version: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | undefined, annotations?: Annotations.Filter) {
+  const regExp = getUUIDRegExp(version)
+  return isPattern(
+    regExp,
+    Annotations.combine({
+      expected: version ? `a UUID v${version}` : "a UUID",
+      meta: {
+        _tag: "isUUID",
+        regExp,
+        version
+      },
+      jsonSchemaConstraint: () => ({
+        pattern: regExp.source,
+        format: "uuid"
+      })
+    }, annotations)
+  )
 }
 
 /**
@@ -3540,13 +3550,13 @@ export function isUUID(version?: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8) {
  * @since 4.0.0
  */
 export function isULID(annotations?: Annotations.Filter) {
-  const regex = /^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$/
+  const regExp = /^[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{26}$/
   return isPattern(
-    regex,
+    regExp,
     Annotations.combine({
       meta: {
         _tag: "isULID",
-        regex
+        regExp
       }
     }, annotations)
   )
@@ -3569,14 +3579,14 @@ export function isULID(annotations?: Annotations.Filter) {
  * @since 4.0.0
  */
 export function isBase64(annotations?: Annotations.Filter) {
-  const regex = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/
+  const regExp = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/
   return isPattern(
-    regex,
+    regExp,
     Annotations.combine({
       expected: "a base64 encoded string",
       meta: {
         _tag: "isBase64",
-        regex
+        regExp
       }
     }, annotations)
   )
@@ -3600,14 +3610,14 @@ export function isBase64(annotations?: Annotations.Filter) {
  * @since 4.0.0
  */
 export function isBase64Url(annotations?: Annotations.Filter) {
-  const regex = /^([0-9a-zA-Z-_]{4})*(([0-9a-zA-Z-_]{2}(==)?)|([0-9a-zA-Z-_]{3}(=)?))?$/
+  const regExp = /^([0-9a-zA-Z-_]{4})*(([0-9a-zA-Z-_]{2}(==)?)|([0-9a-zA-Z-_]{3}(=)?))?$/
   return isPattern(
-    regex,
+    regExp,
     Annotations.combine({
       expected: "a base64url encoded string",
       meta: {
         _tag: "isBase64Url",
-        regex
+        regExp
       }
     }, annotations)
   )
@@ -3903,7 +3913,7 @@ export function isFinite(annotations?: Annotations.Filter) {
  * @category Order checks
  * @since 4.0.0
  */
-export function deriveIsGreaterThan<T>(options: {
+export function makeIsGreaterThan<T>(options: {
   readonly order: Order.Order<T>
   readonly annotate?: ((exclusiveMinimum: T) => Annotations.Filter) | undefined
   readonly format?: (value: T) => string | undefined
@@ -3915,6 +3925,10 @@ export function deriveIsGreaterThan<T>(options: {
       (input) => greaterThan(input, exclusiveMinimum),
       Annotations.combine({
         expected: `a value greater than ${fmt(exclusiveMinimum)}`,
+        meta: {
+          _tag: "isGreaterThan",
+          exclusiveMinimum
+        },
         ...options.annotate?.(exclusiveMinimum)
       }, annotations)
     )
@@ -3925,7 +3939,7 @@ export function deriveIsGreaterThan<T>(options: {
  * @category Order checks
  * @since 4.0.0
  */
-export function deriveIsGreaterThanOrEqualTo<T>(options: {
+export function makeIsGreaterThanOrEqualTo<T>(options: {
   readonly order: Order.Order<T>
   readonly annotate?: ((exclusiveMinimum: T) => Annotations.Filter) | undefined
   readonly format?: (value: T) => string | undefined
@@ -3937,6 +3951,10 @@ export function deriveIsGreaterThanOrEqualTo<T>(options: {
       (input) => greaterThanOrEqualTo(input, minimum),
       Annotations.combine({
         expected: `a value greater than or equal to ${fmt(minimum)}`,
+        meta: {
+          _tag: "isGreaterThanOrEqualTo",
+          minimum
+        },
         ...options.annotate?.(minimum)
       }, annotations)
     )
@@ -3947,7 +3965,7 @@ export function deriveIsGreaterThanOrEqualTo<T>(options: {
  * @category Order checks
  * @since 4.0.0
  */
-export function deriveIsLessThan<T>(options: {
+export function makeIsLessThan<T>(options: {
   readonly order: Order.Order<T>
   readonly annotate?: ((exclusiveMaximum: T) => Annotations.Filter) | undefined
   readonly format?: (value: T) => string | undefined
@@ -3959,6 +3977,10 @@ export function deriveIsLessThan<T>(options: {
       (input) => lessThan(input, exclusiveMaximum),
       Annotations.combine({
         expected: `a value less than ${fmt(exclusiveMaximum)}`,
+        meta: {
+          _tag: "isLessThan",
+          exclusiveMaximum
+        },
         ...options.annotate?.(exclusiveMaximum)
       }, annotations)
     )
@@ -3969,7 +3991,7 @@ export function deriveIsLessThan<T>(options: {
  * @category Order checks
  * @since 4.0.0
  */
-export function deriveIsLessThanOrEqualTo<T>(options: {
+export function makeIsLessThanOrEqualTo<T>(options: {
   readonly order: Order.Order<T>
   readonly annotate?: ((exclusiveMaximum: T) => Annotations.Filter) | undefined
   readonly format?: (value: T) => string | undefined
@@ -3981,6 +4003,10 @@ export function deriveIsLessThanOrEqualTo<T>(options: {
       (input) => lessThanOrEqualTo(input, maximum),
       Annotations.combine({
         expected: `a value less than or equal to ${fmt(maximum)}`,
+        meta: {
+          _tag: "isLessThanOrEqualTo",
+          maximum
+        },
         ...options.annotate?.(maximum)
       }, annotations)
     )
@@ -3991,7 +4017,7 @@ export function deriveIsLessThanOrEqualTo<T>(options: {
  * @category Order checks
  * @since 4.0.0
  */
-export function deriveIsBetween<T>(deriveOptions: {
+export function makeIsBetween<T>(deriveOptions: {
   readonly order: Order.Order<T>
   readonly annotate?:
     | ((options: {
@@ -4022,12 +4048,10 @@ export function deriveIsBetween<T>(deriveOptions: {
         expected: `a value between ${fmt(options.minimum)}${options.exclusiveMinimum ? " (excluded)" : ""} and ${
           fmt(options.maximum)
         }${options.exclusiveMaximum ? " (excluded)" : ""}`,
-        jsonSchemaConstraint: () => ({
-          minimum: options.exclusiveMinimum ? options.minimum : undefined,
-          maximum: options.exclusiveMaximum ? options.maximum : undefined,
-          exclusiveMinimum: options.exclusiveMinimum,
-          exclusiveMaximum: options.exclusiveMaximum
-        }),
+        meta: {
+          _tag: "isBetween",
+          ...options
+        },
         ...deriveOptions.annotate?.(options)
       }, annotations)
     )
@@ -4038,7 +4062,7 @@ export function deriveIsBetween<T>(deriveOptions: {
  * @category Numeric checks
  * @since 4.0.0
  */
-export function deriveIsMultipleOf<T>(options: {
+export function makeIsMultipleOf<T>(options: {
   readonly remainder: (input: T, divisor: T) => T
   readonly zero: NoInfer<T>
   readonly annotate?: ((divisor: T) => Annotations.Filter) | undefined
@@ -4050,6 +4074,10 @@ export function deriveIsMultipleOf<T>(options: {
       (input) => options.remainder(input, divisor) === options.zero,
       Annotations.combine({
         expected: `a value that is a multiple of ${fmt(divisor)}`,
+        meta: {
+          _tag: "isMultipleOf",
+          divisor
+        },
         ...options.annotate?.(divisor)
       }, annotations)
     )
@@ -4072,14 +4100,10 @@ export function deriveIsMultipleOf<T>(options: {
  * @category Number checks
  * @since 4.0.0
  */
-export const isGreaterThan = deriveIsGreaterThan({
+export const isGreaterThan = makeIsGreaterThan({
   order: Order.number,
   annotate: (exclusiveMinimum) => ({
     jsonSchemaConstraint: () => ({ exclusiveMinimum }),
-    meta: {
-      _tag: "isGreaterThan",
-      exclusiveMinimum
-    },
     arbitraryConstraint: {
       number: {
         min: exclusiveMinimum,
@@ -4105,14 +4129,10 @@ export const isGreaterThan = deriveIsGreaterThan({
  * @category Number checks
  * @since 4.0.0
  */
-export const isGreaterThanOrEqualTo = deriveIsGreaterThanOrEqualTo({
+export const isGreaterThanOrEqualTo = makeIsGreaterThanOrEqualTo({
   order: Order.number,
   annotate: (minimum) => ({
     jsonSchemaConstraint: () => ({ minimum }),
-    meta: {
-      _tag: "isGreaterThanOrEqualTo",
-      minimum
-    },
     arbitraryConstraint: {
       number: {
         min: minimum
@@ -4137,14 +4157,10 @@ export const isGreaterThanOrEqualTo = deriveIsGreaterThanOrEqualTo({
  * @category Number checks
  * @since 4.0.0
  */
-export const isLessThan = deriveIsLessThan({
+export const isLessThan = makeIsLessThan({
   order: Order.number,
   annotate: (exclusiveMaximum) => ({
     jsonSchemaConstraint: () => ({ exclusiveMaximum }),
-    meta: {
-      _tag: "isLessThan",
-      exclusiveMaximum
-    },
     arbitraryConstraint: {
       number: {
         max: exclusiveMaximum,
@@ -4170,14 +4186,10 @@ export const isLessThan = deriveIsLessThan({
  * @category Number checks
  * @since 4.0.0
  */
-export const isLessThanOrEqualTo = deriveIsLessThanOrEqualTo({
+export const isLessThanOrEqualTo = makeIsLessThanOrEqualTo({
   order: Order.number,
   annotate: (maximum) => ({
     jsonSchemaConstraint: () => ({ maximum }),
-    meta: {
-      _tag: "isLessThanOrEqualTo",
-      maximum
-    },
     arbitraryConstraint: {
       number: {
         max: maximum
@@ -4204,7 +4216,7 @@ export const isLessThanOrEqualTo = deriveIsLessThanOrEqualTo({
  * @category Number checks
  * @since 4.0.0
  */
-export const isBetween = deriveIsBetween({
+export const isBetween = makeIsBetween({
   order: Order.number,
   annotate: (options) => {
     return {
@@ -4222,10 +4234,6 @@ export const isBetween = deriveIsBetween({
         }
         return out
       },
-      meta: {
-        _tag: "isBetween",
-        ...options
-      },
       arbitraryConstraint: {
         number: {
           min: options.minimum,
@@ -4237,82 +4245,6 @@ export const isBetween = deriveIsBetween({
     }
   }
 })
-
-/**
- * Validates that a number is positive (greater than zero).
- *
- * **JSON Schema**
- *
- * This check corresponds to the `exclusiveMinimum: 0` constraint in JSON Schema.
- *
- * **Arbitrary**
- *
- * When generating test data with fast-check, this applies a `min` constraint
- * with `minExcluded: true` set to 0 to ensure generated numbers are positive.
- *
- * @category Number checks
- * @since 4.0.0
- */
-export function isPositive(annotations?: Annotations.Filter) {
-  return isGreaterThan(0, annotations)
-}
-
-/**
- * Validates that a number is negative (less than zero).
- *
- * **JSON Schema**
- *
- * This check corresponds to the `exclusiveMaximum: 0` constraint in JSON Schema.
- *
- * **Arbitrary**
- *
- * When generating test data with fast-check, this applies a `max` constraint
- * with `maxExcluded: true` set to 0 to ensure generated numbers are negative.
- *
- * @category Number checks
- * @since 4.0.0
- */
-export function isNegative(annotations?: Annotations.Filter) {
-  return isLessThan(0, annotations)
-}
-
-/**
- * Validates that a number is non-negative (greater than or equal to zero).
- *
- * **JSON Schema**
- *
- * This check corresponds to the `minimum: 0` constraint in JSON Schema.
- *
- * **Arbitrary**
- *
- * When generating test data with fast-check, this applies a `min` constraint
- * set to 0 to ensure generated numbers are non-negative.
- *
- * @category Number checks
- * @since 4.0.0
- */
-export function isNonNegative(annotations?: Annotations.Filter) {
-  return isGreaterThanOrEqualTo(0, annotations)
-}
-
-/**
- * Validates that a number is non-positive (less than or equal to zero).
- *
- * **JSON Schema**
- *
- * This check corresponds to the `maximum: 0` constraint in JSON Schema.
- *
- * **Arbitrary**
- *
- * When generating test data with fast-check, this applies a `max` constraint
- * set to 0 to ensure generated numbers are non-positive.
- *
- * @category Number checks
- * @since 4.0.0
- */
-export function isNonPositive(annotations?: Annotations.Filter) {
-  return isLessThanOrEqualTo(0, annotations)
-}
 
 /**
  * Validates that a number is a multiple of the specified divisor.
@@ -4329,7 +4261,7 @@ export function isNonPositive(annotations?: Annotations.Filter) {
  * @category Number checks
  * @since 4.0.0
  */
-export const isMultipleOf = deriveIsMultipleOf({
+export const isMultipleOf = makeIsMultipleOf({
   remainder,
   zero: 0,
   annotate: (divisor) => ({
@@ -4479,6 +4411,30 @@ export function isValidDate(annotations?: Annotations.Filter) {
 }
 
 /**
+ * Validates that a Date is greater than the specified value (exclusive).
+ *
+ * **Arbitrary**
+ *
+ * When generating test data with fast-check, this applies a `min` constraint
+ * with `minExcluded: true` to ensure generated Date objects are greater than the
+ * specified value.
+ *
+ * @category Date checks
+ * @since 4.0.0
+ */
+export const isGreaterThanDate = makeIsGreaterThan({
+  order: Order.Date,
+  annotate: (exclusiveMinimum) => ({
+    arbitraryConstraint: {
+      date: {
+        min: exclusiveMinimum,
+        minExcluded: true
+      }
+    }
+  })
+})
+
+/**
  * Validates that a Date is greater than or equal to the specified date
  * (inclusive).
  *
@@ -4496,16 +4452,36 @@ export function isValidDate(annotations?: Annotations.Filter) {
  * @category Date checks
  * @since 4.0.0
  */
-export const isGreaterThanOrEqualToDate = deriveIsGreaterThanOrEqualTo({
+export const isGreaterThanOrEqualToDate = makeIsGreaterThanOrEqualTo({
   order: Order.Date,
   annotate: (minimum) => ({
-    meta: {
-      _tag: "isGreaterThanOrEqualToDate",
-      minimum
-    },
     arbitraryConstraint: {
       date: {
         min: minimum
+      }
+    }
+  })
+})
+
+/**
+ * Validates that a Date is less than the specified value (exclusive).
+ *
+ * **Arbitrary**
+ *
+ * When generating test data with fast-check, this applies a `max` constraint
+ * with `maxExcluded: true` to ensure generated Date objects are less than the
+ * specified value.
+ *
+ * @category Date checks
+ * @since 4.0.0
+ */
+export const isLessThanDate = makeIsLessThan({
+  order: Order.Date,
+  annotate: (exclusiveMaximum) => ({
+    arbitraryConstraint: {
+      date: {
+        max: exclusiveMaximum,
+        maxExcluded: true
       }
     }
   })
@@ -4529,13 +4505,9 @@ export const isGreaterThanOrEqualToDate = deriveIsGreaterThanOrEqualTo({
  * @category Date checks
  * @since 4.0.0
  */
-export const isLessThanOrEqualToDate = deriveIsLessThanOrEqualTo({
+export const isLessThanOrEqualToDate = makeIsLessThanOrEqualTo({
   order: Order.Date,
   annotate: (maximum) => ({
-    meta: {
-      _tag: "isLessThanOrEqualToDate",
-      maximum
-    },
     arbitraryConstraint: {
       date: {
         max: maximum
@@ -4561,13 +4533,9 @@ export const isLessThanOrEqualToDate = deriveIsLessThanOrEqualTo({
  * @category Date checks
  * @since 4.0.0
  */
-export const isBetweenDate = deriveIsBetween({
+export const isBetweenDate = makeIsBetween({
   order: Order.Date,
   annotate: (options) => ({
-    meta: {
-      _tag: "isBetweenDate",
-      ...options
-    },
     arbitraryConstraint: {
       date: {
         min: options.minimum,
@@ -4578,14 +4546,32 @@ export const isBetweenDate = deriveIsBetween({
 })
 
 /**
+ * Validates that a BigInt is greater than the specified value (exclusive).
+ *
+ * **Arbitrary**
+ *
+ * When generating test data with fast-check, this applies a `min` constraint
+ * with `minExcluded: true` to ensure generated BigInts are greater than the
+ * specified value.
+ *
+ * @category BigInt checks
+ * @since 4.0.0
+ */
+export const isGreaterThanBigInt = makeIsGreaterThan({
+  order: Order.bigint,
+  annotate: (exclusiveMinimum) => ({
+    arbitraryConstraint: {
+      bigint: {
+        min: exclusiveMinimum,
+        minExcluded: true
+      }
+    }
+  })
+})
+
+/**
  * Validates that a BigInt is greater than or equal to the specified value
  * (inclusive).
- *
- * **JSON Schema**
- *
- * This check does not have a direct JSON Schema equivalent, as JSON Schema
- * does not natively support BigInt. It would need to be represented as a
- * string with validation.
  *
  * **Arbitrary**
  *
@@ -4596,13 +4582,9 @@ export const isBetweenDate = deriveIsBetween({
  * @category BigInt checks
  * @since 4.0.0
  */
-export const isGreaterThanOrEqualToBigInt = deriveIsGreaterThanOrEqualTo({
+export const isGreaterThanOrEqualToBigInt = makeIsGreaterThanOrEqualTo({
   order: Order.bigint,
   annotate: (minimum) => ({
-    meta: {
-      _tag: "isGreaterThanOrEqualToBigInt",
-      minimum
-    },
     arbitraryConstraint: {
       bigint: {
         min: minimum
@@ -4612,14 +4594,32 @@ export const isGreaterThanOrEqualToBigInt = deriveIsGreaterThanOrEqualTo({
 })
 
 /**
+ * Validates that a BigInt is less than the specified value (exclusive).
+ *
+ * **Arbitrary**
+ *
+ * When generating test data with fast-check, this applies a `max` constraint
+ * with `maxExcluded: true` to ensure generated BigInts are less than the
+ * specified value.
+ *
+ * @category BigInt checks
+ * @since 4.0.0
+ */
+export const isLessThanBigInt = makeIsLessThan({
+  order: Order.bigint,
+  annotate: (exclusiveMaximum) => ({
+    arbitraryConstraint: {
+      bigint: {
+        max: exclusiveMaximum,
+        maxExcluded: true
+      }
+    }
+  })
+})
+
+/**
  * Validates that a BigInt is less than or equal to the specified value
  * (inclusive).
- *
- * **JSON Schema**
- *
- * This check does not have a direct JSON Schema equivalent, as JSON Schema
- * does not natively support BigInt. It would need to be represented as a
- * string with validation.
  *
  * **Arbitrary**
  *
@@ -4630,13 +4630,9 @@ export const isGreaterThanOrEqualToBigInt = deriveIsGreaterThanOrEqualTo({
  * @category BigInt checks
  * @since 4.0.0
  */
-export const isLessThanOrEqualToBigInt = deriveIsLessThanOrEqualTo({
+export const isLessThanOrEqualToBigInt = makeIsLessThanOrEqualTo({
   order: Order.bigint,
   annotate: (maximum) => ({
-    meta: {
-      _tag: "isLessThanOrEqualToBigInt",
-      maximum
-    },
     arbitraryConstraint: {
       bigint: {
         max: maximum
@@ -4649,12 +4645,6 @@ export const isLessThanOrEqualToBigInt = deriveIsLessThanOrEqualTo({
  * Validates that a BigInt is within a specified range. The range boundaries can
  * be inclusive or exclusive based on the provided options.
  *
- * **JSON Schema**
- *
- * This check does not have a direct JSON Schema equivalent, as JSON Schema
- * does not natively support BigInt. It would need to be represented as a
- * string with validation.
- *
  * **Arbitrary**
  *
  * When generating test data with fast-check, this applies `min` and `max`
@@ -4664,13 +4654,9 @@ export const isLessThanOrEqualToBigInt = deriveIsLessThanOrEqualTo({
  * @category BigInt checks
  * @since 4.0.0
  */
-export const isBetweenBigInt = deriveIsBetween({
+export const isBetweenBigInt = makeIsBetween({
   order: Order.bigint,
   annotate: (options) => ({
-    meta: {
-      _tag: "isBetweenBigInt",
-      ...options
-    },
     arbitraryConstraint: {
       bigint: {
         min: options.minimum,
@@ -4679,48 +4665,6 @@ export const isBetweenBigInt = deriveIsBetween({
     }
   })
 })
-
-/**
- * Validates that a BigInt is non-negative (greater than or equal to zero).
- *
- * **JSON Schema**
- *
- * This check does not have a direct JSON Schema equivalent, as JSON Schema
- * does not natively support BigInt. It would need to be represented as a
- * string with validation.
- *
- * **Arbitrary**
- *
- * When generating test data with fast-check, this applies a `min` constraint
- * set to 0n to ensure generated BigInt values are non-negative.
- *
- * @category BigInt checks
- * @since 4.0.0
- */
-export function isNonNegativeBigInt(annotations?: Annotations.Filter) {
-  return isGreaterThanOrEqualToBigInt(0n, annotations)
-}
-
-/**
- * Validates that a BigInt is non-positive (less than or equal to zero).
- *
- * **JSON Schema**
- *
- * This check does not have a direct JSON Schema equivalent, as JSON Schema
- * does not natively support BigInt. It would need to be represented as a
- * string with validation.
- *
- * **Arbitrary**
- *
- * When generating test data with fast-check, this applies a `max` constraint
- * set to 0n to ensure generated BigInt values are non-positive.
- *
- * @category BigInt checks
- * @since 4.0.0
- */
-export function isNonPositiveBigInt(annotations?: Annotations.Filter) {
-  return isLessThanOrEqualToBigInt(0n, annotations)
-}
 
 /**
  * Validates that a value has at least the specified length. Works with strings
@@ -6129,6 +6073,63 @@ export const URL: URL = instanceOf(
 /**
  * @since 4.0.0
  */
+export interface RegExp extends instanceOf<globalThis.RegExp> {}
+
+/**
+ * @since 4.0.0
+ */
+export const RegExp: RegExp = instanceOf(
+  globalThis.RegExp,
+  {
+    expected: "RegExp",
+    serializerJson: () =>
+      link<globalThis.RegExp>()(
+        Struct({
+          source: String,
+          flags: String
+        }),
+        Transformation.transformOrFail({
+          decode: (regExp) =>
+            Effect.try({
+              try: () => new globalThis.RegExp(regExp.source, regExp.flags),
+              catch: (e) => new Issue.InvalidValue(Option_.some(regExp), { message: globalThis.String(e) })
+            }),
+          encode: (regExp) =>
+            Effect.succeed({
+              source: regExp.source,
+              flags: regExp.flags
+            })
+        })
+      ),
+    arbitrary: () => (fc) =>
+      fc
+        .tuple(
+          fc.constantFrom(
+            ".",
+            ".*",
+            "\\d+",
+            "\\w+",
+            "[a-z]+",
+            "[A-Z]+",
+            "[0-9]+",
+            "^[a-zA-Z0-9]+$",
+            "^\\d{4}-\\d{2}-\\d{2}$" // date pattern
+          ),
+          fc
+            .uniqueArray(fc.constantFrom("g", "i", "m", "s", "u", "y"), {
+              minLength: 0,
+              maxLength: 6
+            })
+            .map((flags) => flags.join(""))
+        )
+        .map(([source, flags]) => new globalThis.RegExp(source, flags)),
+    equivalence: () => (a, b) => a.source === b.source && a.flags === b.flags
+  }
+)
+
+/**
+ * @since 4.0.0
+ */
 export interface URLFromString extends decodeTo<URL, String> {}
 
 /**
@@ -6166,7 +6167,7 @@ export const Date: Date = instanceOf(
     expected: "Date",
     serializerJson: () =>
       link<globalThis.Date>()(
-        String.annotate({ description: "a string that will be decoded as a date" }),
+        String,
         Transformation.transform({
           decode: (s) => new globalThis.Date(s),
           encode: formatDate
@@ -6259,7 +6260,7 @@ export interface DurationFromNanos extends decodeTo<Duration, BigInt> {}
  * @category Duration
  * @since 4.0.0
  */
-export const DurationFromNanos: DurationFromNanos = BigInt.check(isNonNegativeBigInt()).pipe(
+export const DurationFromNanos: DurationFromNanos = BigInt.check(isGreaterThanOrEqualToBigInt(0n)).pipe(
   decodeTo(Duration, Transformation.durationFromNanos)
 )
 
@@ -6284,14 +6285,14 @@ export interface DurationFromMillis extends decodeTo<Duration, Number> {}
  * @category Duration
  * @since 4.0.0
  */
-export const DurationFromMillis: DurationFromMillis = Number.check(isNonNegative()).pipe(
+export const DurationFromMillis: DurationFromMillis = Number.check(isGreaterThanOrEqualTo(0)).pipe(
   decodeTo(Duration, Transformation.durationFromMillis)
 )
 
 /**
  * @since 4.0.0
  */
-export interface UnknownFromJsonString extends decodeTo<Unknown, String> {}
+export interface UnknownFromJsonString extends fromJsonString<Unknown> {}
 
 /**
  * A transformation schema that decodes a JSON-encoded string into an `unknown` value.
@@ -6315,9 +6316,7 @@ export interface UnknownFromJsonString extends decodeTo<Unknown, String> {}
  *
  * @since 4.0.0
  */
-export const UnknownFromJsonString: UnknownFromJsonString = String.annotate({
-  description: "a string that will be decoded as JSON"
-}).pipe(decodeTo(Unknown, Transformation.fromJsonString))
+export const UnknownFromJsonString = fromJsonString(Unknown)
 
 /**
  * @since 4.0.0
@@ -6387,7 +6386,8 @@ export interface fromJsonString<S extends Top> extends decodeTo<S, String> {}
  */
 export function fromJsonString<S extends Top>(schema: S): fromJsonString<S> {
   return String.annotate({
-    description: "a string that will be decoded as JSON",
+    "contentMediaType": "application/json",
+    "contentSchema": schema.ast, // TODO: dry
     jsonSchema: (ctx) => {
       switch (ctx.target) {
         case "draft-07":
@@ -6458,15 +6458,13 @@ export interface fromFormData<S extends Top> extends decodeTo<S, FormData> {}
  * import { Schema } from "effect/schema"
  *
  * const schema = Schema.fromFormData(
- *   Schema.toSerializerStringTreeLoose(
- *     Schema.Struct({
- *       a: Schema.String,
- *       b: Schema.Struct({
- *         c: Schema.String,
- *         d: Schema.String
- *       })
+ *   Schema.Struct({
+ *     a: Schema.String,
+ *     b: Schema.Struct({
+ *       c: Schema.String,
+ *       d: Schema.String
  *     })
- *   )
+ *   })
  * )
  *
  * const formData = new FormData()
@@ -6479,8 +6477,9 @@ export interface fromFormData<S extends Top> extends decodeTo<S, FormData> {}
  * ```
  *
  * If you want to decode values that are not strings, use
- * `Schema.toSerializerStringTreeLoose`. This serializer preserves values such
- * as numbers and `Blob` objects when compatible with the schema.
+ * `Schema.toSerializerStringTree` with the `keepDeclarations: true` option.
+ * This serializer preserves values such as numbers and `Blob` objects when
+ * compatible with the schema.
  *
  * **Example** (Parsing non-string values)
  *
@@ -6488,10 +6487,11 @@ export interface fromFormData<S extends Top> extends decodeTo<S, FormData> {}
  * import { Schema } from "effect/schema"
  *
  * const schema = Schema.fromFormData(
- *   Schema.toSerializerStringTreeLoose(
+ *   Schema.toSerializerStringTree(
  *     Schema.Struct({
  *       a: Schema.Int
- *     })
+ *     }),
+ *     { keepDeclarations: true }
  *   )
  * )
  *
@@ -6641,9 +6641,7 @@ export interface NumberFromString extends decodeTo<Finite, String> {}
  *
  * @since 4.0.0
  */
-export const NumberFromString: NumberFromString = String.annotate({
-  description: "a string that will be decoded as a number"
-}).pipe(decodeTo(
+export const NumberFromString: NumberFromString = String.pipe(decodeTo(
   Number,
   Transformation.numberFromString
 ))
@@ -6665,9 +6663,7 @@ export interface FiniteFromString extends decodeTo<Finite, String> {}
  *
  * @since 4.0.0
  */
-export const FiniteFromString: FiniteFromString = String.annotate({
-  description: "a string that will be decoded as a finite number"
-}).pipe(decodeTo(
+export const FiniteFromString: FiniteFromString = String.pipe(decodeTo(
   Finite,
   Transformation.numberFromString
 ))
@@ -6700,9 +6696,7 @@ export interface Trim extends decodeTo<Trimmed, String> {}
  *
  * @since 4.0.0
  */
-export const Trim: Trim = String.annotate({
-  description: "a string that will be trimmed"
-}).pipe(decodeTo(Trimmed, Transformation.trim()))
+export const Trim: Trim = String.pipe(decodeTo(Trimmed, Transformation.trim()))
 
 /**
  * @since 4.0.0
@@ -6745,8 +6739,6 @@ export const BooleanFromBit: BooleanFromBit = Literals([0, 1]).pipe(
  */
 export interface Uint8Array extends instanceOf<globalThis.Uint8Array<ArrayBufferLike>> {}
 
-const StringBase64 = String.annotate({ description: "a string that will be decoded as Uint8Array" })
-
 /**
  * A schema for JavaScript `Uint8Array` objects.
  *
@@ -6759,7 +6751,10 @@ const StringBase64 = String.annotate({ description: "a string that will be decod
  */
 export const Uint8Array: Uint8Array = instanceOf(globalThis.Uint8Array<ArrayBufferLike>, {
   serializerJson: () =>
-    link<globalThis.Uint8Array<ArrayBufferLike>>()(StringBase64, Transformation.uint8ArrayFromString),
+    link<globalThis.Uint8Array<ArrayBufferLike>>()(
+      String,
+      Transformation.uint8ArrayFromString
+    ),
   expected: "Uint8Array",
   arbitrary: () => (fc) => fc.uint8Array()
 })
@@ -6782,7 +6777,7 @@ export interface Uint8ArrayFromBase64 extends decodeTo<Uint8Array, String> {}
  * @category Uint8Array
  * @since 4.0.0
  */
-export const Uint8ArrayFromBase64: Uint8ArrayFromBase64 = StringBase64.pipe(
+export const Uint8ArrayFromBase64: Uint8ArrayFromBase64 = String.pipe(
   decodeTo(Uint8Array, Transformation.uint8ArrayFromString)
 )
 
@@ -6804,9 +6799,7 @@ export interface Uint8ArrayFromBase64Url extends decodeTo<Uint8Array, String> {}
  * @category Uint8Array
  * @since 4.0.0
  */
-export const Uint8ArrayFromBase64Url: Uint8ArrayFromBase64Url = String.annotate({
-  description: "a string that will be decoded as Uint8Array"
-}).pipe(
+export const Uint8ArrayFromBase64Url: Uint8ArrayFromBase64Url = String.pipe(
   decodeTo(Uint8Array, {
     decode: Getter.decodeBase64Url(),
     encode: Getter.encodeBase64Url()
@@ -6831,9 +6824,7 @@ export interface Uint8ArrayFromHex extends decodeTo<Uint8Array, String> {}
  * @category Uint8Array
  * @since 4.0.0
  */
-export const Uint8ArrayFromHex: Uint8ArrayFromHex = String.annotate({
-  description: "a string that will be decoded as Uint8Array"
-}).pipe(
+export const Uint8ArrayFromHex: Uint8ArrayFromHex = String.pipe(
   decodeTo(Uint8Array, {
     decode: Getter.decodeHex(),
     encode: Getter.encodeHex()
@@ -6917,9 +6908,7 @@ export interface DateTimeUtcFromString extends decodeTo<DateTimeUtc, String> {}
  * @category DateTime
  * @since 4.0.0
  */
-export const DateTimeUtcFromString: DateTimeUtcFromString = String.annotate({
-  description: "a string that will be decoded as a DateTime.Utc"
-}).pipe(
+export const DateTimeUtcFromString: DateTimeUtcFromString = String.pipe(
   decodeTo(
     DateTimeUtc,
     Transformation.transform({
@@ -6946,9 +6935,7 @@ export interface DateTimeUtcFromMillis extends decodeTo<instanceOf<DateTime.Utc>
  * @category DateTime
  * @since 4.0.0
  */
-export const DateTimeUtcFromMillis: DateTimeUtcFromMillis = Number.annotate({
-  description: "a number that will be decoded as a DateTime.Utc"
-}).pipe(
+export const DateTimeUtcFromMillis: DateTimeUtcFromMillis = Number.pipe(
   decodeTo(DateTimeUtc, {
     decode: Getter.dateTimeUtcFromInput(),
     encode: Getter.transform(DateTime.toEpochMillis)
@@ -7585,6 +7572,11 @@ export declare namespace JsonSchema {
   /**
    * @since 4.0.0
    */
+  export type Source = Target | "openapi-3.0"
+
+  /**
+   * @since 4.0.0
+   */
   export type Type = "string" | "number" | "boolean" | "array" | "object" | "null" | "integer"
 
   /**
@@ -7596,9 +7588,24 @@ export declare namespace JsonSchema {
    * @since 4.0.0
    */
   export interface Document {
-    readonly uri: string
+    readonly source: Source
     readonly schema: JsonSchema
     readonly definitions: Definitions
+  }
+}
+
+/**
+ * @category JsonSchema
+ * @since 4.0.0
+ */
+export function getMetaSchemaUri(target: JsonSchema.Source) {
+  switch (target) {
+    case "draft-07":
+      return "http://json-schema.org/draft-07/schema"
+    case "draft-2020-12":
+    case "openapi-3.0":
+    case "openapi-3.1":
+      return "https://json-schema.org/draft/2020-12/schema"
   }
 }
 
@@ -7641,29 +7648,37 @@ export function toSerializerIso<S extends Top>(schema: S): Codec<S["Type"], S["I
 export type StringTree = Getter.Tree<string | undefined>
 
 /**
+ * The StringTree serializer converts **every leaf value to a string**, while
+ * preserving the original structure.
+ *
+ * Declarations are converted to `undefined` (unless they have a
+ * `serializerJson` or `serializer` annotation).
+ *
+ * **Options**
+ *
+ * - `keepDeclarations`: if `true`, it **does not** convert declarations to
+ *   `undefined` but instead keeps them as they are (unless they have a
+ *   `serializerJson` or `serializer` annotation).
+ *
+ *    Defaults to `false`.
+ *
  * @category Serializer
  * @since 4.0.0
  */
-export function toSerializerStringTree<T, E, RD, RE>(schema: Codec<T, E, RD, RE>): Codec<T, StringTree, RD, RE> {
-  return make(serializerStringTree(schema.ast))
-}
-
-/**
- * @category Serializer
- * @since 4.0.0
- */
-export function toSerializerStringTreeLoose<T, E, RD, RE>(schema: Codec<T, E, RD, RE>): Codec<T, unknown, RD, RE> {
-  return make(serializerStringTreeLoose(schema.ast))
-}
-
-/**
- * @category Serializer
- * @since 4.0.0
- */
-export function toSerializerEnsureArray<T, RD, RE>(schema: Codec<T, unknown, RD, RE>): Codec<T, unknown, RD, RE>
-export function toSerializerEnsureArray<T, RD, RE>(schema: Codec<T, StringTree, RD, RE>): Codec<T, StringTree, RD, RE>
-export function toSerializerEnsureArray<T, RD, RE>(schema: Codec<T, unknown, RD, RE>): Codec<T, unknown, RD, RE> {
-  return make(serializerEnsureArray(schema.ast))
+export function toSerializerStringTree<T, E, RD, RE>(schema: Codec<T, E, RD, RE>): Codec<T, StringTree, RD, RE>
+export function toSerializerStringTree<T, E, RD, RE>(
+  schema: Codec<T, E, RD, RE>,
+  options: { readonly keepDeclarations: true }
+): Codec<T, unknown, RD, RE>
+export function toSerializerStringTree<T, E, RD, RE>(
+  schema: Codec<T, E, RD, RE>,
+  options?: { readonly keepDeclarations?: boolean | undefined }
+): Codec<T, unknown, RD, RE> {
+  if (options?.keepDeclarations === true) {
+    return make(serializerEnsureArray(serializerStringTreeKeepDeclarations(schema.ast)))
+  } else {
+    return make(serializerEnsureArray(serializerStringTree(schema.ast)))
+  }
 }
 
 type XmlEncoderOptions = {
@@ -7690,8 +7705,48 @@ export function makeEncoderXml<T, E, RD, RE>(
   const rootName = Annotations.resolveIdentifier(codec.ast) ?? Annotations.resolveTitle(codec.ast)
   const serialize = encodeEffect(toSerializerStringTree(codec))
   return (t: T): Effect.Effect<string, SchemaError, RE> =>
-    serialize(t).pipe(Effect.map((pojo) => stringTreeToXml(pojo, { rootName, ...options })))
+    serialize(t).pipe(Effect.map((stringTree) => stringTreeToXml(stringTree, { rootName, ...options })))
 }
+
+function makeReorder(getPriority: (ast: AST.AST) => number) {
+  return (types: ReadonlyArray<AST.AST>): ReadonlyArray<AST.AST> => {
+    // Create a map of original indices for O(1) lookup
+    const indexMap = new Map<AST.AST, number>()
+    for (let i = 0; i < types.length; i++) {
+      indexMap.set(AST.encodedAST(types[i]), i)
+    }
+
+    // Create a sorted copy of the types array
+    const sortedTypes = [...types].sort((a, b) => {
+      a = AST.encodedAST(a)
+      b = AST.encodedAST(b)
+      const pa = getPriority(a)
+      const pb = getPriority(b)
+      if (pa !== pb) return pa - pb
+      // If priorities are equal, maintain original order (stable sort)
+      return indexMap.get(a)! - indexMap.get(b)!
+    })
+
+    // Check if order changed by comparing arrays
+    const orderChanged = sortedTypes.some((ast, index) => ast !== types[index])
+
+    if (!orderChanged) return types
+    return sortedTypes
+  }
+}
+
+function getJsonPriority(ast: AST.AST): number {
+  switch (ast._tag) {
+    case "BigInt":
+    case "Symbol":
+    case "UniqueSymbol":
+      return 0
+    default:
+      return 1
+  }
+}
+
+const jsonReorder = makeReorder(getJsonPriority)
 
 function serializerJsonBase(ast: AST.AST): AST.AST {
   switch (ast._tag) {
@@ -7720,15 +7775,29 @@ function serializerJsonBase(ast: AST.AST): AST.AST {
       return ast.encodeToStringOrNumberOrBoolean()
     case "Number":
       return ast.encodeToNumberOrNonFiniteLiterals()
-    case "Objects":
-    case "Arrays":
-    case "Union":
-    case "Suspend": {
-      if (AST.isObjects(ast) && ast.propertySignatures.some((ps) => typeof ps.name !== "string")) {
+    case "Objects": {
+      if (ast.propertySignatures.some((ps) => typeof ps.name !== "string")) {
         throw new globalThis.Error("Objects property names must be strings", { cause: ast })
       }
       return ast.recur(serializerJson)
     }
+    case "Union": {
+      const sortedTypes = jsonReorder(ast.types)
+      if (sortedTypes !== ast.types) {
+        return new AST.Union(
+          sortedTypes,
+          ast.mode,
+          ast.annotations,
+          ast.checks,
+          ast.encoding,
+          ast.context
+        ).recur(serializerJson)
+      }
+      return ast.recur(serializerJson)
+    }
+    case "Arrays":
+    case "Suspend":
+      return ast.recur(serializerJson)
   }
   // `Schema.Any` is used as an escape hatch
   return ast
@@ -7778,6 +7847,22 @@ const serializerIso = memoize((ast: AST.AST): AST.AST => {
   return out
 })
 
+function getStringTreePriority(ast: AST.AST): number {
+  switch (ast._tag) {
+    case "Null":
+    case "Boolean":
+    case "Number":
+    case "BigInt":
+    case "Symbol":
+    case "UniqueSymbol":
+      return 0
+    default:
+      return 1
+  }
+}
+
+const treeReorder = makeReorder(getStringTreePriority)
+
 function serializerTree(
   ast: AST.AST,
   recur: (ast: AST.AST) => AST.AST,
@@ -7799,7 +7884,7 @@ function serializerTree(
       return onMissingAnnotation(ast)
     }
     case "Null":
-      return AST.replaceEncoding(ast, [nullToUndefined])
+      return AST.replaceEncoding(ast, [nullToString])
     case "Boolean":
       return AST.replaceEncoding(ast, [booleanToString])
     case "Enum":
@@ -7809,25 +7894,39 @@ function serializerTree(
     case "Symbol":
     case "BigInt":
       return ast.encodeToString()
-    case "Objects":
-    case "Arrays":
-    case "Union":
-    case "Suspend": {
-      if (AST.isObjects(ast) && ast.propertySignatures.some((ps) => typeof ps.name !== "string")) {
+    case "Objects": {
+      if (ast.propertySignatures.some((ps) => typeof ps.name !== "string")) {
         throw new globalThis.Error("Objects property names must be strings", { cause: ast })
       }
       return ast.recur(recur)
     }
+    case "Union": {
+      const sortedTypes = treeReorder(ast.types)
+      if (sortedTypes !== ast.types) {
+        return new AST.Union(
+          sortedTypes,
+          ast.mode,
+          ast.annotations,
+          ast.checks,
+          ast.encoding,
+          ast.context
+        ).recur(recur)
+      }
+      return ast.recur(recur)
+    }
+    case "Arrays":
+    case "Suspend":
+      return ast.recur(recur)
   }
   // `Schema.Any` is used as an escape hatch
   return ast
 }
 
-const nullToUndefined = new AST.Link(
-  AST.undefined,
+const nullToString = new AST.Link(
+  new AST.Literal("null"),
   new Transformation.Transformation(
     Getter.transform(() => null),
-    Getter.transform(() => undefined)
+    Getter.transform(() => "null")
   )
 )
 
@@ -7855,8 +7954,8 @@ const unknownToUndefined = new AST.Link(
   )
 )
 
-const serializerStringTreeLoose = AST.serializer((ast) => {
-  const out = serializerTree(ast, serializerStringTreeLoose, identity)
+const serializerStringTreeKeepDeclarations = AST.serializer((ast) => {
+  const out = serializerTree(ast, serializerStringTreeKeepDeclarations, identity)
   if (out !== ast && AST.isOptional(ast)) {
     return AST.optionalKeyLastLink(out)
   }
@@ -7950,7 +8049,7 @@ function stringTreeToXml(value: StringTree, options: XmlEncoderOptions): string 
           for (const item of node) render(opts.arrayItemName, item, depth + 1)
           push(depth, `</${safeParent}>`)
         }
-      } else {
+      } else if (Predicate.isObject(node)) {
         const obj = node as { readonly [x: string]: StringTree }
         const { attrs, safe } = tagInfo(tagName, originalNameForMeta)
         const keys = Object.keys(obj)
@@ -7965,6 +8064,9 @@ function stringTreeToXml(value: StringTree, options: XmlEncoderOptions): string 
           render(childSafe, obj[k], depth + 1, k)
         }
         push(depth, `</${safe}>`)
+      } else {
+        const { attrs, safe } = tagInfo(tagName, originalNameForMeta)
+        push(depth, `<${safe}${attrs}>${escapeText(format(node))}</${safe}>`)
       }
     } finally {
       seen.delete(node)

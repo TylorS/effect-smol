@@ -382,7 +382,7 @@ export const causePrettyMessage = (u: Record<string, unknown> | Error): string =
   return formatJson(u)
 }
 
-const locationRegex = /\((.*)\)/g
+const locationRegExp = /\((.*)\)/g
 
 const cleanErrorStack = (
   stack: string,
@@ -437,7 +437,7 @@ const currentSpanStack = (span: Tracer.Span): string => {
   while (current && current._tag === "Span" && i < 10) {
     const stack = spanToTrace.get(current)?.()
     if (stack) {
-      const locationMatchAll = stack.matchAll(locationRegex)
+      const locationMatchAll = stack.matchAll(locationRegExp)
       let match = false
       for (const [, location] of locationMatchAll) {
         match = true
@@ -767,7 +767,29 @@ export const fiberJoin = <A, E>(self: Fiber.Fiber<A, E>): Effect.Effect<A, E> =>
 export const fiberJoinAll = <A extends Fiber.Fiber<any, any>>(self: Iterable<A>): Effect.Effect<
   Array<A extends Fiber.Fiber<infer _A, infer _E> ? _A : never>,
   A extends Fiber.Fiber<infer _A, infer _E> ? _E : never
-> => forEachSequential(self, fiberJoin) as any
+> =>
+  callback((resume) => {
+    const fibers = Array.from(self)
+    const out = new Array<any>(fibers.length)
+    const cancels = Arr.empty<() => void>()
+    let done = 0
+    let failed = false
+    for (let i = 0; i < fibers.length; i++) {
+      if (failed) break
+      cancels.push(fibers[i].addObserver((exit) => {
+        done++
+        if (exit._tag === "Failure") {
+          failed = true
+          cancels.forEach((cancel) => cancel())
+          return resume(exit as any)
+        }
+        out[i] = exit.value
+        if (done === fibers.length) {
+          resume(succeed(out))
+        }
+      }))
+    }
+  })
 
 /** @internal */
 export const fiberInterrupt = <A, E>(
@@ -4006,7 +4028,7 @@ export const forkIn: {
 )
 
 /** @internal */
-export const fork: {
+export const forkScoped: {
   <
     Arg extends Effect.Effect<any, any, any> | {
       readonly startImmediately?: boolean | undefined

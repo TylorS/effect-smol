@@ -657,17 +657,17 @@ export class TemplateLiteral extends Base {
   /** @internal */
   asTemplateLiteralParser(): Arrays {
     const tuple = new Arrays(false, this.parts.map(templateLiteralPartFromString), [])
-    const regex = getTemplateLiteralRegExp(this)
+    const regExp = getTemplateLiteralRegExp(this)
     return decodeTo(
       string,
       tuple,
       new Transformation.Transformation(
         Getter.transformOrFail((s: string) => {
-          const match = regex.exec(s)
+          const match = regExp.exec(s)
           if (match) return Effect.succeed(match.slice(1, this.parts.length + 1))
           return Effect.fail(
             new Issue.InvalidValue(Option.some(s), {
-              message: `Expected a value matching ${regex.source}, got ${format(s)}`
+              message: `Expected a value matching ${regExp.source}, got ${format(s)}`
             })
           )
         }),
@@ -1107,8 +1107,8 @@ export function getIndexSignatureKeys(
   const p = encodedAST(parameter)
   switch (p._tag) {
     case "TemplateLiteral": {
-      const regex = getTemplateLiteralRegExp(p)
-      return Object.keys(input).filter((key) => regex.test(key))
+      const regExp = getTemplateLiteralRegExp(p)
+      return Object.keys(input).filter((key) => regExp.test(key))
     }
     case "Symbol":
       return Object.getOwnPropertySymbols(input)
@@ -2024,7 +2024,7 @@ export function makeRefinedByGuard<T extends E, E>(
 export function isNotUndefined<A>(annotations?: Annotations.Filter) {
   return makeRefinedByGuard<Exclude<A, undefined>, A>(
     Predicate.isNotUndefined,
-    Annotations.combine({ title: "isNotUndefined", description: "a value other than `undefined`" }, annotations)
+    Annotations.combine({ expected: "a value other than `undefined`" }, annotations)
   )
 }
 
@@ -2032,7 +2032,7 @@ export function isNotUndefined<A>(annotations?: Annotations.Filter) {
 export function isSome<A>(annotations?: Annotations.Filter) {
   return makeRefinedByGuard<Option.Some<A>, Option.Option<A>>(
     Option.isSome,
-    Annotations.combine({ title: "isSome", description: "a Some value" }, annotations)
+    Annotations.combine({ expected: "a Some value" }, annotations)
   )
 }
 
@@ -2040,41 +2040,41 @@ export function isSome<A>(annotations?: Annotations.Filter) {
 export function isNone<A>(annotations?: Annotations.Filter) {
   return makeRefinedByGuard<Option.None<A>, Option.Option<A>>(
     Option.isNone,
-    Annotations.combine({ title: "isNone", description: "a None value" }, annotations)
+    Annotations.combine({ expected: "a None value" }, annotations)
   )
 }
 
 /** @internal */
-export function isSuccess<A, E>(annotations?: Annotations.Filter) {
+export function isResultSuccess<A, E>(annotations?: Annotations.Filter) {
   return makeRefinedByGuard<Result.Success<A, E>, Result.Result<A, E>>(
     Result.isSuccess,
-    Annotations.combine({ title: "isSuccess", description: "a Result.Success value" }, annotations)
+    Annotations.combine({ expected: "a Result.Success value" }, annotations)
   )
 }
 
 /** @internal */
-export function isFailure<A, E>(annotations?: Annotations.Filter) {
+export function isResultFailure<A, E>(annotations?: Annotations.Filter) {
   return makeRefinedByGuard<Result.Failure<A, E>, Result.Result<A, E>>(
     Result.isFailure,
-    Annotations.combine({ title: "isFailure", description: "a Result.Failure value" }, annotations)
+    Annotations.combine({ expected: "a Result.Failure value" }, annotations)
   )
 }
 
 /** @internal */
-export function isPattern(regex: RegExp, annotations?: Annotations.Filter) {
-  const source = regex.source
+export function isPattern(regExp: globalThis.RegExp, annotations?: Annotations.Filter) {
+  const source = regExp.source
   return makeFilter(
-    (s: string) => regex.test(s),
+    (s: string) => regExp.test(s),
     Annotations.combine({
-      expected: `a string matching the regex ${source}`,
-      jsonSchemaConstraint: () => ({ pattern: regex.source }),
+      expected: `a string matching the RegExp ${source}`,
+      jsonSchemaConstraint: () => ({ pattern: regExp.source }),
       meta: {
         _tag: "isPattern",
-        regex
+        regExp
       },
       arbitraryConstraint: {
         string: {
-          patterns: [regex.source]
+          patterns: [regExp.source]
         }
       }
     }, annotations)
@@ -2421,7 +2421,7 @@ function getTemplateLiteralSource(ast: TemplateLiteral, top: boolean): string {
 
 /** @internal */
 export const getTemplateLiteralRegExp = memoize((ast: TemplateLiteral): RegExp => {
-  return new RegExp(`^${getTemplateLiteralSource(ast, true)}$`)
+  return new globalThis.RegExp(`^${getTemplateLiteralSource(ast, true)}$`)
 })
 
 function getTemplateLiteralASTPartPattern(part: TemplateLiteralPart): string {
@@ -2525,17 +2525,17 @@ const STRING_PATTERN = "[\\s\\S]*?"
  */
 const NUMBER_PATTERN = "[+-]?\\d*\\.?\\d+(?:[Ee][+-]?\\d+)?"
 
-const isNumberStringRegExp = new RegExp(`(?:${NUMBER_PATTERN}|Infinity|-Infinity|NaN)`)
+const isNumberStringRegExp = new globalThis.RegExp(`(?:${NUMBER_PATTERN}|Infinity|-Infinity|NaN)`)
 
 /** @internal */
 export function isNumberString(annotations?: Annotations.Filter) {
   return isPattern(
     isNumberStringRegExp,
     Annotations.combine({
-      description: "a string representing a number",
+      expected: "a string representing a number",
       meta: {
         _tag: "isNumberString",
-        regex: isNumberStringRegExp
+        regExp: isNumberStringRegExp
       }
     }, annotations)
   )
@@ -2551,17 +2551,17 @@ const numberToString = new Link(
  */
 const BIGINT_PATTERN = "-?\\d+"
 
-const isBigIntStringRegExp = new RegExp(BIGINT_PATTERN)
+const isBigIntStringRegExp = new globalThis.RegExp(BIGINT_PATTERN)
 
 /** @internal */
 export function isBigIntString(annotations?: Annotations.Filter) {
   return isPattern(
     isBigIntStringRegExp,
     Annotations.combine({
-      description: "a string representing a bigint",
+      expected: "a string representing a bigint",
       meta: {
         _tag: "isBigIntString",
-        regex: isBigIntStringRegExp
+        regExp: isBigIntStringRegExp
       }
     }, annotations)
   )
@@ -2606,10 +2606,10 @@ export function isSymbolString(annotations?: Annotations.Filter) {
   return isPattern(
     isSymbolStringRegExp,
     Annotations.combine({
-      description: "a string representing a symbol",
+      expected: "a string representing a symbol",
       meta: {
         _tag: "isSymbolString",
-        regex: isSymbolStringRegExp
+        regExp: isSymbolStringRegExp
       }
     }, annotations)
   )

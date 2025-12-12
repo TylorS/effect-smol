@@ -5,23 +5,23 @@ import { Result } from "effect/data"
 import { FileSystem, Path } from "effect/platform"
 import { SystemError } from "effect/platform/PlatformError"
 
-async function assertPathSuccess(
+async function assertSuccess(
   provider: ConfigProvider.ConfigProvider,
   path: ConfigProvider.Path,
-  expected: ConfigProvider.Stat | undefined
+  expected: ConfigProvider.Node | undefined
 ) {
   const r = Effect.result(provider.load(path))
   deepStrictEqual(await Effect.runPromise(r), Result.succeed(expected))
 }
 
-async function assertPathFailure(
-  provider: ConfigProvider.ConfigProvider,
-  path: ConfigProvider.Path,
-  expected: ConfigProvider.SourceError
-) {
-  const r = Effect.result(provider.load(path))
-  deepStrictEqual(await Effect.runPromise(r), Result.fail(expected))
-}
+// async function assertFailure(
+//   provider: ConfigProvider.ConfigProvider,
+//   path: ConfigProvider.Path,
+//   expected: ConfigProvider.SourceError
+// ) {
+//   const r = Effect.result(provider.load(path))
+//   deepStrictEqual(await Effect.runPromise(r), Result.fail(expected))
+// }
 
 describe("ConfigProvider", () => {
   it("orElse", async () => {
@@ -36,8 +36,8 @@ describe("ConfigProvider", () => {
       }
     })
     const provider = provider1.pipe(ConfigProvider.orElse(provider2))
-    await assertPathSuccess(provider, ["A"], ConfigProvider.leaf("value1"))
-    await assertPathSuccess(provider, ["B"], ConfigProvider.leaf("value2"))
+    await assertSuccess(provider, ["A"], ConfigProvider.makeValue("value1"))
+    await assertSuccess(provider, ["B"], ConfigProvider.makeValue("value2"))
   })
 
   it("constantCase", async () => {
@@ -46,7 +46,7 @@ describe("ConfigProvider", () => {
         "CONSTANT_CASE": "value1"
       }
     }))
-    await assertPathSuccess(provider, ["constant.case"], ConfigProvider.leaf("value1"))
+    await assertSuccess(provider, ["constant.case"], ConfigProvider.makeValue("value1"))
   })
 
   describe("mapInput", () => {
@@ -58,7 +58,7 @@ describe("ConfigProvider", () => {
           "KEY_A_B": "value"
         }
       }).pipe(appendA, appendB)
-      await assertPathSuccess(provider, ["KEY"], ConfigProvider.leaf("value"))
+      await assertSuccess(provider, ["KEY"], ConfigProvider.makeValue("value"))
     })
   })
 
@@ -66,134 +66,246 @@ describe("ConfigProvider", () => {
     it("should add a prefix to the path", async () => {
       const provider = ConfigProvider.fromEnv({
         env: {
-          "prefix__leaf": "value"
+          "prefix_A": "value"
         }
       }).pipe(ConfigProvider.nested("prefix"))
-      await assertPathSuccess(provider, ["leaf"], ConfigProvider.leaf("value"))
+      await assertSuccess(provider, ["A"], ConfigProvider.makeValue("value"))
     })
 
     it("constantCase + nested", async () => {
       const provider = ConfigProvider.fromEnv({
         env: {
-          "prefix__KEY_WITH_DOTS": "value"
+          "prefix_KEY_WITH_DOTS": "value"
         }
       }).pipe(ConfigProvider.constantCase, ConfigProvider.nested("prefix"))
-      await assertPathSuccess(provider, ["key.with.dots"], ConfigProvider.leaf("value"))
+      await assertSuccess(provider, ["key.with.dots"], ConfigProvider.makeValue("value"))
     })
 
     it("nested + constantCase", async () => {
       const provider = ConfigProvider.fromEnv({
         env: {
-          "PREFIX_WITH_DOTS__KEY_WITH_DOTS": "value"
+          "PREFIX_WITH_DOTS_KEY_WITH_DOTS": "value"
         }
       }).pipe(ConfigProvider.nested("prefix.with.dots"), ConfigProvider.constantCase)
-      await assertPathSuccess(provider, ["key.with.dots"], ConfigProvider.leaf("value"))
+      await assertSuccess(provider, ["key.with.dots"], ConfigProvider.makeValue("value"))
     })
   })
 
   describe("fromEnv", () => {
-    describe("should fail with a SourceError when the environment is invalid", () => {
-      it("array is not dense", async () => {
-        const env = { a: "foo", "a__0": "bar", "a__2": "baz" }
-        const provider = ConfigProvider.fromEnv({ env })
-        await assertPathFailure(
-          provider,
-          ["a"],
-          new ConfigProvider.SourceError({
-            message: `Invalid environment: array at "a" is not dense (expected indices 0..2)`,
-            cause: new Error(`Invalid environment: array at "a" is not dense (expected indices 0..2)`)
-          })
-        )
-      })
-    })
-
-    it("node can be both leaf and object (a=value1 + a__b=value2)", async () => {
-      const env = { a: "value1", "a__b": "value2" }
+    it("env without an underscore", async () => {
+      const env = { A: "value1" }
       const provider = ConfigProvider.fromEnv({ env })
-      await assertPathSuccess(provider, ["a"], ConfigProvider.object(new Set(["b"]), "value1"))
-      await assertPathSuccess(provider, ["a", "b"], ConfigProvider.leaf("value2"))
+      await assertSuccess(provider, ["A"], ConfigProvider.makeValue("value1"))
     })
 
-    it("node can be both leaf and array (a=value1 + a__0=value2)", async () => {
-      const env = { a: "value1", "a__0": "value2" }
+    it("missing key returns undefined", async () => {
+      const env = { A: "value1" }
       const provider = ConfigProvider.fromEnv({ env })
-      await assertPathSuccess(provider, ["a"], ConfigProvider.array(1, "value1"))
-      await assertPathSuccess(provider, ["a", 0], ConfigProvider.leaf("value2"))
+      await assertSuccess(provider, ["missing"], undefined)
     })
 
-    it("should support nested keys", async () => {
-      const provider = ConfigProvider.fromEnv({
-        env: {
-          "leaf": "value1",
-          "object__key1": "value2",
-          "object__key2__key3": "value3",
-          "array__0": "value4",
-          "array__1__key4": "value5",
-          "array__2__0": "value6"
-        }
-      })
-
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["leaf", "object", "array"])))
-
-      await assertPathSuccess(provider, ["leaf"], ConfigProvider.leaf("value1"))
-      await assertPathSuccess(provider, ["object", "key1"], ConfigProvider.leaf("value2"))
-      await assertPathSuccess(provider, ["array", 0], ConfigProvider.leaf("value4"))
-      await assertPathSuccess(provider, ["array", 1, "key4"], ConfigProvider.leaf("value5"))
-      await assertPathSuccess(provider, ["array", 2, 0], ConfigProvider.leaf("value6"))
-
-      await assertPathSuccess(provider, ["object"], ConfigProvider.object(new Set(["key1", "key2"])))
-      await assertPathSuccess(provider, ["object", "key2"], ConfigProvider.object(new Set(["key3"])))
-
-      await assertPathSuccess(provider, ["array"], ConfigProvider.array(3))
-      await assertPathSuccess(provider, ["array", 2], ConfigProvider.array(1))
-
-      await assertPathSuccess(provider, ["leaf", "non-existing"], undefined)
-      await assertPathSuccess(provider, ["object", "non-existing"], undefined)
-      await assertPathSuccess(provider, ["array", 3, "non-existing"], undefined)
+    it("direct lookup of a key containing underscores", async () => {
+      const env = { NODE_ENV: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+      await assertSuccess(provider, ["NODE_ENV"], ConfigProvider.makeValue("value1"))
     })
 
-    it("When immediate child tokens are not all canonical non-negative integers, return object", async () => {
-      const provider = ConfigProvider.fromEnv({
-        env: {
-          "A__0": "value1",
-          "A__B": "value2"
-        }
-      })
+    it("single underscore creates nesting", async () => {
+      const env = { NODE_ENV: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
 
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["A"])))
-      await assertPathSuccess(provider, ["A"], ConfigProvider.object(new Set(["0", "B"])))
+      await assertSuccess(provider, ["NODE"], ConfigProvider.makeRecord(new Set(["ENV"])))
+      await assertSuccess(provider, ["NODE", "ENV"], ConfigProvider.makeValue("value1"))
     })
 
-    it("Integer validation for array indices", async () => {
-      const provider = ConfigProvider.fromEnv({
-        env: {
-          "A__0": "value1",
-          "A__1": "value2",
-          // "01" is not considered canonical
-          "B__01": "value3"
-        }
-      })
+    it("prefix can be both a value and a container", async () => {
+      const env = { NODE: "value1", NODE_ENV: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
 
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["A", "B"])))
-      await assertPathSuccess(provider, ["A", 0], ConfigProvider.leaf("value1"))
-      await assertPathSuccess(provider, ["A", 1], ConfigProvider.leaf("value2"))
-      await assertPathSuccess(provider, ["B"], ConfigProvider.object(new Set(["01"])))
+      await assertSuccess(provider, ["NODE"], ConfigProvider.makeRecord(new Set(["ENV"]), "value1"))
+      await assertSuccess(provider, ["NODE", "ENV"], ConfigProvider.makeValue("value2"))
+      await assertSuccess(provider, ["NODE_ENV"], ConfigProvider.makeValue("value2"))
     })
 
-    it("NODE_ENV should be parsed as string", async () => {
-      const provider = ConfigProvider.fromEnv({
-        env: {
-          "NODE_ENV": "value"
-        }
-      })
-      await assertPathSuccess(provider, ["NODE_ENV"], ConfigProvider.leaf("value"))
+    it("multiple nested children under the same prefix", async () => {
+      const env = { NODE: "value1", NODE_ENV: "value2", NODE_PATH: "value3" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["NODE"], ConfigProvider.makeRecord(new Set(["ENV", "PATH"]), "value1"))
+      await assertSuccess(provider, ["NODE", "ENV"], ConfigProvider.makeValue("value2"))
+      await assertSuccess(provider, ["NODE", "PATH"], ConfigProvider.makeValue("value3"))
+      await assertSuccess(provider, ["NODE_PATH"], ConfigProvider.makeValue("value3"))
+    })
+
+    it("nested depth > 2 works", async () => {
+      const env = { A_B_C: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set(["B"])))
+      await assertSuccess(provider, ["A", "B"], ConfigProvider.makeRecord(new Set(["C"])))
+      await assertSuccess(provider, ["A", "B", "C"], ConfigProvider.makeValue("value1"))
+    })
+
+    it("array: dense numeric children yield an Array node", async () => {
+      const env = { A_0: "value1", A_1: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeArray(2))
+      await assertSuccess(provider, ["A", 0], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", 1], ConfigProvider.makeValue("value2"))
+    })
+
+    it("array: non-dense numeric children still yield an Array node", async () => {
+      const env = { A: "root", A_0: "value1", A_2: "value3" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      // max index is 2 => length 3 (sparse is allowed)
+      await assertSuccess(provider, ["A"], ConfigProvider.makeArray(3, "root"))
+      await assertSuccess(provider, ["A", 0], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", 1], undefined)
+      await assertSuccess(provider, ["A", 2], ConfigProvider.makeValue("value3"))
+    })
+
+    it("array: parent can have a co-located value", async () => {
+      const env = { A: "root", A_0: "value1", A_1: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeArray(2, "root"))
+      await assertSuccess(provider, ["A", 0], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", 1], ConfigProvider.makeValue("value2"))
+    })
+
+    it("mixed children (numeric + non-numeric) yields Record", async () => {
+      const env = { A_0: "value1", A_B: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set(["0", "B"])))
+      await assertSuccess(provider, ["A", 0], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", "B"], ConfigProvider.makeValue("value2"))
+    })
+
+    it("double underscore produces an empty segment (no special handling)", async () => {
+      const env = { A__B: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set([""])))
+      await assertSuccess(provider, ["A", ""], ConfigProvider.makeRecord(new Set(["B"])))
+      await assertSuccess(provider, ["A", "", "B"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A__B"], ConfigProvider.makeValue("value1"))
+    })
+
+    it("empty segment node can be both a value and a container", async () => {
+      const env = { A_: "value1", A__B: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A", ""], ConfigProvider.makeRecord(new Set(["B"]), "value1"))
+      await assertSuccess(provider, ["A", "", "B"], ConfigProvider.makeValue("value2"))
+    })
+
+    it("leading underscore creates an empty first segment", async () => {
+      const env = { _A: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set([""])))
+      await assertSuccess(provider, [""], ConfigProvider.makeRecord(new Set(["A"])))
+      await assertSuccess(provider, ["", "A"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["_A"], ConfigProvider.makeValue("value1"))
+    })
+
+    it("trailing underscore creates an empty last segment", async () => {
+      const env = { A_: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set([""])))
+      await assertSuccess(provider, ["A", ""], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A_"], ConfigProvider.makeValue("value1"))
+    })
+
+    it("cannot descend past a leaf (A exists, but A_B does not)", async () => {
+      const env = { A: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", "B"], undefined)
+      await assertSuccess(provider, ["A_B"], undefined)
+    })
+
+    it("direct lookup and nested lookup both work for the same env var", async () => {
+      const env = { A_B: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A_B"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set(["B"])))
+      await assertSuccess(provider, ["A", "B"], ConfigProvider.makeValue("value1"))
+    })
+
+    it("prefix value is preserved when there are multiple nested children", async () => {
+      const env = { A: "root", A_B: "value1", A_C: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set(["B", "C"]), "root"))
+      await assertSuccess(provider, ["A", "B"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", "C"], ConfigProvider.makeValue("value2"))
+    })
+
+    it("intermediate node can be both a value and a container (A_B and A_B_C)", async () => {
+      const env = { A_B: "value1", A_B_C: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A_B"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set(["B"])))
+      await assertSuccess(provider, ["A", "B"], ConfigProvider.makeRecord(new Set(["C"]), "value1"))
+      await assertSuccess(provider, ["A", "B", "C"], ConfigProvider.makeValue("value2"))
+    })
+
+    it("numeric index: string and number segments should resolve the same", async () => {
+      const env = { A_0: "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A", 0], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", "0"], ConfigProvider.makeValue("value1"))
+    })
+
+    it("array: leading-zero indices are not numeric, so it yields a Record", async () => {
+      const env = { A_01: "value1", A_1: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set(["01", "1"])))
+      await assertSuccess(provider, ["A", "01"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["A", 1], ConfigProvider.makeValue("value2"))
+    })
+
+    it("root path exposes top-level keys", async () => {
+      const env = { A: "value1", B_C: "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["A", "B"])))
+      await assertSuccess(provider, ["A"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["B"], ConfigProvider.makeRecord(new Set(["C"])))
+    })
+
+    it("underscore-only key creates empty segments", async () => {
+      const env = { "_": "value1" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["_"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set([""])))
+      await assertSuccess(provider, [""], ConfigProvider.makeRecord(new Set([""])))
+      await assertSuccess(provider, ["", ""], ConfigProvider.makeValue("value1"))
+    })
+
+    it("array: non-integer indices do not yield an Array node", async () => {
+      const env = { "A_-1": "value1", "A_1.5": "value2" }
+      const provider = ConfigProvider.fromEnv({ env })
+
+      await assertSuccess(provider, ["A"], ConfigProvider.makeRecord(new Set(["-1", "1.5"])))
     })
   })
 
-  describe("fromStringLeafJson", () => {
-    const provider = ConfigProvider.fromStringTree({
-      leaf: "value1",
-      object: {
+  describe("fromUnknown", () => {
+    const provider = ConfigProvider.fromUnknown({
+      string: "value1",
+      record: {
         key1: "value2",
         key2: {
           key3: "value3"
@@ -201,83 +313,71 @@ describe("ConfigProvider", () => {
       },
       array: ["value4", {
         key4: "value5"
-      }, ["value6"]]
+      }, ["value6"]],
+      null: null,
+      number: 42,
+      boolean: true,
+      bigint: 0n,
+      undefined,
+      unknown: Symbol("unknown")
     })
 
     it("Root node", async () => {
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["leaf", "object", "array"])))
+      await assertSuccess(
+        provider,
+        [],
+        ConfigProvider.makeRecord(
+          new Set(["string", "record", "array", "null", "number", "boolean", "bigint", "undefined", "unknown"])
+        )
+      )
     })
 
     it("Exact leaf resolution", async () => {
-      await assertPathSuccess(provider, ["leaf"], ConfigProvider.leaf("value1"))
-      await assertPathSuccess(provider, ["object", "key1"], ConfigProvider.leaf("value2"))
-      await assertPathSuccess(provider, ["array", 0], ConfigProvider.leaf("value4"))
-      await assertPathSuccess(provider, ["array", 1, "key4"], ConfigProvider.leaf("value5"))
-      await assertPathSuccess(provider, ["array", 2, 0], ConfigProvider.leaf("value6"))
+      await assertSuccess(provider, ["string"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["record", "key1"], ConfigProvider.makeValue("value2"))
+      await assertSuccess(provider, ["array", 0], ConfigProvider.makeValue("value4"))
+      await assertSuccess(provider, ["array", 1, "key4"], ConfigProvider.makeValue("value5"))
+      await assertSuccess(provider, ["array", 2, 0], ConfigProvider.makeValue("value6"))
     })
 
     it("Object detection", async () => {
-      await assertPathSuccess(provider, ["object"], ConfigProvider.object(new Set(["key1", "key2"])))
-      await assertPathSuccess(provider, ["object", "key2"], ConfigProvider.object(new Set(["key3"])))
+      await assertSuccess(provider, ["record"], ConfigProvider.makeRecord(new Set(["key1", "key2"])))
+      await assertSuccess(provider, ["record", "key2"], ConfigProvider.makeRecord(new Set(["key3"])))
     })
 
     it("Array detection", async () => {
-      await assertPathSuccess(provider, ["array"], ConfigProvider.array(3))
-      await assertPathSuccess(provider, ["array", 2], ConfigProvider.array(1))
+      await assertSuccess(provider, ["array"], ConfigProvider.makeArray(3))
+      await assertSuccess(provider, ["array", 2], ConfigProvider.makeArray(1))
     })
 
     it("should return undefined on non-existing paths", async () => {
-      await assertPathSuccess(provider, ["leaf", "non-existing"], undefined)
-      await assertPathSuccess(provider, ["object", "non-existing"], undefined)
-      await assertPathSuccess(provider, ["array", 3, "non-existing"], undefined)
+      await assertSuccess(provider, ["string", "non-existing"], undefined)
+      await assertSuccess(provider, ["record", "non-existing"], undefined)
+      await assertSuccess(provider, ["array", 3, "non-existing"], undefined)
     })
-  })
 
-  describe("fromJson", () => {
-    it("should convert various JSON types to StringLeafJson", async () => {
-      const provider = ConfigProvider.fromJson({
-        string: "hello",
-        number: 42,
-        boolean: true,
-        null: null,
-        undefined,
-        array: [1, "two", false],
-        object: {
-          nested: "value",
-          deep: {
-            key: 123
-          }
-        }
-      })
+    it("null values", async () => {
+      await assertSuccess(provider, ["null"], undefined)
+    })
 
-      await assertPathSuccess(
-        provider,
-        [],
-        ConfigProvider.object(
-          new Set([
-            "string",
-            "number",
-            "boolean",
-            "null",
-            "undefined",
-            "array",
-            "object"
-          ])
-        )
-      )
-      await assertPathSuccess(provider, ["string"], ConfigProvider.leaf("hello"))
-      await assertPathSuccess(provider, ["number"], ConfigProvider.leaf("42"))
-      await assertPathSuccess(provider, ["boolean"], ConfigProvider.leaf("true"))
-      await assertPathSuccess(provider, ["null"], ConfigProvider.leaf(""))
-      await assertPathSuccess(provider, ["undefined"], ConfigProvider.leaf(""))
-      await assertPathSuccess(provider, ["array"], ConfigProvider.array(3))
-      await assertPathSuccess(provider, ["array", 0], ConfigProvider.leaf("1"))
-      await assertPathSuccess(provider, ["array", 1], ConfigProvider.leaf("two"))
-      await assertPathSuccess(provider, ["array", 2], ConfigProvider.leaf("false"))
-      await assertPathSuccess(provider, ["object"], ConfigProvider.object(new Set(["nested", "deep"])))
-      await assertPathSuccess(provider, ["object", "nested"], ConfigProvider.leaf("value"))
-      await assertPathSuccess(provider, ["object", "deep"], ConfigProvider.object(new Set(["key"])))
-      await assertPathSuccess(provider, ["object", "deep", "key"], ConfigProvider.leaf("123"))
+    it("number values", async () => {
+      await assertSuccess(provider, ["number"], ConfigProvider.makeValue("42"))
+    })
+
+    it("boolean values", async () => {
+      await assertSuccess(provider, ["boolean"], ConfigProvider.makeValue("true"))
+    })
+
+    it("bigint values", async () => {
+      await assertSuccess(provider, ["bigint"], ConfigProvider.makeValue("0"))
+    })
+
+    it("undefined values", async () => {
+      await assertSuccess(provider, ["undefined"], undefined)
+    })
+
+    it("unknown values", async () => {
+      await assertSuccess(provider, ["unknown"], ConfigProvider.makeValue("Symbol(unknown)"))
     })
   })
 
@@ -287,70 +387,70 @@ describe("ConfigProvider", () => {
 # comments are ignored
 API_URL=https://api.example.com
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["API_URL"])))
-      await assertPathSuccess(provider, ["API_URL"], ConfigProvider.leaf("https://api.example.com"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["API"])))
+      await assertSuccess(provider, ["API_URL"], ConfigProvider.makeValue("https://api.example.com"))
     })
 
     it("export is allowed", async () => {
       const provider = ConfigProvider.fromDotEnvContents(`
 export NODE_ENV=production
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["NODE_ENV"])))
-      await assertPathSuccess(provider, ["NODE_ENV"], ConfigProvider.leaf("production"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["NODE"])))
+      await assertSuccess(provider, ["NODE_ENV"], ConfigProvider.makeValue("production"))
     })
 
     it("quoting is allowed", async () => {
       const provider = ConfigProvider.fromDotEnvContents(`
 NODE_ENV="production"
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["NODE_ENV"])))
-      await assertPathSuccess(provider, ["NODE_ENV"], ConfigProvider.leaf("production"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["NODE"])))
+      await assertSuccess(provider, ["NODE_ENV"], ConfigProvider.makeValue("production"))
     })
 
     it("objects are supported", async () => {
       const provider = ConfigProvider.fromDotEnvContents(`
-OBJECT__key1=value1
-OBJECT__key2=value2
+OBJECT_key1=value1
+OBJECT_key2=value2
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["OBJECT"])))
-      await assertPathSuccess(provider, ["OBJECT"], ConfigProvider.object(new Set(["key1", "key2"])))
-      await assertPathSuccess(provider, ["OBJECT", "key1"], ConfigProvider.leaf("value1"))
-      await assertPathSuccess(provider, ["OBJECT", "key2"], ConfigProvider.leaf("value2"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["OBJECT"])))
+      await assertSuccess(provider, ["OBJECT"], ConfigProvider.makeRecord(new Set(["key1", "key2"])))
+      await assertSuccess(provider, ["OBJECT", "key1"], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["OBJECT", "key2"], ConfigProvider.makeValue("value2"))
     })
 
     it("a node may be both leaf and object", async () => {
       const provider = ConfigProvider.fromDotEnvContents(`
 OBJECT=value1
-OBJECT__key1=value2
-OBJECT__key2=value3
+OBJECT_key1=value2
+OBJECT_key2=value3
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["OBJECT"])))
-      await assertPathSuccess(provider, ["OBJECT"], ConfigProvider.object(new Set(["key1", "key2"]), "value1"))
-      await assertPathSuccess(provider, ["OBJECT", "key1"], ConfigProvider.leaf("value2"))
-      await assertPathSuccess(provider, ["OBJECT", "key2"], ConfigProvider.leaf("value3"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["OBJECT"])))
+      await assertSuccess(provider, ["OBJECT"], ConfigProvider.makeRecord(new Set(["key1", "key2"]), "value1"))
+      await assertSuccess(provider, ["OBJECT", "key1"], ConfigProvider.makeValue("value2"))
+      await assertSuccess(provider, ["OBJECT", "key2"], ConfigProvider.makeValue("value3"))
     })
 
     it("a node may be both leaf and array", async () => {
       const provider = ConfigProvider.fromDotEnvContents(`
 ARRAY=value1
-ARRAY__0=value2
-ARRAY__1=value3
+ARRAY_0=value2
+ARRAY_1=value3
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["ARRAY"])))
-      await assertPathSuccess(provider, ["ARRAY"], ConfigProvider.array(2, "value1"))
-      await assertPathSuccess(provider, ["ARRAY", 0], ConfigProvider.leaf("value2"))
-      await assertPathSuccess(provider, ["ARRAY", 1], ConfigProvider.leaf("value3"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["ARRAY"])))
+      await assertSuccess(provider, ["ARRAY"], ConfigProvider.makeArray(2, "value1"))
+      await assertSuccess(provider, ["ARRAY", 0], ConfigProvider.makeValue("value2"))
+      await assertSuccess(provider, ["ARRAY", 1], ConfigProvider.makeValue("value3"))
     })
 
     it("arrays are supported", async () => {
       const provider = ConfigProvider.fromDotEnvContents(`
-ARRAY__0=value1
-ARRAY__1=value2
+ARRAY_0=value1
+ARRAY_1=value2
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["ARRAY"])))
-      await assertPathSuccess(provider, ["ARRAY"], ConfigProvider.array(2))
-      await assertPathSuccess(provider, ["ARRAY", 0], ConfigProvider.leaf("value1"))
-      await assertPathSuccess(provider, ["ARRAY", 1], ConfigProvider.leaf("value2"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["ARRAY"])))
+      await assertSuccess(provider, ["ARRAY"], ConfigProvider.makeArray(2))
+      await assertSuccess(provider, ["ARRAY", 0], ConfigProvider.makeValue("value1"))
+      await assertSuccess(provider, ["ARRAY", 1], ConfigProvider.makeValue("value2"))
     })
 
     it("expansion of environment variables is off by default", async () => {
@@ -358,9 +458,9 @@ ARRAY__1=value2
 PASSWORD="value"
 DB_PASS=$PASSWORD
 `)
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["PASSWORD", "DB_PASS"])))
-      await assertPathSuccess(provider, ["PASSWORD"], ConfigProvider.leaf("value"))
-      await assertPathSuccess(provider, ["DB_PASS"], ConfigProvider.leaf("$PASSWORD"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["PASSWORD", "DB"])))
+      await assertSuccess(provider, ["PASSWORD"], ConfigProvider.makeValue("value"))
+      await assertSuccess(provider, ["DB_PASS"], ConfigProvider.makeValue("$PASSWORD"))
     })
 
     it("expansion of environment variables is supported", async () => {
@@ -371,9 +471,9 @@ DB_PASS=$PASSWORD
 `,
         { expandVariables: true }
       )
-      await assertPathSuccess(provider, [], ConfigProvider.object(new Set(["PASSWORD", "DB_PASS"])))
-      await assertPathSuccess(provider, ["PASSWORD"], ConfigProvider.leaf("value"))
-      await assertPathSuccess(provider, ["DB_PASS"], ConfigProvider.leaf("value"))
+      await assertSuccess(provider, [], ConfigProvider.makeRecord(new Set(["PASSWORD", "DB"])))
+      await assertSuccess(provider, ["PASSWORD"], ConfigProvider.makeValue("value"))
+      await assertSuccess(provider, ["DB_PASS"], ConfigProvider.makeValue("value"))
     })
   })
 
@@ -389,11 +489,11 @@ A=1`)
         )
       )
 
-      await assertPathSuccess(provider, ["PATH"], ConfigProvider.leaf(".env"))
-      await assertPathSuccess(provider, ["A"], ConfigProvider.leaf("1"))
+      await assertSuccess(provider, ["PATH"], ConfigProvider.makeValue(".env"))
+      await assertSuccess(provider, ["A"], ConfigProvider.makeValue("1"))
     })
 
-    it("should support custom path", async () => {
+    it("should support `path` option to specify the path to the .env file", async () => {
       const provider = await Effect.runPromise(
         ConfigProvider.fromDotEnv({ path: "custom.env" }).pipe(
           Effect.provide(FileSystem.layerNoop({
@@ -404,8 +504,8 @@ A=1`)
         )
       )
 
-      await assertPathSuccess(provider, ["CUSTOM_PATH"], ConfigProvider.leaf("custom.env"))
-      await assertPathSuccess(provider, ["A"], ConfigProvider.leaf("1"))
+      await assertSuccess(provider, ["CUSTOM_PATH"], ConfigProvider.makeValue("custom.env"))
+      await assertSuccess(provider, ["A"], ConfigProvider.makeValue("1"))
     })
   })
 
@@ -471,10 +571,10 @@ A=1`)
         }).pipe(Effect.provide(SetLayer))
       )
 
-      deepStrictEqual(result.secret, ConfigProvider.leaf("keepitsafe"))
-      deepStrictEqual(result.shouting, ConfigProvider.leaf("value"))
-      deepStrictEqual(result.integer, ConfigProvider.leaf("123"))
-      deepStrictEqual(result.nestedConfig, ConfigProvider.leaf("hello"))
+      deepStrictEqual(result.secret, ConfigProvider.makeValue("keepitsafe"))
+      deepStrictEqual(result.shouting, ConfigProvider.makeValue("value"))
+      deepStrictEqual(result.integer, ConfigProvider.makeValue("123"))
+      deepStrictEqual(result.nestedConfig, ConfigProvider.makeValue("hello"))
 
       // Test that non-existent path throws an error
       const error = await Effect.runPromise(
@@ -501,9 +601,9 @@ A=1`)
         }).pipe(Effect.provide(AddLayer))
       )
 
-      deepStrictEqual(result.secret, ConfigProvider.leaf("shh"))
-      deepStrictEqual(result.integer, ConfigProvider.leaf("123"))
-      deepStrictEqual(result.fallback, ConfigProvider.leaf("value"))
+      deepStrictEqual(result.secret, ConfigProvider.makeValue("shh"))
+      deepStrictEqual(result.integer, ConfigProvider.makeValue("123"))
+      deepStrictEqual(result.fallback, ConfigProvider.makeValue("value"))
     })
   })
 })

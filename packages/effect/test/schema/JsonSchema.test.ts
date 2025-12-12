@@ -28,10 +28,10 @@ function assertDraft07<S extends Schema.Top>(
   options?: Schema.MakeJsonSchemaOptions
 ) {
   const document = Schema.makeJsonSchema(schema, { target: "draft-07", ...options })
-  strictEqual(document.uri, "http://json-schema.org/draft-07/schema")
+  strictEqual(document.source, "draft-07")
   deepStrictEqual(document.schema, expected.schema)
   deepStrictEqual(document.definitions, expected.definitions ?? {})
-  const valid = ajvDraft07.validateSchema({ $schema: document.uri, ...document.schema })
+  const valid = ajvDraft07.validateSchema({ $schema: Schema.getMetaSchemaUri(document.source), ...document.schema })
   assertTrue(valid)
 }
 
@@ -41,10 +41,13 @@ export function assertDraft2020_12<S extends Schema.Top>(
   options?: Schema.MakeJsonSchemaOptions
 ) {
   const document = Schema.makeJsonSchema(schema, { target: "draft-2020-12", ...options })
-  strictEqual(document.uri, "https://json-schema.org/draft/2020-12/schema")
+  strictEqual(document.source, "draft-2020-12")
   deepStrictEqual(document.schema, expected.schema)
   deepStrictEqual(document.definitions, expected.definitions ?? {})
-  const valid = ajvDraft2020_12.validateSchema({ $schema: document.uri, ...document.schema })
+  const valid = ajvDraft2020_12.validateSchema({
+    $schema: Schema.getMetaSchemaUri(document.source),
+    ...document.schema
+  })
   assertTrue(valid)
 }
 
@@ -54,10 +57,13 @@ export function assertOpenApi3_1<S extends Schema.Top>(
   options?: Schema.MakeJsonSchemaOptions
 ) {
   const document = Schema.makeJsonSchema(schema, { target: "openapi-3.1", ...options })
-  strictEqual(document.uri, "https://json-schema.org/draft/2020-12/schema")
+  strictEqual(document.source, "openapi-3.1")
   deepStrictEqual(document.schema, expected.schema)
   deepStrictEqual(document.definitions, expected.definitions ?? {})
-  const valid = ajvDraft2020_12.validateSchema({ $schema: document.uri, ...document.schema })
+  const valid = ajvDraft2020_12.validateSchema({
+    $schema: Schema.getMetaSchemaUri(document.source),
+    ...document.schema
+  })
   assertTrue(valid)
 }
 
@@ -3184,7 +3190,7 @@ describe("JsonSchema generation", () => {
 
       it("isUUID", () => {
         assertDraft07(
-          Schema.String.annotate({ description: "description" }).check(Schema.isUUID()),
+          Schema.String.annotate({ description: "description" }).check(Schema.isUUID(undefined)),
           {
             schema: {
               "type": "string",
@@ -3230,8 +3236,7 @@ describe("JsonSchema generation", () => {
           Schema.fromJsonString(Schema.FiniteFromString),
           {
             schema: {
-              "type": "string",
-              "description": "a string that will be decoded as JSON"
+              "type": "string"
             }
           }
         )
@@ -3244,8 +3249,7 @@ describe("JsonSchema generation", () => {
           })),
           {
             schema: {
-              "type": "string",
-              "description": "a string that will be decoded as JSON"
+              "type": "string"
             }
           }
         )
@@ -3330,8 +3334,7 @@ describe("JsonSchema generation", () => {
         Schema.Uint8ArrayFromHex,
         {
           schema: {
-            "type": "string",
-            "description": "a string that will be decoded as Uint8Array"
+            "type": "string"
           }
         }
       )
@@ -3342,8 +3345,7 @@ describe("JsonSchema generation", () => {
         Schema.Uint8ArrayFromBase64,
         {
           schema: {
-            "type": "string",
-            "description": "a string that will be decoded as Uint8Array"
+            "type": "string"
           }
         }
       )
@@ -3354,8 +3356,7 @@ describe("JsonSchema generation", () => {
         Schema.Uint8ArrayFromBase64Url,
         {
           schema: {
-            "type": "string",
-            "description": "a string that will be decoded as Uint8Array"
+            "type": "string"
           }
         }
       )
@@ -3611,11 +3612,9 @@ describe("JsonSchema generation", () => {
           {
             schema: {
               "type": "string",
-              "description": "a string that will be decoded as JSON",
               "contentMediaType": "application/json",
               "contentSchema": {
-                "type": "string",
-                "description": "a string that will be decoded as a finite number"
+                "type": "string"
               }
             }
           }
@@ -3630,18 +3629,15 @@ describe("JsonSchema generation", () => {
           {
             schema: {
               "type": "string",
-              "description": "a string that will be decoded as JSON",
               "contentMediaType": "application/json",
               "contentSchema": {
                 "type": "object",
                 "properties": {
                   "a": {
                     "type": "string",
-                    "description": "a string that will be decoded as JSON",
                     "contentMediaType": "application/json",
                     "contentSchema": {
-                      "type": "string",
-                      "description": "a string that will be decoded as a finite number"
+                      "type": "string"
                     }
                   }
                 },
@@ -3904,11 +3900,9 @@ describe("JsonSchema generation", () => {
           {
             schema: {
               "type": "string",
-              "description": "a string that will be decoded as JSON",
               "contentMediaType": "application/json",
               "contentSchema": {
-                "type": "string",
-                "description": "a string that will be decoded as a finite number"
+                "type": "string"
               }
             }
           }
@@ -3923,18 +3917,15 @@ describe("JsonSchema generation", () => {
           {
             schema: {
               "type": "string",
-              "description": "a string that will be decoded as JSON",
               "contentMediaType": "application/json",
               "contentSchema": {
                 "type": "object",
                 "properties": {
                   "a": {
                     "type": "string",
-                    "description": "a string that will be decoded as JSON",
                     "contentMediaType": "application/json",
                     "contentSchema": {
-                      "type": "string",
-                      "description": "a string that will be decoded as a finite number"
+                      "type": "string"
                     }
                   }
                 },

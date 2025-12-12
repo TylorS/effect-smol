@@ -254,7 +254,7 @@ The exports under each section are organized as they are in Effect 3.0. The cate
 |     `groupBy`     |  Done  |  `groupBy`   |          |
 |   `groupByKey`    |  Done  | `groupByKey` |          |
 |     `grouped`     |  Done  |              |          |
-|  `groupedWithin`  |   -    |              |          |
+|  `groupedWithin`  |  Done  |              |          |
 
 ### Mapping
 
@@ -296,9 +296,9 @@ The exports under each section are organized as they are in Effect 3.0. The cate
 |       `onEnd`       |  Done  |                         |          |
 |      `onStart`      |  Done  |                         |          |
 |        `tap`        |  Done  |          `tap`          |          |
-|      `tapBoth`      |   -    |                         |          |
-|     `tapError`      |   -    |                         |          |
-|      `tapSink`      |   -    |                         |          |
+|      `tapBoth`      |  Done  |                         |          |
+|     `tapError`      |  Done  |                         |          |
+|      `tapSink`      |  Done  |                         |          |
 
 ### Tracing
 
@@ -326,96 +326,96 @@ The exports under each section are organized as they are in Effect 3.0. The cate
 |    `changesWithEffect`     |  Done  |                               |          |
 |          `chunks`          |  Done  |           `chunks`            |          |
 |        `chunksWith`        |   X    |                               |          |
-|         `combine`          |   -    |                               |          |
-|      `combineChunks`       |   -    |                               |          |
+|         `combine`          |  Done  |                               |          |
+|      `combineChunks`       |  Done  |                               |          |
 |          `concat`          |  Done  |           `concat`            |          |
 |          `cross`           |  Done  |                               |          |
 |        `crossLeft`         |   X    |                               |          |
 |        `crossRight`        |   X    |                               |          |
 |        `crossWith`         |  Done  |                               |          |
 |         `debounce`         |  Done  |                               |          |
-|     `distributedWith`      |   -    |                               |          |
-|  `distributedWithDynamic`  |   -    |                               |          |
+|     `distributedWith`      |   X    |                               |          |
+|  `distributedWithDynamic`  |   X    |                               |          |
 |          `drain`           |  Done  |            `drain`            |          |
-|        `drainFork`         |   -    |                               |          |
+|        `drainFork`         |  Done  |                               |          |
 |           `drop`           |  Done  |            `drop`             |          |
-|        `dropRight`         |   -    |                               |          |
-|        `dropUntil`         |   -    |                               |          |
-|     `dropUntilEffect`      |   -    |                               |          |
-|        `dropWhile`         |   -    |                               |          |
-|     `dropWhileEffect`      |   -    |                               |          |
-|          `either`          |   -    |                               |          |
+|        `dropRight`         |  Done  |                               |          |
+|        `dropUntil`         |  Done  |                               |          |
+|     `dropUntilEffect`      |  Done  |                               |          |
+|        `dropWhile`         |  Done  |                               |          |
+|     `dropWhileEffect`      |  Done  |                               |          |
+|          `either`          |  Done  |           `result`            |          |
 |         `ensuring`         |  Done  |          `ensuring`           |          |
 |       `ensuringWith`       |  Done  |           `onExit`            |          |
 |        `filterMap`         |   X    |           `filter`            |          |
 |     `filterMapEffect`      |   X    |        `filterEffect`         |          |
 |      `filterMapWhile`      |   X    |                               |          |
 |   `filterMapWhileEffect`   |   X    |                               |          |
-|         `forever`          |   -    |                               |          |
+|         `forever`          |  Done  |                               |          |
 |    `fromEventListener`     |  Done  |                               |          |
 |        `haltAfter`         |   X    |                               |          |
-|         `haltWhen`         |   -    |                               |          |
+|         `haltWhen`         |  Done  |                               |          |
 |     `haltWhenDeferred`     |   X    |                               |          |
 |         `identity`         |   X    |                               |          |
-|        `interleave`        |   -    |                               |          |
-|      `interleaveWith`      |   -    |                               |          |
+|        `interleave`        |  Done  |                               |          |
+|      `interleaveWith`      |  Done  |                               |          |
 |      `interruptAfter`      |   X    |                               |          |
-|      `interruptWhen`       |   -    |                               |          |
+|      `interruptWhen`       |  Done  |                               |          |
 |  `interruptWhenDeferred`   |   X    |                               |          |
-|       `intersperse`        |   -    |                               |          |
-|    `intersperseAffixes`    |   -    |                               |          |
-|         `mapBoth`          |   -    |                               |          |
+|       `intersperse`        |  Done  |                               |          |
+|    `intersperseAffixes`    |  Done  |                               |          |
+|         `mapBoth`          |  Done  |                               |          |
 |          `merge`           |  Done  |                               |          |
-|         `mergeAll`         |   -    |                               |          |
-|       `mergeEither`        |   -    |                               |          |
-|        `mergeLeft`         |   -    |                               |          |
-|        `mergeRight`        |   -    |                               |          |
-|        `mergeWith`         |   -    |                               |          |
+|         `mergeAll`         |  Done  |                               |          |
+|       `mergeEither`        |  Done  |         `mergeResult`         |          |
+|        `mergeLeft`         |  Done  |                               |          |
+|        `mergeRight`        |  Done  |                               |          |
+|        `mergeWith`         |   X    |                               |          |
 |         `mkString`         |  Done  |          `mkString`           |          |
 |          `onDone`          |   X    |                               |          |
-|         `onError`          |   -    |                               |          |
-|        `partition`         |   -    |                               |          |
-|     `partitionEither`      |   -    |                               |          |
-|           `peel`           |   -    |                               |          |
-|       `pipeThrough`        |   -    |                               |          |
+|         `onError`          |  Done  |                               |          |
+|        `partition`         |  Done  |                               |          |
+|     `partitionEither`      |  Done  |       `partitionEffect`       |          |
+|           `peel`           |  Done  |                               |          |
+|       `pipeThrough`        |  Done  |                               |          |
 |    `pipeThroughChannel`    |  Done  |     `pipeThroughChannel`      |          |
 | `pipeThroughChannelOrFail` |  Done  |  `pipeThroughChannelOrFail`   |          |
-|         `prepend`          |   -    |                               |          |
+|         `prepend`          |  Done  |                               |          |
 |         `rechunk`          |  Done  |           `rechunk`           |          |
-|          `repeat`          |   -    |                               |          |
-|       `repeatEither`       |   -    |                               |          |
-|      `repeatElements`      |   -    |                               |          |
-|    `repeatElementsWith`    |   -    |                               |          |
-|        `repeatWith`        |   -    |                               |          |
-|          `retry`           |   -    |                               |          |
+|          `repeat`          |  Done  |                               |          |
+|       `repeatEither`       |   X    |                               |          |
+|      `repeatElements`      |  Done  |                               |          |
+|    `repeatElementsWith`    |   X    |                               |          |
+|        `repeatWith`        |   X    |                               |          |
+|          `retry`           |  Done  |                               |          |
 |           `scan`           |  Done  |            `scan`             |          |
 |        `scanEffect`        |  Done  |         `scanEffect`          |          |
 |        `scanReduce`        |   X    |                               |          |
 |     `scanReduceEffect`     |   X    |                               |          |
-|         `schedule`         |   -    |                               |          |
-|       `scheduleWith`       |   -    |                               |          |
+|         `schedule`         |  Done  |                               |          |
+|       `scheduleWith`       |   X    |                               |          |
 |          `share`           |  Done  |            `share`            |          |
-|         `sliding`          |   -    |                               |          |
-|       `slidingSize`        |   -    |                               |          |
+|         `sliding`          |  Done  |                               |          |
+|       `slidingSize`        |  Done  |                               |          |
 |           `some`           |   X    |                               |          |
 |        `someOrElse`        |   X    |                               |          |
 |        `someOrFail`        |   X    |                               |          |
-|          `split`           |   -    |                               |          |
+|          `split`           |  Done  |                               |          |
 |       `splitOnChunk`       |   X    |                               |          |
 |           `take`           |  Done  |            `take`             |          |
-|        `takeRight`         |   -    |                               |          |
+|        `takeRight`         |  Done  |                               |          |
 |        `takeUntil`         |  Done  |          `takeUntil`          |          |
 |     `takeUntilEffect`      |  Done  |       `takeUntilEffect`       |          |
 |        `takeWhile`         |  Done  |          `takeWhile`          |          |
 |      `tapErrorCause`       |  Done  |          `tapCause`           |          |
 |         `throttle`         |  Done  |                               |          |
 |      `throttleEffect`      |  Done  |                               |          |
-|         `timeout`          |   -    |                               |          |
+|         `timeout`          |  Done  |               -               |          |
 |       `timeoutFail`        |  Done  |        `timeoutOrElse`        |          |
 |     `timeoutFailCause`     |   X    |                               |          |
 |        `timeoutTo`         |   X    |                               |          |
 |        `transduce`         |  Done  |          `transduce`          |          |
-|           `when`           |   -    |                               |          |
+|           `when`           |  Done  |                               |          |
 |      `whenCaseEffect`      |   X    |                               |          |
 |        `whenEffect`        |   X    |            `when`             |          |
 
@@ -424,14 +424,14 @@ The exports under each section are organized as they are in Effect 3.0. The cate
 |         Effect 3         | Ported | Effect 4 | Comments |
 | :----------------------: | :----: | :------: | :------: |
 |          `zip`           |  Done  |          |          |
-|         `zipAll`         |   -    |          |          |
-|       `zipAllLeft`       |   -    |          |          |
-|      `zipAllRight`       |   -    |          |          |
+|         `zipAll`         |   X    |          |          |
+|       `zipAllLeft`       |   X    |          |          |
+|      `zipAllRight`       |   X    |          |          |
 |   `zipAllSortedByKey`    |   X    |          |          |
 | `zipAllSortedByKeyLeft`  |   X    |          |          |
 | `zipAllSortedByKeyRight` |   X    |          |          |
 | `zipAllSortedByKeyWith`  |   X    |          |          |
-|       `zipAllWith`       |   -    |          |          |
+|       `zipAllWith`       |   X    |          |          |
 |       `zipFlatten`       |  Done  |          |          |
 |       `zipLatest`        |  Done  |          |          |
 |      `zipLatestAll`      |  Done  |          |          |
@@ -441,9 +441,9 @@ The exports under each section are organized as they are in Effect 3.0. The cate
 |        `zipWith`         |  Done  |          |          |
 |     `zipWithChunks`      |  Done  |          |          |
 |      `zipWithIndex`      |  Done  |          |          |
-|      `zipWithNext`       |   -    |          |          |
-|    `zipWithPrevious`     |   -    |          |          |
-| `zipWithPreviousAndNext` |   -    |          |          |
+|      `zipWithNext`       |  Done  |          |          |
+|    `zipWithPrevious`     |  Done  |          |          |
+| `zipWithPreviousAndNext` |  Done  |          |          |
 
 ## Sink
 

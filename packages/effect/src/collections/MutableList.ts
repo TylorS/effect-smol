@@ -261,7 +261,7 @@ export const make = <A>(): MutableList<A> => ({
   length: 0
 })
 
-const emptyBucket = (): MutableList.Bucket<never> => ({
+const emptyBucket = <A = never>(): MutableList.Bucket<A> => ({
   array: [],
   mutable: true,
   offset: 0,
@@ -609,6 +609,7 @@ export const takeN = <A>(self: MutableList<A>, n: number): Array<A> => {
       if (chunk.mutable) chunk.array[chunk.offset] = undefined as any
       chunk.offset++
       if (index === n) {
+        self.head = chunk
         self.length -= n
         if (self.length === 0) clear(self)
         return array
@@ -618,6 +619,34 @@ export const takeN = <A>(self: MutableList<A>, n: number): Array<A> => {
   }
   clear(self)
   return array
+}
+
+/**
+ * @since 4.0.0
+ * @category elements
+ */
+export const takeNVoid = <A>(self: MutableList<A>, n: number): void => {
+  if (n <= 0 || !self.head) return
+  n = Math.min(n, self.length)
+  if (n === self.length && self.head?.offset === 0 && !self.head.next) {
+    clear(self)
+    return
+  }
+  let count = 0
+  let chunk: MutableList.Bucket<A> | undefined = self.head
+  while (chunk) {
+    const size = chunk.array.length - chunk.offset
+    if (count + size > n) {
+      chunk.offset += n - count
+      self.head = chunk
+      self.length -= n
+      return
+    }
+    count += size
+    chunk = chunk.next
+  }
+  clear(self)
+  return
 }
 
 /**
@@ -720,6 +749,31 @@ export const take = <A>(self: MutableList<A>): Empty | A => {
   }
   return message
 }
+
+/**
+ * @since 4.0.0
+ * @category elements
+ */
+export const toArrayN = <A>(self: MutableList<A>, n: number): Array<A> => {
+  const length = Math.min(n, self.length)
+  const out = new Array<A>(length)
+  let index = 0
+  let bucket = self.head
+  while (bucket) {
+    for (let i = bucket.offset; i < bucket.array.length; i++) {
+      out[index++] = bucket.array[i]
+      if (index === length) return out
+    }
+    bucket = bucket.next
+  }
+  return out
+}
+
+/**
+ * @since 4.0.0
+ * @category elements
+ */
+export const toArray = <A>(self: MutableList<A>): Array<A> => toArrayN(self, self.length)
 
 /**
  * Filters the MutableList in place, keeping only elements that satisfy the predicate.

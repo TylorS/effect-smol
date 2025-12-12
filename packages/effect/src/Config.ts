@@ -290,11 +290,10 @@ const dump: (
   const stat = yield* provider.load(path)
   if (stat === undefined) return undefined
   switch (stat._tag) {
-    case "leaf":
+    case "Value":
       return stat.value
-    case "object": {
-      // If the object has no children but has a co-located value, surface that value.
-      if (stat.keys.size === 0 && stat.value !== undefined) return stat.value
+    case "Record": {
+      if (stat.value !== undefined) return stat.value
       const out: Record<string, Schema.StringTree> = {}
       for (const key of stat.keys) {
         const child = yield* dump(provider, [...path, key])
@@ -302,13 +301,11 @@ const dump: (
       }
       return out
     }
-    case "array": {
-      // If the array has no children but has a co-located value, surface that value.
-      if (stat.length === 0 && stat.value !== undefined) return stat.value
+    case "Array": {
+      if (stat.value !== undefined) return stat.value
       const out: Array<Schema.StringTree> = []
       for (let i = 0; i < stat.length; i++) {
-        const child = yield* dump(provider, [...path, i])
-        if (child !== undefined) out.push(child)
+        out.push(yield* dump(provider, [...path, i]))
       }
       return out
     }
@@ -333,7 +330,7 @@ const recur: (
         }
         if (ast.indexSignatures.length > 0) {
           const stat = yield* provider.load(path)
-          if (stat && stat._tag === "object") {
+          if (stat && stat._tag === "Record") {
             for (const is of ast.indexSignatures) {
               const matches = Parser.refinement(is.parameter)
               for (const key of stat.keys) {
@@ -348,17 +345,11 @@ const recur: (
         return out
       }
       case "Arrays": {
-        if (ast.rest.length > 0) {
-          const out = yield* dump(provider, path)
-          if (typeof out === "string") return out
-          return out
-        }
         const stat = yield* provider.load(path)
-        if (stat && stat._tag === "leaf") return stat.value
+        if (stat && stat._tag === "Value") return stat.value
         const out: Array<Schema.StringTree> = []
         for (let i = 0; i < ast.elements.length; i++) {
-          const value = yield* recur(ast.elements[i], provider, [...path, i])
-          if (value !== undefined) out.push(value)
+          out.push(yield* recur(ast.elements[i], provider, [...path, i]))
         }
         return out
       }
@@ -371,9 +362,9 @@ const recur: (
         // Base primitives / string-like encoded nodes.
         const stat = yield* provider.load(path)
         if (stat === undefined) return undefined
-        if (stat._tag === "leaf") return stat.value
-        if (stat._tag === "object" && stat.value !== undefined) return stat.value
-        if (stat._tag === "array" && stat.value !== undefined) return stat.value
+        if (stat._tag === "Value") return stat.value
+        if (stat._tag === "Record" && stat.value !== undefined) return stat.value
+        if (stat._tag === "Array" && stat.value !== undefined) return stat.value
         // Container without a co-located value cannot satisfy a scalar request.
         return undefined
       }
@@ -386,7 +377,7 @@ const recur: (
  * @since 4.0.0
  */
 export function schema<T, E>(codec: Schema.Codec<T, E>, path?: string | ConfigProvider.Path): Config<T> {
-  const serializer = Schema.toSerializerEnsureArray(Schema.toSerializerStringTree(codec))
+  const serializer = Schema.toSerializerStringTree(codec)
   const decodeUnknownEffect = Parser.decodeUnknownEffect(serializer)
   const serializerEncodedAST = AST.encodedAST(serializer.ast)
   const defaultPath = typeof path === "string" ? [path] : path ?? []
@@ -436,9 +427,7 @@ export const Boolean = Schema.Literals([...TrueValues.literals, ...FalseValues.l
  * @category Schema
  * @since 4.0.0
  */
-export const Duration = Schema.String.annotate({
-  description: "a string that will be parsed as a Duration"
-}).pipe(Schema.decodeTo(Schema.Duration, {
+export const Duration = Schema.String.pipe(Schema.decodeTo(Schema.Duration, {
   decode: Getter.transformOrFail((s) => {
     const d = Duration_.fromDurationInput(s as any)
     return d ? Effect.succeed(d) : Effect.fail(new Issue.InvalidValue(Option.some(s)))
@@ -512,9 +501,7 @@ export const Record = <K extends Schema.Record.Key, V extends Schema.Top>(key: K
   readonly keyValueSeparator?: string | undefined
 }) => {
   const record = Schema.Record(key, value)
-  const recordString = Schema.String.annotate({
-    description: "a string that will be parsed as a record of key-value pairs"
-  }).pipe(
+  const recordString = Schema.String.pipe(
     Schema.decodeTo(
       Schema.Record(Schema.String, Schema.String),
       Transformation.splitKeyValue(options)
@@ -552,6 +539,8 @@ export function succeed<T>(value: T) {
 /**
  * Creates a configuration for string values.
  *
+ * Shortcut for `Config.schema(Schema.String, name)`.
+ *
  * @category Constructors
  * @since 4.0.0
  */
@@ -562,6 +551,8 @@ export function string(name?: string) {
 /**
  * Creates a configuration for non-empty string values.
  *
+ * Shortcut for `Config.schema(Schema.NonEmptyString, name)`.
+ *
  * @category Constructors
  * @since 4.0.0
  */
@@ -571,6 +562,8 @@ export function nonEmptyString(name?: string) {
 
 /**
  * Creates a configuration for number values.
+ *
+ * Shortcut for `Config.schema(Schema.Number, name)`.
  *
  * @see {@link finite} for a configuration that is guaranteed to be a finite number.
  *
@@ -584,6 +577,8 @@ export function number(name?: string) {
 /**
  * Creates a configuration for finite number values.
  *
+ * Shortcut for `Config.schema(Schema.Finite, name)`.
+ *
  * @category Constructors
  * @since 4.0.0
  */
@@ -593,6 +588,8 @@ export function finite(name?: string) {
 
 /**
  * Creates a configuration for integer values.
+ *
+ * Shortcut for `Config.schema(Schema.Int, name)`.
  *
  * @category Constructors
  * @since 4.0.0
@@ -604,6 +601,8 @@ export function int(name?: string) {
 /**
  * Creates a configuration for literal values.
  *
+ * Shortcut for `Config.schema(Schema.Literal(literal), name)`.
+ *
  * @category Constructors
  * @since 4.0.0
  */
@@ -613,6 +612,8 @@ export function literal<L extends AST.LiteralValue>(literal: L, name?: string) {
 
 /**
  * Creates a configuration for boolean values.
+ *
+ * Shortcut for `Config.schema(Config.Boolean, name)`.
  *
  * Booleans can be encoded as `true`, `false`, `yes`, `no`, `on`, `off`, `1`, or `0`.
  *
@@ -648,6 +649,8 @@ export function boolean(name?: string) {
 /**
  * Creates a configuration for duration values.
  *
+ * Shortcut for `Config.schema(Config.Duration, name)`.
+ *
  * Durations can be encoded as `DurationInput` values.
  *
  * **Example**
@@ -682,6 +685,8 @@ export function duration(name?: string) {
 /**
  * Creates a configuration for port values.
  *
+ * Shortcut for `Config.schema(Config.Port, name)`.
+ *
  * Ports can be encoded as integers between 1 and 65535.
  *
  * **Example**
@@ -715,6 +720,8 @@ export function port(name?: string) {
 
 /**
  * Creates a configuration for log level values.
+ *
+ * Shortcut for `Config.schema(Config.LogLevel, name)`.
  *
  * Log levels can be encoded as the string values of the `LogLevel` enum:
  *
@@ -758,6 +765,8 @@ export function logLevel(name?: string) {
 
 /**
  * Creates a configuration for redacted string values.
+ *
+ * Shortcut for `Config.schema(Schema.Redacted(Schema.String), name)`.
  *
  * **Example**
  *

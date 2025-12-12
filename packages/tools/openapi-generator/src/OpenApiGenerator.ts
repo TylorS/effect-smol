@@ -1,7 +1,6 @@
 import * as Predicate from "effect/data/Predicate"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import type * as FromJsonSchema from "effect/schema/FromJsonSchema"
 import type * as Schema from "effect/schema/Schema"
 import * as ServiceMap from "effect/ServiceMap"
 import * as String from "effect/String"
@@ -96,7 +95,8 @@ export const make = Effect.gen(function*() {
             const schema = {
               type: "object" as Schema.JsonSchema.Type,
               properties: {} as Record<string, any>,
-              required: [] as Array<string>
+              required: [] as Array<string>,
+              additionalProperties: false
             }
 
             for (let parameter of validParameters) {
@@ -180,6 +180,7 @@ export const make = Effect.gen(function*() {
 
               if (status === "default") {
                 defaultSchema = schemaName
+                return
               }
 
               const statusLower = status.toLowerCase()
@@ -195,7 +196,9 @@ export const make = Effect.gen(function*() {
             }
 
             if (Predicate.isUndefined(response.content)) {
-              op.voidSchemas.add(status.toLowerCase())
+              if (status !== "default") {
+                op.voidSchemas.add(status.toLowerCase())
+              }
             }
           }
 
@@ -244,7 +247,7 @@ export const make = Effect.gen(function*() {
   return { generate } as const
 })
 
-function getSource(spec: OpenAPISpec): FromJsonSchema.Source {
+function getSource(spec: OpenAPISpec): Schema.JsonSchema.Source {
   return spec.openapi.trim().startsWith("3.0") ? "openapi-3.0" : "openapi-3.1"
 }
 

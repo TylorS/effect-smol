@@ -635,9 +635,9 @@ everything is a string
 
 The key difference: JSON keeps numbers, booleans, and nested objects in their original types (except for dates, which become strings). The StringTree serializer converts **every leaf value to a string**, while preserving the original structure.
 
-### Custom Types in StringTree
+### Declarations in StringTree
 
-**Note**: Schemas representing custom types without serializers are encoded as `undefined`:
+**Note**: Schemas representing declarations without a `serializerJson` or `serializer` annotation are encoded as `undefined`:
 
 ```ts
 import { Schema } from "effect/schema"
@@ -658,9 +658,9 @@ console.log(
 // { a: undefined, b: '1' }
 ```
 
-### Loose StringTree Serializer
+### keepDeclarations: true
 
-The loose version (`toSerializerStringTreeLoose`) behaves like the StringTree serializer, but it does **not** convert custom types to `undefined`. Instead, it keeps them as they are.
+The `keepDeclarations: true` option behaves like the StringTree serializer, but it does **not** convert declarations to `undefined`. Instead, it keeps them as they are (unless they have a `serializerJson` or `serializer` annotation).
 
 ```ts
 import { Schema } from "effect/schema"
@@ -670,7 +670,7 @@ const schema = Schema.Struct({
   b: Schema.Number
 })
 
-const stringTree = Schema.toSerializerStringTreeLoose(schema)
+const stringTree = Schema.toSerializerStringTree(schema, { keepDeclarations: true })
 
 console.log(
   Schema.encodeUnknownSync(stringTree)({
@@ -1880,7 +1880,7 @@ import type { Annotations } from "effect/schema"
 import { Schema } from "effect/schema"
 
 // Create a filter factory for values greater than a given value
-export const deriveGreaterThan = <T>(options: {
+export const makeGreaterThan = <T>(options: {
   readonly order: Order.Order<T>
   readonly annotate?: ((exclusiveMinimum: T) => Annotations.Filter) | undefined
   readonly format?: (value: T) => string | undefined
@@ -1909,7 +1909,7 @@ import { Schema } from "effect/schema"
 const int = Schema.refine(Schema.isInt().pipe(Schema.isBranded("Int")))
 
 // Constrain to positive numbers and add "Positive" brand
-const positive = Schema.refine(Schema.isPositive().pipe(Schema.isBranded("Positive")))
+const positive = Schema.refine(Schema.isGreaterThan(0).pipe(Schema.isBranded("Positive")))
 
 // Compose both refinements to get a PositiveInt
 export const PositiveInt = Schema.Number.pipe(int, positive)
@@ -4908,15 +4908,13 @@ You can express nested values using bracket notation.
 import { Schema } from "effect/schema"
 
 const schema = Schema.fromFormData(
-  Schema.toSerializerStringTreeLoose(
-    Schema.Struct({
-      a: Schema.String,
-      b: Schema.Struct({
-        c: Schema.String,
-        d: Schema.String
-      })
+  Schema.Struct({
+    a: Schema.String,
+    b: Schema.Struct({
+      c: Schema.String,
+      d: Schema.String
     })
-  )
+  })
 )
 
 const formData = new FormData()
@@ -4928,8 +4926,7 @@ console.log(String(Schema.decodeUnknownExit(schema)(formData)))
 // Success({"a":"1","b":{"c":"2","d":"3"}})
 ```
 
-If you want to decode values that are not strings, use `Schema.toSerializerStringTreeLoose`. This serializer preserves values such
-as numbers and `Blob` objects when compatible with the schema.
+If you want to decode values that are not strings, use `Schema.toSerializerStringTree` with the `keepDeclarations: true` option. This serializer preserves values such as numbers and `Blob` objects when compatible with the schema.
 
 **Example** (Parsing non-string values)
 
@@ -4937,10 +4934,11 @@ as numbers and `Blob` objects when compatible with the schema.
 import { Schema } from "effect/schema"
 
 const schema = Schema.fromFormData(
-  Schema.toSerializerStringTreeLoose(
+  Schema.toSerializerStringTree(
     Schema.Struct({
       a: Schema.Int
-    })
+    }),
+    { keepDeclarations: true }
   )
 )
 
@@ -5002,8 +5000,7 @@ console.log(String(Schema.decodeUnknownExit(schema)(urlSearchParams)))
 // Success({"a":"1","b":{"c":"2","d":"3"}})
 ```
 
-If you want to decode values that are not strings, use `Schema.toSerializerStringTree`. This serializer preserves values such as
-numbers when compatible with the schema.
+If you want to decode values that are not strings, use `Schema.toSerializerStringTree` with the `keepDeclarations: true` option. This serializer preserves values such as numbers or declarations when compatible with the schema.
 
 **Example** (Parsing non-string values)
 
@@ -5014,7 +5011,8 @@ const schema = Schema.fromURLSearchParams(
   Schema.toSerializerStringTree(
     Schema.Struct({
       a: Schema.Int
-    })
+    }),
+    { keepDeclarations: true }
   )
 )
 
@@ -5522,8 +5520,8 @@ It returns a `Generation` object with:
 
 ```ts
 export type Generation = {
-  /** The runtime code to generate the schema (for example: `Schema.Struct({ "a": Schema.String })`) */
-  readonly runtime: string
+  /** The runtime code of the generated schema (e.g. `Schema.Struct({ "a": Schema.String })`) */
+  readonly code: string
   /** The `Type`, `Encoded`, `DecodingServices`, and `EncodingServices` types related to the generated schema */
   readonly types: Types
   /** The JSON Schema annotations found on the JSON Schema (for example: `{ "description": "...", "examples": [...] }`) */
@@ -5553,7 +5551,7 @@ const jsonSchema = JSON.parse(`{
 console.log(FromJsonSchema.generate(jsonSchema, { source: "draft-07" }))
 /*
 {
-  runtime: 'Schema.Struct({ "a": Schema.String, "b": Schema.Int })',
+  code: 'Schema.Struct({ "a": Schema.String, "b": Schema.Int })',
   types: {
     Type: '{ readonly "a": string, readonly "b": number }',
     Encoded: '{ readonly "a": string, readonly "b": number }',
@@ -5588,7 +5586,7 @@ const schema = FromJsonSchema.generate(jsonSchema, { source: "draft-2020-12" })
 console.log(schema)
 /*
 {
-  runtime: 'Schema.Tuple([Schema.String, Schema.Number])',
+  code: 'Schema.Tuple([Schema.String, Schema.Number])',
   types: {
     Type: 'readonly [string, number]',
     Encoded: 'readonly [string, number]',
@@ -5665,7 +5663,7 @@ const generation = FromJsonSchema.generate(jsonSchema, {
 console.log(generation)
 /*
 {
-  runtime: 'Schema.Struct({ "a": Schema.String, "b": Schema.String })',
+  code: 'Schema.Struct({ "a": Schema.String, "b": Schema.String })',
   types: {
     Type: '{ readonly "a": string, readonly "b": string }',
     Encoded: '{ readonly "a": string, readonly "b": string }',
@@ -5703,7 +5701,7 @@ const jsonSchema = JSON.parse(`{
 console.log(FromJsonSchema.generate(jsonSchema, { source: "draft-07" }))
 /*
 {
-  runtime: 'Schema.Struct({ "a": Schema.String, "b": B })',
+  code: 'Schema.Struct({ "a": Schema.String, "b": B })',
   types: {
     Type: '{ readonly "a": string, readonly "b": B }',
     Encoded: '{ readonly "a": string, readonly "b": B }',
@@ -5752,7 +5750,7 @@ console.dir(FromJsonSchema.generateDefinitions(jsonSchema.definitions, { source:
   {
     identifier: 'B',
     generation: {
-      runtime: 'Schema.Int.annotate({ "identifier": "B" })',
+      code: 'Schema.Int.annotate({ "identifier": "B" })',
       types: {
         Type: 'number',
         Encoded: 'number',
@@ -5791,7 +5789,7 @@ console.dir(FromJsonSchema.generateDefinitions(definitions, { source: "draft-07"
   {
     identifier: 'B',
     generation: {
-      runtime: 'Schema.String.annotate({ "identifier": "B" })',
+      code: 'Schema.String.annotate({ "identifier": "B" })',
       types: {
         Type: 'string',
         Encoded: 'string',
@@ -5805,7 +5803,7 @@ console.dir(FromJsonSchema.generateDefinitions(definitions, { source: "draft-07"
   {
     identifier: 'A',
     generation: {
-      runtime: 'Schema.Struct({ "dependent": B }).annotate({ "identifier": "A" })',
+      code: 'Schema.Struct({ "dependent": B }).annotate({ "identifier": "A" })',
       types: {
         Type: '{ readonly "dependent": B }',
         Encoded: '{ readonly "dependent": B }',
@@ -5967,7 +5965,7 @@ const schema = FromJsonSchema.generate(jsonSchema, { source: "draft-07" })
 console.log(schema)
 /*
 {
-  runtime: 'Schema.Struct({ "a": Schema.String, "b": my/extern })',
+  code: 'Schema.Struct({ "a": Schema.String, "b": my/extern })',
   types: {
     Type: '{ readonly "a": string, readonly "b": my/extern }',
     Encoded: '{ readonly "a": string, readonly "b": my/extern }',
@@ -6026,7 +6024,7 @@ const schema = FromJsonSchema.generate(jsonSchema, {
 console.log(schema)
 /*
 {
-  runtime: 'Schema.Struct({ "a": Schema.String, "b": MyExtern })',
+  code: 'Schema.Struct({ "a": Schema.String, "b": MyExtern })',
   types: {
     Type: `{ readonly "a": string, readonly "b": typeof MyExtern['Type'] }`,
     Encoded: `{ readonly "a": string, readonly "b": typeof MyExtern['Encoded'] }`,
@@ -6037,6 +6035,38 @@ console.log(schema)
   importDeclarations: Set(1) { 'import { MyExtern } from "my-lib"' }
 }
 */
+```
+
+#### Collecting custom annotations
+
+You can collect annotations from the JSON Schema by providing a `collectAnnotations` function.
+
+**Example** (Collect annotations from the JSON Schema)
+
+```ts
+import { FromJsonSchema } from "effect/schema"
+
+const jsonSchema = JSON.parse(`{
+  "type": "object",
+  "properties": {
+    "a": { "type": "string", "errorMessage": "Input must be a string", "description": "my property" }
+  },
+  "required": ["a"],
+  "additionalProperties": false
+}`)
+
+const generation = FromJsonSchema.generate(jsonSchema, {
+  source: "draft-07",
+  collectAnnotations: (schema, annotations) => {
+    return {
+      ...annotations,
+      ...(typeof schema.errorMessage === "string" ? { message: schema.errorMessage } : {})
+    }
+  }
+})
+
+console.log(generation.code)
+// Schema.Struct({ "a": Schema.String.annotate({ "description": "my property", "message": "Input must be a string" }) })
 ```
 
 ## Generating an Arbitrary from a Schema
@@ -6565,6 +6595,7 @@ To make the examples easier to follow, we define a helper function that prints f
 
 ```ts
 // utils.ts
+// utils.ts
 import { Exit } from "effect"
 import { Issue, Schema } from "effect/schema"
 import i18next from "i18next"
@@ -6598,7 +6629,7 @@ export function getLogIssues(options?: {
     console.log(
       String(
         Schema.decodeUnknownExit(schema)(input, { errors: "all" }).pipe(
-          Exit.mapError((err) => Issue.makeStandardSchemaV1(options).format(err.issue).issues)
+          Exit.mapError((err) => Issue.makeFormatterStandardSchemaV1(options)(err.issue).issues)
         )
       )
     )
@@ -6609,7 +6640,6 @@ export function getLogIssues(options?: {
 **Example** (Using hooks to translate common messages)
 
 ```ts
-import type { Annotations } from "effect/schema"
 import { Schema } from "effect/schema"
 import { getLogIssues, t } from "./utils.js"
 
@@ -6645,7 +6675,7 @@ const logIssues = getLogIssues({
   },
   // Format custom check errors (like isMinLength or user-defined validations)
   checkHook: (issue) => {
-    const meta = issue.filter.annotations?.meta as Annotations.Meta | undefined
+    const meta = issue.filter.annotations?.meta
     if (meta) {
       switch (meta._tag) {
         case "isMinLength": {
@@ -6984,7 +7014,7 @@ function decodingJsonSchema<T, E, RE>(schema: Schema.Codec<T, E, never, RE>) {
 }
 
 function decodingStringSchema<T, E, RE>(schema: Schema.Codec<T, E, never, RE>) {
-  return Schema.asStandardSchemaV1(Schema.toSerializerEnsureArray(Schema.toSerializerStringTree(schema)))
+  return Schema.asStandardSchemaV1(Schema.toSerializerStringTree(schema))
 }
 
 function mapJsonSchema(schema: Schema.Top) {
@@ -7209,10 +7239,6 @@ Schema.Number.check(Schema.isGreaterThan(5))
 Schema.Number.check(Schema.isGreaterThanOrEqualTo(5))
 Schema.Number.check(Schema.isLessThan(5))
 Schema.Number.check(Schema.isLessThanOrEqualTo(5))
-Schema.Number.check(Schema.isPositive())
-Schema.Number.check(Schema.isNonNegative())
-Schema.Number.check(Schema.isNegative())
-Schema.Number.check(Schema.isNonPositive())
 Schema.Number.check(Schema.isMultipleOf(5))
 ```
 
@@ -7234,12 +7260,12 @@ import { Schema } from "effect/schema"
 
 const options = { order: Order.bigint }
 
-const isBetween = Schema.deriveIsBetween(options)
-const isGreaterThan = Schema.deriveIsGreaterThan(options)
-const isGreaterThanOrEqualTo = Schema.deriveIsGreaterThanOrEqualTo(options)
-const isLessThan = Schema.deriveIsLessThan(options)
-const isLessThanOrEqualTo = Schema.deriveIsLessThanOrEqualTo(options)
-const isMultipleOf = Schema.deriveIsMultipleOf({
+const isBetween = Schema.makeIsBetween(options)
+const isGreaterThan = Schema.makeIsGreaterThan(options)
+const isGreaterThanOrEqualTo = Schema.makeIsGreaterThanOrEqualTo(options)
+const isLessThan = Schema.makeIsLessThan(options)
+const isLessThanOrEqualTo = Schema.makeIsLessThanOrEqualTo(options)
+const isMultipleOf = Schema.makeIsMultipleOf({
   remainder: BigInt.remainder,
   zero: 0n
 })
