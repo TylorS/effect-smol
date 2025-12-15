@@ -71,7 +71,7 @@ export const getGuard = <I, O, E = never, R = never>(guard: GuardInput<I, O, E, 
 /**
  * @since 1.0.0
  */
-export const compose: {
+export const pipe: {
   <O, B, E2, R2>(
     output: GuardInput<O, B, E2, R2>
   ): <I, R, E>(input: GuardInput<I, O, E, R>) => Guard<I, B, E | E2, R | R2>
@@ -107,7 +107,7 @@ export const mapEffect: {
   guard: GuardInput<I, O, E, R>,
   f: (o: O) => Effect.Effect<B, E2, R2>
 ): Guard<I, B, E | E2, R | R2> {
-  return compose(guard, (o) => Effect.asSome(f(o)))
+  return pipe(guard, (o) => Effect.asSome(f(o)))
 })
 
 /**
@@ -127,18 +127,22 @@ export const map: {
  * @since 1.0.0
  */
 export const tap: {
-  <O, B, E2, R2>(
-    f: (o: O) => Effect.Effect<B, E2, R2>
+  <O, B, E2 = never, R2 = never>(
+    f: (o: O) => void | Effect.Effect<B, E2, R2>
   ): <I, R, E>(guard: GuardInput<I, O, E, R>) => Guard<I, O, E | E2, R | R2>
   <I, O, E, R, B, E2, R2>(
     guard: GuardInput<I, O, E, R>,
-    f: (o: O) => Effect.Effect<B, E2, R2>
+    f: (o: O) => void | Effect.Effect<B, E2, R2>
   ): Guard<I, O, E | E2, R | R2>
 } = dual(2, function tap<I, O, E, R, B, E2, R2>(
   guard: GuardInput<I, O, E, R>,
-  f: (o: O) => Effect.Effect<B, E2, R2>
+  f: (o: O) => void | Effect.Effect<B, E2, R2>
 ): Guard<I, O, E | E2, R | R2> {
-  return compose(guard, (o) => Effect.as(f(o), Option.some(o)))
+  return pipe(guard, (o) => {
+    const x = f(o)
+    if (Effect.isEffect(x)) return Effect.as(x, Option.some(o))
+    return Effect.succeedSome(o)
+  })
 })
 
 /**
@@ -391,7 +395,7 @@ export const decode: {
   guard: GuardInput<I, O, E, R>,
   schema: S
 ): Guard<I, S["Type"], Schema.SchemaError | E, R | S["DecodingServices"]> {
-  return compose(guard, fromSchemaDecode(schema))
+  return pipe(guard, fromSchemaDecode(schema))
 })
 
 /**
@@ -412,7 +416,7 @@ export const encode: {
   guard: GuardInput<I, O, E, R>,
   schema: S
 ): Guard<I, S["Encoded"], Schema.SchemaError | E, R | S["EncodingServices"]> {
-  return compose(guard, fromSchemaEncode(schema))
+  return pipe(guard, fromSchemaEncode(schema))
 })
 
 /**
@@ -495,5 +499,5 @@ export const bind: {
 ): Guard<I, O & { [k in K]: B }, E | E2, R | R2> {
   const f_ = bindTo(f, key)
 
-  return compose(guard, (o) => Effect.map(f_(o), Option.map((b) => ({ ...o, ...b }))))
+  return pipe(guard, (o) => Effect.map(f_(o), Option.map((b) => ({ ...o, ...b }))))
 })
