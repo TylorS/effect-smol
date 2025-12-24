@@ -36,7 +36,7 @@ export const collectAll = <A, E = never, R = never>(
 export const collectAllFork = <A, E = never, R = never>(
   fx: Fx<A, E, R>
 ): Effect.Effect<Fiber.Fiber<ReadonlyArray<A>, E>, never, R> =>
-  Effect.fork(collectAll(fx), {
+  Effect.forkChild(collectAll(fx), {
     startImmediately: true,
     uninterruptible: false
   })
@@ -81,7 +81,7 @@ export const collectUpToFork = <A, E = never, R = never>(
   fx: Fx<A, E, R>,
   upTo: number
 ): Effect.Effect<Fiber.Fiber<ReadonlyArray<A>, E>, never, R> =>
-  Effect.fork(collectUpTo(fx, upTo), {
+  Effect.forkChild(collectUpTo(fx, upTo), {
     startImmediately: true,
     uninterruptible: false
   })

@@ -25,7 +25,7 @@ describe("RefSubject", () => {
         const id = setTimeout(() => resume(Effect.succeed(1)), 100)
         return Effect.sync(() => clearTimeout(id))
       }))
-      const fiber = yield* Effect.fork(ref.asEffect())
+      const fiber = yield* Effect.forkChild(ref.asEffect())
       expect(yield* Fiber.join(fiber)).toEqual(1)
     }))
 

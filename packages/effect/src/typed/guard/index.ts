@@ -83,7 +83,7 @@ export const pipe: {
   const g1 = getGuard(input)
   const g2 = getGuard(output)
   return (i) =>
-    Effect.flatMap(
+    Effect.flatMapEager(
       g1(i),
       Option.match({
         onNone: () => Effect.succeedNone,
@@ -155,7 +155,7 @@ export const filterMap: {
   2,
   <I, O, E, R, B>(guard: GuardInput<I, O, E, R>, f: (o: O) => Option.Option<B>): Guard<I, B, E, R> => {
     const g = getGuard(guard)
-    return (i) => Effect.map(g(i), Option.filterMap(f))
+    return (i) => Effect.mapEager(g(i), Option.filterMap(f))
   }
 )
 
@@ -171,7 +171,7 @@ export const filter: {
   2,
   <I, O, E, R>(guard: GuardInput<I, O, E, R>, predicate: (o: O) => boolean): Guard<I, O, E, R> => {
     const g = getGuard(guard)
-    return (i) => Effect.map(g(i), Option.filter(predicate))
+    return (i) => Effect.mapEager(g(i), Option.filter(predicate))
   }
 )
 
@@ -256,7 +256,7 @@ export const catchAll: {
   f: (e: E) => Effect.Effect<O2, E2, R2>
 ): Guard<I, O | O2, E2, R | R2> {
   const g = getGuard(guard)
-  return (i) => Effect.catch(g(i), (a) => Effect.asSome(f(a)))
+  return (i) => Effect.catchEager(g(i), (a) => Effect.asSome(f(a)))
 })
 
 export { catchAll as catch }
@@ -498,6 +498,5 @@ export const bind: {
   f: GuardInput<O, B, E2, R2>
 ): Guard<I, O & { [k in K]: B }, E | E2, R | R2> {
   const f_ = bindTo(f, key)
-
-  return pipe(guard, (o) => Effect.map(f_(o), Option.map((b) => ({ ...o, ...b }))))
+  return pipe(guard, (o) => Effect.mapEager(f_(o), Option.map((b) => ({ ...o, ...b }))))
 })
