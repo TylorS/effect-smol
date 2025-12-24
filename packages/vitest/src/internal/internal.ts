@@ -17,6 +17,7 @@ import * as TestClock from "effect/testing/TestClock"
 import * as TestConsole from "effect/testing/TestConsole"
 import * as V from "vitest"
 import type * as Vitest from "../index.ts"
+import { fx, fxCause, fxError } from "./fx.ts"
 
 const runPromise: <E, A>(
   _: Effect.Effect<A, E, never>,
@@ -225,7 +226,10 @@ export const layer = <R, E>(
         readonly timeout?: Duration.DurationInput
       }) {
         return layer(Layer.provideMerge(nestedLayer, withTestEnv), { ...options, memoMap, excludeTestServices })
-      }
+      },
+      fx,
+      fxCause,
+      fxError
     })
 
   if (args.length === 1) {
@@ -283,7 +287,10 @@ export const makeMethods = (it: V.TestAPI): Vitest.Vitest.Methods =>
     live: makeTester<Scope.Scope>(Effect.scoped, it),
     flakyTest,
     layer,
-    prop
+    prop,
+    fx,
+    fxCause,
+    fxError
   })
 
 /** @internal */
