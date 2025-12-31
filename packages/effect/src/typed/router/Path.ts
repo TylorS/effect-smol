@@ -1,140 +1,167 @@
-export type Parameter<Name extends string, IsOptional extends boolean = false> = IsOptional extends true ? `${Name}?`
-  : `:${Name}`
+import type { Arg0, TypeLambda1 } from "hkt-core"
 
-export type ParameterWithRegex<Name extends string, RegexSource extends string> = `${Parameter<Name>}(${RegexSource})`
+import type { PathAst } from "./AST.ts"
+import type { Parser } from "./Parser.ts"
 
-export type Wildcard = "*"
+type PathStopChar = "/" | ":" | "*" | "?"
+type QueryValueStopChar = "&"
 
-export type QueryParameters<Params extends string> = `?${Params}`
+type TakeWhileNotInternal<
+  Input extends string,
+  Stop extends string,
+  Acc extends string = ""
+> = Input extends `${infer Head}${infer Tail}` ? Head extends Stop ? readonly [Acc, Input]
+  : TakeWhileNotInternal<Tail, Stop, `${Acc}${Head}`>
+  : readonly [Acc, Input]
 
-export type PathJoin<Parts extends ReadonlyArray<string>> = Parts extends
-  readonly [infer Head extends string, ...infer Tail extends ReadonlyArray<string>] ?
-  RemoveDoubleSlashes<`/${Head}${PathJoin<Tail>}`>
-  : "/"
+type TakeWhileNot1Internal<
+  Input extends string,
+  Stop extends string
+> = TakeWhileNotInternal<Input, Stop> extends readonly [
+  infer Taken extends string,
+  infer Rest extends string
+] ? Taken extends "" ? never : readonly [Taken, Rest]
+  : never
 
-type StripLeadingSlash<T extends string> = T extends `/${infer Rest}` ? StripLeadingSlash<Rest> : T
-type StripTrailingSlash<T extends string> = T extends `${infer Rest}/` ? StripTrailingSlash<Rest> : T
-type RemoveDoubleSlashes<T extends string> = T extends `${infer Prefix}//${infer Suffix}`
-  ? `${RemoveDoubleSlashes<Prefix>}/${RemoveDoubleSlashes<Suffix>}`
-  : T
+interface TakeWhileNot1<Stop extends string> extends Parser<string> {
+  readonly return: Arg0<this> extends infer Input extends string ? TakeWhileNot1Internal<Input, Stop> : never
+}
 
-type StripSlashes<T extends string> = StripLeadingSlash<StripTrailingSlash<RemoveDoubleSlashes<T>>>
+interface Second extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly [infer _A, infer B] ? B : never
+}
 
-type SeparatedBySlashes<T extends string> = T extends `${infer Prefix}/${infer Suffix}`
-  ? [Prefix, ...SeparatedBySlashes<Suffix>]
-  : [T] extends [infer Head] ? [Head]
-  : ""
+interface RegexBetweenParens extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly ["(", readonly [infer Regex extends string, ")"]] ? Regex : never
+}
 
-export type ParsePath<Path extends string> = ParsePathChunks<SeparatedBySlashes<StripSlashes<Path>>>
+type RegexParser = Parser.Map<
+  Parser.Zip<Parser.Char<"(">, Parser.Zip<TakeWhileNot1<")">, Parser.Char<")">>>,
+  RegexBetweenParens
+>
 
-type ParsePathChunks<Chunks extends ReadonlyArray<string>> = Chunks extends
-  readonly [infer Head extends string, ...infer Tail extends ReadonlyArray<string>] ?
-  readonly [ParsePathChunk<Head>, ...ParsePathChunks<Tail>]
-  : readonly []
+type OptionalRegexParser = Parser.Optional<RegexParser>
+type OptionalQuestionMarkParser = Parser.Optional<Parser.Char<"?">>
 
-type LowercaseAlphabet =
-  | "a"
-  | "b"
-  | "c"
-  | "d"
-  | "e"
-  | "f"
-  | "g"
-  | "h"
-  | "i"
-  | "j"
-  | "k"
-  | "l"
-  | "m"
-  | "n"
-  | "o"
-  | "p"
-  | "q"
-  | "r"
-  | "s"
-  | "t"
-  | "u"
-  | "v"
-  | "w"
-  | "x"
-  | "y"
-  | "z"
-type UppercaseAlphabet =
-  | "A"
-  | "B"
-  | "C"
-  | "D"
-  | "E"
-  | "F"
-  | "G"
-  | "H"
-  | "I"
-  | "J"
-  | "K"
-  | "L"
-  | "M"
-  | "N"
-  | "O"
-  | "P"
-  | "Q"
-  | "R"
-  | "S"
-  | "T"
-  | "U"
-  | "V"
-  | "W"
-  | "X"
-  | "Y"
-  | "Z"
-type Alphabet = LowercaseAlphabet | UppercaseAlphabet
+type ParameterNameParser = Parser.Zip<Parser.Char<":">, Parser.TakeWhile1<Parser.AlphaNumeric>>
 
-type Digits = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
-type AlphaNumeric = Alphabet | Digits
+type ParameterPartsParser = Parser.Zip<ParameterNameParser, Parser.Zip<OptionalRegexParser, OptionalQuestionMarkParser>>
 
-type ParsePathChunk<Chunk extends string> = "" extends Chunk ? [] :
-  Chunk extends Parameter<infer Name, true> ? ParseOptionalParameter<Name> :
-  Chunk extends Parameter<infer Name, false> ? ParseParameter<Name> :
-  Chunk extends ParameterWithRegex<infer Name, infer Regex> ? ParseParameterWithRegex<Name, Regex> :
-  Chunk extends `${infer Prefix}${Wildcard}${infer Suffix}` ?
-    [...ParsePathChunk<Prefix>, { type: "wildcard" }, ...ParsePathChunk<Suffix>] :
-  Chunk extends `${infer Prefix}:${infer Suffix}` ? [...ParsePathChunk<Prefix>, ...ParsePathChunk<`:${Suffix}`>] :
-  [{ type: "literal"; value: Chunk }]
+type ParameterAst<
+  Name extends string,
+  Regex extends string | undefined,
+  OptionalMark extends "?" | undefined
+> =
+  & { type: "parameter"; name: Name }
+  & ([Regex] extends [string] ? { regex: Regex } : {})
+  & ([OptionalMark] extends ["?"] ? { optional: true } : {})
 
-type ParseOptionalParameter<Name extends string> = TakeWhileAlphanumeric<Name> extends
-  [infer Prefix extends string, infer Suffix extends string]
-  ? Suffix extends `?${infer Rest}` ? [{ type: "parameter"; name: Prefix; isOptional: true }, ...ParsePathChunk<Rest>]
-  : [{ type: "parameter"; name: Prefix; isOptional: true }, ...ParsePathChunk<Suffix>]
-  : [{ type: "parameter"; name: Name; isOptional: true }]
+interface ToParameterAst extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly [
+    readonly [":", infer Name extends string],
+    readonly [infer Regex, infer OptionalMark]
+  ] ? ParameterAst<
+      Name,
+      Regex extends string ? Regex : undefined,
+      OptionalMark extends "?" ? OptionalMark : undefined
+    >
+    : never
+}
 
-type ParseParameter<Name extends string> = TakeWhileAlphanumeric<Name> extends
-  [infer Prefix extends string, infer Suffix extends string]
-  ? Suffix extends `?${infer Rest}` ? [{ type: "parameter"; name: Prefix; isOptional: true }, ...ParsePathChunk<Rest>]
-  : [{ type: "parameter"; name: Prefix; isOptional: false }, ...ParsePathChunk<Suffix>]
-  : [{ type: "parameter"; name: Name; isOptional: false }]
+type ParameterParser = Parser.Map<ParameterPartsParser, ToParameterAst>
 
-type ParseParameterWithRegex<Name extends string, Regex extends string> = TakeWhileAlphanumeric<Name> extends
-  [infer Prefix extends string, infer Suffix extends string]
-  ? [{ type: "parameter"; name: Prefix; regex: Regex }, ...ParsePathChunk<Suffix>]
-  : [{ type: "parameter"; name: Name; regex: Regex }]
+interface ToWildcardAst extends TypeLambda1 {
+  readonly return: { type: "wildcard" }
+}
 
-type TakeWhile<T extends string, U extends string, Acc extends string = ""> = T extends `${infer Head}${infer Tail}` ?
-  Head extends U ? TakeWhile<Tail, U, `${Acc}${Head}`> : [Acc, T]
-  : [Acc, T]
+type WildcardParser = Parser.Map<Parser.Char<"*">, ToWildcardAst>
 
-type TakeWhileAlphanumeric<T extends string> = TakeWhile<T, AlphaNumeric>
+interface ToLiteralAst extends TypeLambda1 {
+  readonly return: Arg0<this> extends infer Value extends string ? { type: "literal"; value: Value } : never
+}
 
-type StringJoin<Input extends ReadonlyArray<string>, R extends string = ""> = Input extends
-  readonly [infer A extends string, ...infer Rest extends ReadonlyArray<string>] ? StringJoin<Rest, `${R}${A}`> : R
+type PathLiteralParser = Parser.Map<TakeWhileNot1<PathStopChar>, ToLiteralAst>
 
-type PrintAst<T extends ReadonlyArray<any>> = T extends
-  readonly [infer Head extends ReadonlyArray<any>, ...infer Tail] ?
-  `/${StringJoin<{ [K in keyof Head]: PrintAstPart<Head[K]> }>}${PrintAst<Tail>}` :
-  ""
+type QueryLiteralParser = Parser.Map<TakeWhileNot1<QueryValueStopChar>, ToLiteralAst>
 
-type PrintAstPart<T> = T extends { type: "literal"; value: infer Value extends string } ? Value :
-  T extends { type: "parameter"; name: infer Name extends string; isOptional: infer IsOptional extends boolean } ?
-    `:${Name}${IsOptional extends true ? "?" : ""}` :
-  T extends { type: "parameter"; name: infer Name extends string; regex: infer Regex extends string } ?
-    `:${Name}(${Regex})` :
-  T extends { type: "wildcard" } ? "*" :
-  never
+type QueryValueParser = Parser.OrElse<ParameterParser, Parser.OrElse<WildcardParser, QueryLiteralParser>>
+
+interface ToQueryParamAst extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly [
+    infer Name extends string,
+    readonly ["=", infer Value extends PathAst]
+  ] ? { type: "query-param"; name: Name; value: Value }
+    : never
+}
+
+type QueryParamParser = Parser.Map<
+  Parser.Zip<Parser.TakeWhile1<Parser.AlphaNumeric>, Parser.Zip<Parser.Char<"=">, QueryValueParser>>,
+  ToQueryParamAst
+>
+
+type QueryParamTailParser = Parser.Map<Parser.Zip<Parser.Char<"&">, QueryParamParser>, Second>
+
+interface PrependToTuple extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly [infer Head, infer Tail extends ReadonlyArray<unknown>] ?
+    readonly [Head, ...Tail]
+    : never
+}
+
+type QueryParamListParser = Parser.Map<Parser.Zip<QueryParamParser, Parser.Many<QueryParamTailParser>>, PrependToTuple>
+
+interface ToQueryParamsAst extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly ["?", infer Params extends ReadonlyArray<PathAst.QueryParam>] ? {
+      type: "query-params"
+      value: Params
+    }
+    : never
+}
+
+type QueryParamsParser = Parser.Map<Parser.Zip<Parser.Char<"?">, QueryParamListParser>, ToQueryParamsAst>
+
+type PathAtomParser = Parser.OrElse<
+  QueryParamsParser,
+  Parser.OrElse<ParameterParser, Parser.OrElse<WildcardParser, PathLiteralParser>>
+>
+
+type SkipSlashesParser = Parser.Optional<Parser.Many1<Parser.Char<"/">>>
+
+export type PathParser = Parser.Map<Parser.Zip<SkipSlashesParser, PathAtomParser>, Second>
+
+type ParseAstsResult<Input extends string> = Parser.Run<Parser.Many<PathParser>, Input>
+
+type GetAsts<R> = [R] extends [never] ? never
+  : R extends readonly [infer Asts extends ReadonlyArray<PathAst>, infer _Rest extends string] ? Asts
+  : never
+
+type ParseAsts<Input extends string> = GetAsts<ParseAstsResult<Input>>
+
+type ParamsOfAst<T> = T extends { type: "parameter"; name: infer Name extends string; optional: true } ?
+  { [K in Name]?: string } :
+  T extends { type: "parameter"; name: infer Name extends string } ? { [K in Name]: string } :
+  T extends { type: "wildcard" } ? { "*": string } :
+  T extends { type: "query-params"; value: infer Values extends ReadonlyArray<PathAst.QueryParam> } ?
+    ParamsOfQueryParams<Values> :
+  {}
+
+type ParamsOfQueryParams<T extends ReadonlyArray<PathAst.QueryParam>, Acc = {}> = T extends readonly [
+  infer Head,
+  ...infer Tail extends ReadonlyArray<PathAst.QueryParam>
+] ? ParamsOfQueryParams<Tail, Acc & ParamsOfQueryParam<Head>>
+  : Acc
+
+type ParamsOfQueryParam<T> = T extends { type: "query-param"; value: infer Value extends PathAst } ? ParamsOfAst<Value>
+  : {}
+
+type GetParams<T extends ReadonlyArray<PathAst>, Acc = {}> = T extends readonly [
+  infer Head,
+  ...infer Tail extends ReadonlyArray<PathAst>
+] ? GetParams<Tail, Acc & ParamsOfAst<Head>>
+  : Acc
+
+type ToReadonlyRecord<T> = { readonly [K in keyof T]: T[K] }
+
+export type Params<P extends string> = ParseAsts<P> extends infer Asts ? [Asts] extends [never] ? never
+  : Asts extends ReadonlyArray<PathAst> ? ToReadonlyRecord<GetParams<Asts>>
+  : never
+  : never
