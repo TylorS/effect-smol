@@ -8,14 +8,14 @@ describe("typed/router/Path", () => {
     it("parses literals and parameters", () => {
       const [asts, rest] = Path.parseWithRest("/users/:id")
 
-      expect(asts).toEqual([AST.literal("users"), AST.parameter("id")])
+      expect(asts).toEqual([AST.literal("users"), AST.slash(), AST.parameter("id")])
       expect(rest).toEqual("")
     })
 
     it("parses wildcard segments", () => {
       const [asts, rest] = Path.parseWithRest("/files/*")
 
-      expect(asts).toEqual([AST.literal("files"), AST.wildcard()])
+      expect(asts).toEqual([AST.literal("files"), AST.slash(), AST.wildcard()])
       expect(rest).toEqual("")
     })
 
@@ -24,6 +24,11 @@ describe("typed/router/Path", () => {
 
       expect(asts).toEqual([AST.parameter("id", true, "\\d+")])
       expect(rest).toEqual("")
+    })
+
+    it("emits slash AST nodes only when a '/' actually separates atoms", () => {
+      expect(Path.parseWithRest("*foo")[0]).toEqual([AST.wildcard(), AST.literal("foo")])
+      expect(Path.parseWithRest("*/foo")[0]).toEqual([AST.wildcard(), AST.slash(), AST.literal("foo")])
     })
 
     it("parses query params with literal, parameter, and wildcard values", () => {

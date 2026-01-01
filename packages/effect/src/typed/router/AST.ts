@@ -4,6 +4,7 @@ import type { Transformation } from "../../SchemaTransformation.ts"
 export type PathAst =
   | PathAst.Literal
   | PathAst.Parameter
+  | PathAst.Slash
   | PathAst.Wildcard
   | PathAst.QueryParams
 
@@ -21,6 +22,10 @@ export declare namespace PathAst {
 
   export type Wildcard = {
     type: "wildcard"
+  }
+
+  export type Slash = {
+    type: "slash"
   }
 
   export type QueryParams = {
@@ -43,6 +48,7 @@ export const parameter = (name: string, optional?: boolean, regex?: string): Pat
   ...(regex ? { regex } : {})
 })
 export const wildcard = (): PathAst.Wildcard => ({ type: "wildcard" })
+export const slash = (): PathAst.Slash => ({ type: "slash" })
 export const queryParams = (value: ReadonlyArray<PathAst.QueryParam>): PathAst.QueryParams => ({
   type: "query-params",
   value
