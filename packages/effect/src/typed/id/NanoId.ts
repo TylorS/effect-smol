@@ -1,5 +1,5 @@
 import * as Effect from "../../Effect.ts"
-import * as Schema from "../../schema/Schema.ts"
+import * as Schema from "../../Schema.ts"
 import { RandomValues } from "./RandomValues.ts"
 
 export const NanoId = Schema.String.pipe(

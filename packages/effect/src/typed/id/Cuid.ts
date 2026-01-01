@@ -1,6 +1,6 @@
 import * as Effect from "../../Effect.ts"
 import { Layer } from "../../index.ts"
-import * as Schema from "../../schema/Schema.ts"
+import * as Schema from "../../Schema.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
 import { sha512 } from "./_sha.ts"
 import { DateTimes } from "./DateTimes.ts"

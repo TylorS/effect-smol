@@ -3,13 +3,13 @@
  */
 
 import type * as Cause from "../../Cause.ts"
-import * as Option from "../../data/Option.ts"
-import type * as Predicate from "../../data/Predicate.ts"
 import * as Effect from "../../Effect.ts"
 import { dual } from "../../Function.ts"
 import type * as Layer from "../../Layer.ts"
-import type { ParseOptions } from "../../schema/AST.ts"
-import * as Schema from "../../schema/Schema.ts"
+import * as Option from "../../Option.ts"
+import type * as Predicate from "../../Predicate.ts"
+import * as Schema from "../../Schema.ts"
+import type { ParseOptions } from "../../SchemaAST.ts"
 import type * as ServiceMap from "../../ServiceMap.ts"
 
 /**
