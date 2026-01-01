@@ -131,7 +131,40 @@ type SkipSlashesParser = Parser.Optional<Parser.Many1<Parser.Char<"/">>>
 
 export type PathParser = Parser.Map<Parser.Zip<SkipSlashesParser, PathAtomParser>, Second>
 
-type ParseAstsResult<Input extends string> = Parser.Run<Parser.Many<PathParser>, Input>
+type SlashAst = { readonly type: "slash" }
+
+type PathChunk = readonly [PathAst] | readonly [SlashAst, PathAst]
+
+interface ToPathChunk extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly [infer Slashes, infer Ast extends PathAst] ?
+    [Slashes] extends [undefined] ? readonly [Ast]
+    : readonly [SlashAst, Ast]
+    : never
+}
+
+type PathChunkParser = Parser.Map<Parser.Zip<SkipSlashesParser, PathAtomParser>, ToPathChunk>
+
+type FlattenChunks<
+  Chunks extends ReadonlyArray<PathChunk>,
+  Acc extends ReadonlyArray<PathAst> = readonly []
+> = Chunks extends readonly [infer Head extends PathChunk, ...infer Tail extends ReadonlyArray<PathChunk>] ?
+  FlattenChunks<Tail, readonly [...Acc, ...Head]> :
+  Acc
+
+type CombineChunks<First, Chunks extends ReadonlyArray<PathChunk>> = [First] extends [PathAst] ?
+  readonly [First, ...FlattenChunks<Chunks>] :
+  FlattenChunks<Chunks>
+
+interface ToAsts extends TypeLambda1 {
+  readonly return: Arg0<this> extends readonly [infer First, infer Chunks extends ReadonlyArray<PathChunk>] ?
+    CombineChunks<First, Chunks> :
+    never
+}
+
+type ParseAstsResult<Input extends string> = Parser.Run<
+  Parser.Map<Parser.Zip<Parser.Optional<PathParser>, Parser.Many<PathChunkParser>>, ToAsts>,
+  Input
+>
 
 type GetAsts<R> = [R] extends [never] ? never
   : R extends readonly [infer Asts extends ReadonlyArray<PathAst>, infer _Rest extends string] ? Asts
@@ -212,7 +245,9 @@ export function parseWithRest(input: string): RuntimeParseResult {
 
   while (index < input.length) {
     const start = index
+    let hasSlash = false
     while (index < input.length && input[index] === "/") {
+      hasSlash = true
       index++
     }
 
@@ -222,6 +257,9 @@ export function parseWithRest(input: string): RuntimeParseResult {
       break
     }
 
+    if (hasSlash && asts.length > 0) {
+      asts.push(AST.slash())
+    }
     asts.push(atom.ast)
     index = atom.index
   }
