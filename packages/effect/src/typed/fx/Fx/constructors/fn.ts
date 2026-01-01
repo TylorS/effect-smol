@@ -167,35 +167,31 @@ export namespace fn {
 export const fn: fn.Gen & fn.NonGen & {
   (name: string, options?: SpanOptionsNoTrace): fn.Gen & fn.NonGen
 } = function(...args: Array<any>): any {
-  const [name, options] = args
+  const [first, ...rest] = args
 
-  type Gen = Generator<Effect.Yieldable<any, any, any, any>, Fx.Any>
-
-  if (typeof name === "string") {
-    const fn_ = Effect.fn(name, options)
-    return (body: any, ...pipeables: Array<Function>) => {
-      return fn_(
-        function() {
-          const x = body.apply(this, arguments)
-          if (isFx(x)) return Effect.succeed(x)
-          return x as Gen
-        },
+  if (typeof first === "string") {
+    const fn_ = Effect.fn(first, ...rest)
+    return (body: any, ...pipeables: Array<Function>) =>
+      fn_(
+        unwrapApply(body),
         unwrap,
         // @ts-expect-error - It's fine to be variadic
         ...pipeables
       )
-    }
   }
 
-  const [body, ...pipeables] = args
   return Effect.fn(
-    function() {
-      const x = body.apply(this, arguments)
-      if (isFx(x)) return Effect.succeed(x)
-      return x
-    },
+    unwrapApply(first),
     unwrap,
     // @ts-expect-error - It's fine to be variadic
-    ...pipeables
+    ...rest
   )
+}
+
+function unwrapApply(fn: Function) {
+  return function(this: any, ...args: Array<any>) {
+    const x = fn.apply(this, args)
+    if (isFx(x)) return Effect.succeed(x)
+    return x
+  }
 }
