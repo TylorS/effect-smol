@@ -6,7 +6,7 @@ import type { Fx } from "../Fx.ts"
 
 /**
  * Takes elements from an Fx until a predicate returns true.
- * The element that satisfies the predicate is included in the output.
+ * The element that satisfies the predicate is not included in the output.
  *
  * @param predicate - The predicate function.
  * @returns An `Fx` that completes when the predicate matches.
@@ -33,6 +33,7 @@ export const takeUntil: {
 
 /**
  * Drops elements from an Fx after a predicate returns true.
+ * The element that satisfies the predicate is included in the output.
  *
  * @param predicate - The predicate function.
  * @returns An `Fx` that stops emitting when the predicate matches.
