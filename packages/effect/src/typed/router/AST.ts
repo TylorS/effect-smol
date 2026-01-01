@@ -35,6 +35,20 @@ export declare namespace PathAst {
   }
 }
 
+export const literal = (value: string): PathAst.Literal => ({ type: "literal", value })
+export const parameter = (name: string, optional?: boolean, regex?: string): PathAst.Parameter => ({
+  type: "parameter",
+  name,
+  ...(optional ? { optional } : {}),
+  ...(regex ? { regex } : {})
+})
+export const wildcard = (): PathAst.Wildcard => ({ type: "wildcard" })
+export const queryParams = (value: ReadonlyArray<PathAst.QueryParam>): PathAst.QueryParams => ({
+  type: "query-params",
+  value
+})
+export const queryParam = (name: string, value: PathAst): PathAst.QueryParam => ({ type: "query-param", name, value })
+
 export type RouteAst =
   | RouteAst.Path
   | RouteAst.Schema
@@ -64,3 +78,16 @@ export declare namespace RouteAst {
     parts: ReadonlyArray<RouteAst>
   }
 }
+
+export const path = (path: PathAst): RouteAst.Path => ({ type: "path", path })
+export const schema = (path: PathAst, schema: Codec<any, string, any, any>): RouteAst.Schema => ({
+  type: "schema",
+  path,
+  schema
+})
+export const transform = (from: RouteAst, transformation: Transformation<any, any, any, any>): RouteAst.Transform => ({
+  type: "transform",
+  from,
+  transformation
+})
+export const join = (parts: ReadonlyArray<RouteAst>): RouteAst.Join => ({ type: "join", parts })

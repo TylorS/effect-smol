@@ -1,6 +1,7 @@
 import type { Arg0, TypeLambda1 } from "hkt-core"
 
 import type { PathAst } from "./AST.ts"
+import * as AST from "./AST.ts"
 import type { Parser } from "./Parser.ts"
 
 type PathStopChar = "/" | ":" | "*" | "?"
@@ -202,3 +203,214 @@ export type Params<P extends string> = ParseAsts<P> extends infer Asts ? [Asts] 
   : Asts extends ReadonlyArray<PathAst> ? ToReadonlyRecord<GetParams<Asts>>
   : never
   : never
+
+export type RuntimeParseResult = readonly [asts: ReadonlyArray<PathAst>, rest: string]
+
+export function parseWithRest(input: string): RuntimeParseResult {
+  let index = 0
+  const asts: Array<PathAst> = []
+
+  while (index < input.length) {
+    const start = index
+    while (index < input.length && input[index] === "/") {
+      index++
+    }
+
+    const atom = parseAtom(input, index)
+    if (atom === undefined) {
+      index = start
+      break
+    }
+
+    asts.push(atom.ast)
+    index = atom.index
+  }
+
+  return [asts, input.slice(index)]
+}
+
+export function parse(input: string): ReadonlyArray<PathAst> {
+  const [asts, rest] = parseWithRest(input)
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i] !== "/") {
+      const index = input.length - rest.length
+      throw new Error(`Failed to parse path at index ${index}`)
+    }
+  }
+  return asts
+}
+
+type Atom = {
+  readonly ast: PathAst
+  readonly index: number
+}
+
+function parseAtom(input: string, index: number): Atom | undefined {
+  const char = input[index]
+
+  if (char === undefined) {
+    return undefined
+  }
+
+  if (char === "?") {
+    return parseQueryParams(input, index)
+  }
+
+  if (char === ":") {
+    return parseParameter(input, index)
+  }
+
+  if (char === "*") {
+    return { ast: AST.wildcard(), index: index + 1 }
+  }
+
+  return parsePathLiteral(input, index)
+}
+
+function parseParameter(input: string, index: number): Atom | undefined {
+  if (input[index] !== ":") {
+    return undefined
+  }
+
+  let i = index + 1
+  let name = ""
+  while (i < input.length && isAlphaNumeric(input[i])) {
+    name += input[i]
+    i++
+  }
+
+  if (name.length === 0) {
+    return undefined
+  }
+
+  let regex: string | undefined = undefined
+  if (input[i] === "(") {
+    i++
+    const start = i
+    while (i < input.length && input[i] !== ")") {
+      i++
+    }
+    if (i >= input.length) {
+      return undefined
+    }
+    if (i === start) {
+      return undefined
+    }
+    regex = input.slice(start, i)
+    i++
+  }
+
+  let optional: true | undefined = undefined
+  if (input[i] === "?") {
+    optional = true
+    i++
+  }
+
+  return { ast: AST.parameter(name, optional, regex), index: i }
+}
+
+function parsePathLiteral(input: string, index: number): Atom | undefined {
+  const char = input[index]
+  if (char === undefined || isPathStopChar(char)) {
+    return undefined
+  }
+
+  let i = index
+  while (i < input.length && !isPathStopChar(input[i])) {
+    i++
+  }
+
+  return { ast: AST.literal(input.slice(index, i)), index: i }
+}
+
+function parseQueryParams(input: string, index: number): Atom | undefined {
+  if (input[index] !== "?") {
+    return undefined
+  }
+
+  const first = parseQueryParam(input, index + 1)
+  if (first === undefined) {
+    return undefined
+  }
+
+  let i = first.index
+  const params: Array<PathAst.QueryParam> = [first.ast]
+
+  while (i < input.length && input[i] === "&") {
+    const start = i
+    const next = parseQueryParam(input, i + 1)
+    if (next === undefined) {
+      i = start
+      break
+    }
+    params.push(next.ast)
+    i = next.index
+  }
+
+  return { ast: AST.queryParams(params), index: i }
+}
+
+type QueryParamResult = {
+  readonly ast: PathAst.QueryParam
+  readonly index: number
+}
+
+function parseQueryParam(input: string, index: number): QueryParamResult | undefined {
+  let i = index
+  let name = ""
+  while (i < input.length && isAlphaNumeric(input[i])) {
+    name += input[i]
+    i++
+  }
+
+  if (name.length === 0) {
+    return undefined
+  }
+
+  if (input[i] !== "=") {
+    return undefined
+  }
+  i++
+
+  const value = parseQueryValue(input, i)
+  if (value === undefined) {
+    return undefined
+  }
+
+  return { ast: AST.queryParam(name, value.ast), index: value.index }
+}
+
+function parseQueryValue(input: string, index: number): Atom | undefined {
+  const char = input[index]
+
+  if (char === undefined) {
+    return undefined
+  }
+
+  if (char === ":") {
+    return parseParameter(input, index)
+  }
+
+  if (char === "*") {
+    return { ast: AST.wildcard(), index: index + 1 }
+  }
+
+  let i = index
+  while (i < input.length && input[i] !== "&") {
+    i++
+  }
+
+  if (i === index) {
+    return undefined
+  }
+
+  return { ast: AST.literal(input.slice(index, i)), index: i }
+}
+
+function isPathStopChar(char: string): boolean {
+  return char === "/" || char === ":" || char === "*" || char === "?"
+}
+
+function isAlphaNumeric(char: string): boolean {
+  return char >= "0" && char <= "9" || char >= "a" && char <= "z" || char >= "A" && char <= "Z"
+}
