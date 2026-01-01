@@ -1,0 +1,33 @@
+import type * as Cause from "../../../../Cause.ts"
+import type * as Effect from "../../../../Effect.ts"
+import { dual } from "../../../../Function.ts"
+import type * as Option from "../../../../Option.ts"
+import * as sinkCore from "../../Sink/combinators.ts"
+import { make } from "../constructors/make.ts"
+import type { Fx } from "../Fx.ts"
+
+/**
+ * Effectfully loops over the failure causes of an Fx with an accumulator.
+ *
+ * @param seed - The initial state.
+ * @param f - The effectful loop function for causes.
+ * @returns An `Fx` with transformed errors.
+ * @since 1.0.0
+ * @category combinators
+ */
+export const filterMapLoopCauseEffect: {
+  <B, A, E2, R2, C>(
+    seed: B,
+    f: (acc: B, a: Cause.Cause<A>) => Effect.Effect<readonly [Option.Option<Cause.Cause<C>>, B], E2, R2>
+  ): <E, R>(self: Fx<A, E | E2, R>) => Fx<A, C | E2, R | R2>
+
+  <A, E, R, B, R2, C>(
+    self: Fx<A, E, R>,
+    seed: B,
+    f: (acc: B, a: Cause.Cause<E>) => Effect.Effect<readonly [Option.Option<Cause.Cause<C>>, B], C, R2>
+  ): Fx<A, C, R | R2>
+} = dual(3, <A, E, R, B, R2, C>(
+  self: Fx<A, E, R>,
+  seed: B,
+  f: (acc: B, a: Cause.Cause<E>) => Effect.Effect<readonly [Option.Option<Cause.Cause<C>>, B], C, R2>
+): Fx<A, C, R | R2> => make<A, C, R | R2>((sink) => self.run(sinkCore.filterMapLoopCauseEffect(sink, seed, f))))
