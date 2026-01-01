@@ -51,10 +51,11 @@ type ParameterAst<
   Name extends string,
   Regex extends string | undefined,
   OptionalMark extends "?" | undefined
-> =
-  & { type: "parameter"; name: Name }
+> = [
+  & { readonly type: "parameter"; readonly name: Name }
   & ([Regex] extends [string] ? { regex: Regex } : {})
   & ([OptionalMark] extends ["?"] ? { optional: true } : {})
+] extends [infer Ast] ? ToReadonlyRecord<Ast> : never
 
 interface ToParameterAst extends TypeLambda1 {
   readonly return: Arg0<this> extends readonly [
@@ -71,13 +72,14 @@ interface ToParameterAst extends TypeLambda1 {
 type ParameterParser = Parser.Map<ParameterPartsParser, ToParameterAst>
 
 interface ToWildcardAst extends TypeLambda1 {
-  readonly return: { type: "wildcard" }
+  readonly return: { readonly type: "wildcard" }
 }
 
 type WildcardParser = Parser.Map<Parser.Char<"*">, ToWildcardAst>
 
 interface ToLiteralAst extends TypeLambda1 {
-  readonly return: Arg0<this> extends infer Value extends string ? { type: "literal"; value: Value } : never
+  readonly return: Arg0<this> extends infer Value extends string ? { readonly type: "literal"; readonly value: Value }
+    : never
 }
 
 type PathLiteralParser = Parser.Map<TakeWhileNot1<PathStopChar>, ToLiteralAst>
@@ -90,7 +92,7 @@ interface ToQueryParamAst extends TypeLambda1 {
   readonly return: Arg0<this> extends readonly [
     infer Name extends string,
     readonly ["=", infer Value extends PathAst]
-  ] ? { type: "query-param"; name: Name; value: Value }
+  ] ? { readonly type: "query-param"; readonly name: Name; readonly value: Value }
     : never
 }
 
@@ -111,8 +113,8 @@ type QueryParamListParser = Parser.Map<Parser.Zip<QueryParamParser, Parser.Many<
 
 interface ToQueryParamsAst extends TypeLambda1 {
   readonly return: Arg0<this> extends readonly ["?", infer Params extends ReadonlyArray<PathAst.QueryParam>] ? {
-      type: "query-params"
-      value: Params
+      readonly type: "query-params"
+      readonly value: Params
     }
     : never
 }
@@ -138,9 +140,9 @@ type ParseAsts<Input extends string> = GetAsts<ParseAstsResult<Input>>
 
 type ParamsOfAst<T> = T extends { type: "parameter"; name: infer Name extends string; optional: true } ?
   { [K in Name]?: string } :
-  T extends { type: "parameter"; name: infer Name extends string } ? { [K in Name]: string } :
-  T extends { type: "wildcard" } ? { "*": string } :
-  T extends { type: "query-params"; value: infer Values extends ReadonlyArray<PathAst.QueryParam> } ?
+  T extends { readonly type: "parameter"; readonly name: infer Name extends string } ? { [K in Name]: string } :
+  T extends { readonly type: "wildcard" } ? { "*": string } :
+  T extends { readonly type: "query-params"; readonly value: infer Values extends ReadonlyArray<PathAst.QueryParam> } ?
     ParamsOfQueryParams<Values> :
   {}
 
@@ -150,7 +152,8 @@ type ParamsOfQueryParams<T extends ReadonlyArray<PathAst.QueryParam>, Acc = {}> 
 ] ? ParamsOfQueryParams<Tail, Acc & ParamsOfQueryParam<Head>>
   : Acc
 
-type ParamsOfQueryParam<T> = T extends { type: "query-param"; value: infer Value extends PathAst } ? ParamsOfAst<Value>
+type ParamsOfQueryParam<T> = T extends { readonly type: "query-param"; readonly value: infer Value extends PathAst } ?
+  ParamsOfAst<Value>
   : {}
 
 type GetParams<T extends ReadonlyArray<PathAst>, Acc = {}> = T extends readonly [
@@ -159,7 +162,41 @@ type GetParams<T extends ReadonlyArray<PathAst>, Acc = {}> = T extends readonly 
 ] ? GetParams<Tail, Acc & ParamsOfAst<Head>>
   : Acc
 
-type ToReadonlyRecord<T> = { readonly [K in keyof T]: T[K] }
+type PathParamsOfAst<T> = T extends { type: "parameter"; name: infer Name extends string; optional: true } ?
+  { [K in Name]?: string } :
+  T extends { readonly type: "parameter"; readonly name: infer Name extends string } ? { [K in Name]: string } :
+  T extends { readonly type: "wildcard" } ? { "*": string } :
+  {}
+
+type QueryParamsOfAst<T> = T extends {
+  readonly type: "query-params"
+  readonly value: infer Values extends ReadonlyArray<PathAst.QueryParam>
+} ? ParamsOfQueryParams<Values> :
+  {}
+
+type GetPathParams<T extends ReadonlyArray<PathAst>, Acc = {}> = T extends readonly [
+  infer Head,
+  ...infer Tail extends ReadonlyArray<PathAst>
+] ? GetPathParams<Tail, Acc & PathParamsOfAst<Head>>
+  : Acc
+
+type GetQueryParams<T extends ReadonlyArray<PathAst>, Acc = {}> = T extends readonly [
+  infer Head,
+  ...infer Tail extends ReadonlyArray<PathAst>
+] ? GetQueryParams<Tail, Acc & QueryParamsOfAst<Head>>
+  : Acc
+
+type ToReadonlyRecord<T> = [T] extends [infer T2] ? { readonly [K in keyof T2]: T2[K] } : never
+
+export type PathParams<P extends string> = ParseAsts<P> extends infer Asts ? [Asts] extends [never] ? never
+  : Asts extends ReadonlyArray<PathAst> ? ToReadonlyRecord<GetPathParams<Asts>>
+  : never
+  : never
+
+export type QueryParams<P extends string> = ParseAsts<P> extends infer Asts ? [Asts] extends [never] ? never
+  : Asts extends ReadonlyArray<PathAst> ? ToReadonlyRecord<GetQueryParams<Asts>>
+  : never
+  : never
 
 export type Params<P extends string> = ParseAsts<P> extends infer Asts ? [Asts] extends [never] ? never
   : Asts extends ReadonlyArray<PathAst> ? ToReadonlyRecord<GetParams<Asts>>

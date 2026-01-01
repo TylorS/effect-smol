@@ -1,6 +1,6 @@
 import * as Effect from "../../Effect.ts"
 import { dual } from "../../Function.ts"
-import * as Schema from "../../schema/Schema.ts"
+import * as Schema from "../../Schema.ts"
 import { sha1 } from "./_sha.ts"
 import { uuidStringify } from "./_uuid-stringify.ts"
 

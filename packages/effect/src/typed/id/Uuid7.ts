@@ -1,6 +1,6 @@
 import * as Effect from "../../Effect.ts"
 import * as Layer from "../../Layer.ts"
-import * as Schema from "../../schema/Schema.ts"
+import * as Schema from "../../Schema.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
 import { uuidStringify } from "./_uuid-stringify.ts"
 import { DateTimes } from "./DateTimes.ts"
