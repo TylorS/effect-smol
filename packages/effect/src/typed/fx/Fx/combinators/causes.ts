@@ -1,6 +1,6 @@
 import type * as Cause from "../../../../Cause.ts"
-import * as Option from "../../../../data/Option.ts"
 import * as Exit from "../../../../Exit.ts"
+import * as Option from "../../../../Option.ts"
 import type { Fx } from "../Fx.ts"
 import { exit } from "./exit.ts"
 import { filterMap } from "./filterMap.ts"

@@ -1,4 +1,4 @@
-import { hasProperty } from "../../data/Predicate.ts"
+import { hasProperty } from "../../Predicate.ts"
 import { type Rendered, toHtml } from "./Wire.ts"
 
 /**

@@ -1,5 +1,5 @@
-import type { Brand } from "effect/data"
-import * as Schema from "effect/schema/Schema"
+import type { Brand } from "effect/Brand"
+import * as Schema from "effect/Schema"
 
 export type { Brand }
 

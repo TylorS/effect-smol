@@ -3,11 +3,11 @@
  */
 
 import type * as Cause from "../../../Cause.ts"
-import type * as Option from "../../../data/Option.ts"
 import * as Effect from "../../../Effect.ts"
 import { dual, identity } from "../../../Function.ts"
-import { pipeArguments } from "../../../interfaces/Pipeable.ts"
 import * as Layer from "../../../Layer.ts"
+import type * as Option from "../../../Option.ts"
+import { pipeArguments } from "../../../Pipeable.ts"
 import type * as Scope from "../../../Scope.ts"
 import * as ServiceMap from "../../../ServiceMap.ts"
 import * as Fx from "../Fx/index.ts"

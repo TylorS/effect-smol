@@ -1,4 +1,4 @@
-import { type Inspectable, NodeInspectSymbol } from "../../interfaces/Inspectable.ts"
+import { type Inspectable, NodeInspectSymbol } from "../../Inspectable.ts"
 
 /**
  * Represents a parsed HTML template.

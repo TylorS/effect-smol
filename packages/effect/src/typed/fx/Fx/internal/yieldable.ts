@@ -1,6 +1,6 @@
 import * as Effect from "../../../../Effect.ts"
 import { identity } from "../../../../Function.ts"
-import { pipeArguments } from "../../../../interfaces/Pipeable.ts"
+import { pipeArguments } from "../../../../Pipeable.ts"
 import type { Sink } from "../../Sink/Sink.ts"
 import type * as Fx from "../Fx.ts"
 import { FxTypeId } from "../TypeId.ts"
