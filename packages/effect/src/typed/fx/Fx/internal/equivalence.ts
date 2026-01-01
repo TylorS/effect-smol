@@ -1,6 +1,6 @@
-import * as Equivalence from "../../../../data/Equivalence.ts"
+import { equals } from "../../../../Equal.ts"
+import * as Equivalence from "../../../../Equivalence.ts"
 import type * as Exit from "../../../../Exit.ts"
-import { equals } from "../../../../interfaces/Equal.ts"
 
 export const getExitEquivalence = <E, A>(A: Equivalence.Equivalence<A>) =>
   Equivalence.make<Exit.Exit<A, E>>((a, b) => {

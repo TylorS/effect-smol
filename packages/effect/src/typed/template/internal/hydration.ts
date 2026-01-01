@@ -1,4 +1,4 @@
-import { type Inspectable, NodeInspectSymbol } from "../../../interfaces/Inspectable.ts"
+import { type Inspectable, NodeInspectSymbol } from "../../../Inspectable.ts"
 import { CouldNotFindRootElement, CouldNotFindTemplateEndError } from "../errors.ts"
 import type { HydrateContext } from "../HydrateContext.ts"
 import { isComment, isElement, toHtml } from "../Wire.ts"

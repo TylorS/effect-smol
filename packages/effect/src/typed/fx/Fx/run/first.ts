@@ -1,8 +1,8 @@
-import { head } from "../../../../collections/Array.ts"
-import type { Option } from "../../../../data/Option.ts"
+import { head } from "../../../../Array.ts"
 import type { Effect } from "../../../../Effect.ts"
 import { map } from "../../../../Effect.ts"
 import { pipe } from "../../../../Function.ts"
+import type { Option } from "../../../../Option.ts"
 import type { Fx } from "../Fx.ts"
 import { collectUpTo } from "./collect.ts"
 

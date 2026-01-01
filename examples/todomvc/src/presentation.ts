@@ -87,7 +87,10 @@ function TodoItem(todo: RefSubject.RefSubject<Domain.Todo>, id: Domain.TodoId) {
     const editingClasses = Fx.when(isEditing, { onTrue: "editing", onFalse: "" })
     const toggleEditing = RefSubject.update(isEditing, not)
     const onInput = EventHandler.make((ev: InputEvent) => updateText((ev.target as HTMLInputElement).value))
-    const onKeydown = EventHandler.make((ev: KeyboardEvent) => (ev.key === "Enter" ? submit : reset))
+    const onKeydown = EventHandler.make((ev: KeyboardEvent) => {
+      if (ev.key === "Enter") return submit
+      if (ev.key === "Escape") return reset
+    })
 
     return html`<li class="${completedClasses} ${editingClasses}">
       <div class="view">

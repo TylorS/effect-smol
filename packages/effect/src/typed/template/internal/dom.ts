@@ -1,5 +1,5 @@
-import { isNullish, isObject } from "../../../data/Predicate.ts"
 import * as Effect from "../../../Effect.ts"
+import { isNullish, isObject } from "../../../Predicate.ts"
 import { CouldNotFindCommentError } from "../errors.ts"
 import { type EventHandler, fromEffectOrEventHandler, isEventHandler } from "../EventHandler.ts"
 import {

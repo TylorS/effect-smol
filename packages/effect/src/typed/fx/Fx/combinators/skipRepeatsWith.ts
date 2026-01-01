@@ -1,6 +1,6 @@
-import type * as Equivalence from "../../../../data/Equivalence.ts"
-import * as Option from "../../../../data/Option.ts"
 import * as Effect from "../../../../Effect.ts"
+import type * as Equivalence from "../../../../Equivalence.ts"
+import * as Option from "../../../../Option.ts"
 import * as Ref from "../../../../Ref.ts"
 import * as sinkCore from "../../Sink/combinators.ts"
 import { make as makeSink } from "../../Sink/Sink.ts"

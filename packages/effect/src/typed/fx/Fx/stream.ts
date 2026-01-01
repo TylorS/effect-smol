@@ -1,7 +1,7 @@
 import type * as Effect from "../../../Effect.ts"
 import { pipe } from "../../../Function.ts"
 import * as Queue from "../../../Queue.ts"
-import * as Stream from "../../../stream/Stream.ts"
+import * as Stream from "../../../Stream.ts"
 import * as Sink from "../Sink/Sink.ts"
 import { make } from "./constructors/make.ts"
 import type * as Fx from "./Fx.ts"

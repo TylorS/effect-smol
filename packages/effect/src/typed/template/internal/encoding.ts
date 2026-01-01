@@ -1,5 +1,5 @@
-import { isOption, match } from "../../../data/Option.ts"
-import { hasProperty, isNullish } from "../../../data/Predicate.ts"
+import { isOption, match } from "../../../Option.ts"
+import { hasProperty, isNullish } from "../../../Predicate.ts"
 import { isHtmlRenderEvent } from "../RenderEvent.ts"
 
 export function escape(s: unknown): string {

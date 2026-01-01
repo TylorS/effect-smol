@@ -1,6 +1,6 @@
-import * as Option from "../../../data/Option.ts"
 import * as Deferred from "../../../Deferred.ts"
 import * as Effect from "../../../Effect.ts"
+import * as Option from "../../../Option.ts"
 
 export type IndexRefCounter = {
   release: (index: number) => void

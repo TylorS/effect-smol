@@ -1,7 +1,7 @@
 import type * as Cause from "../../../../Cause.ts"
-import type * as Option from "../../../../data/Option.ts"
 import type * as Effect from "../../../../Effect.ts"
 import { dual } from "../../../../Function.ts"
+import type * as Option from "../../../../Option.ts"
 import * as sinkCore from "../../Sink/combinators.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"

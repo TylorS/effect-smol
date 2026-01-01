@@ -3,13 +3,13 @@
  * @since 1.18.0
  */
 
-import * as ReadonlyArray from "../../../collections/Array.ts"
-import type { Equivalence } from "../../../data/Equivalence.ts"
-import * as Option from "../../../data/Option.ts"
-import type * as Order from "../../../data/Order.ts"
+import * as ReadonlyArray from "../../../Array.ts"
 import type * as Effect from "../../../Effect.ts"
+import { equals } from "../../../Equal.ts"
+import type { Equivalence } from "../../../Equivalence.ts"
 import { dual } from "../../../Function.ts"
-import { equals } from "../../../interfaces/Equal.ts"
+import * as Option from "../../../Option.ts"
+import type * as Order from "../../../Order.ts"
 import type * as Scope from "../../../Scope.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import * as RefSubject from "./RefSubject.ts"

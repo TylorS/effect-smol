@@ -1,6 +1,6 @@
-import * as Option from "../../data/Option.ts"
 import * as Effect from "../../Effect.ts"
 import * as Layer from "../../Layer.ts"
+import * as Option from "../../Option.ts"
 import type { Scope } from "../../Scope.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
 import * as Fx from "../fx/Fx.ts"
