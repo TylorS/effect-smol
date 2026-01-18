@@ -5,8 +5,8 @@ import { Fx } from "effect/typed/fx"
 describe("Fx", () => {
   describe("fn", () => {
     it.effect("generator returns an Fx", () =>
-      Effect.gen(function*() {
-        const makeFx = Fx.fn(function*(n: number) {
+      Effect.gen(function* () {
+        const makeFx = Fx.fn(function* (n: number) {
           const next = yield* Effect.succeed(n + 1)
           return Fx.succeed(next)
         })
@@ -15,8 +15,8 @@ describe("Fx", () => {
         assert.deepStrictEqual(result, [2])
       }))
 
-    it.effect.only("non-generator returns an Fx", () =>
-      Effect.gen(function*() {
+    it.effect("non-generator returns an Fx", () =>
+      Effect.gen(function* () {
         const makeFx = Fx.fn((n: number) => Fx.succeed(n))
 
         const result = yield* Fx.collectAll(makeFx(3))
@@ -24,8 +24,8 @@ describe("Fx", () => {
       }))
 
     it.effect("named variant supports generator bodies", () =>
-      Effect.gen(function*() {
-        const makeFx = Fx.fn("Fx.fn (named)")(function*(input: string) {
+      Effect.gen(function* () {
+        const makeFx = Fx.fn("Fx.fn (named)")(function* (input: string) {
           return Fx.succeed(input)
         })
 
@@ -34,9 +34,9 @@ describe("Fx", () => {
       }))
 
     it.effect("pipeables compose over the returned Fx", () =>
-      Effect.gen(function*() {
+      Effect.gen(function* () {
         const makeFx = Fx.fn(
-          function*(n: number) {
+          function* (n: number) {
             const next = yield* Effect.succeed(n + 1)
             return Fx.succeed(next)
           },
