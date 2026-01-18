@@ -21,6 +21,7 @@ import { RefSubject } from "../fx/RefSubject.ts"
 import { CurrentPath } from "./CurrentPath.ts"
 import { CurrentRoute } from "./CurrentRoute.ts"
 import { join, type Route } from "./Route.ts"
+import { defaultFormatter } from "../../SchemaIssue.ts"
 
 export interface Matcher<A, E = never, R = never> extends Pipeable {
   readonly cases: ReadonlyArray<MatchCase<Route.Any, A, E, R>>
@@ -99,9 +100,15 @@ export class RouteNotFound extends Schema.ErrorClass<RouteNotFound>("@typed/rout
   path: Schema.String
 }) { }
 
+export class RouteDecodeError extends Schema.ErrorClass<RouteDecodeError>("@typed/router/RouteDecodeError")({
+  _tag: Schema.tag("RouteDecodeError"),
+  path: Schema.String,
+  cause: Schema.String,
+}) { }
+
 export function run<A, E, R>(
   matcher: Matcher<A, E, R>
-): Fx.Fx<A, E | RouteNotFound, R | CurrentPath | CurrentRoute | Scope.Scope> {
+): Fx.Fx<A, E | RouteNotFound | RouteDecodeError, R | CurrentPath | CurrentRoute | Scope.Scope> {
   return unwrap(Effect.gen(function* () {
     const fiberId = yield* Effect.fiberId
     const rootScope = yield* Effect.scope
@@ -127,10 +134,14 @@ export function run<A, E, R>(
         // No match found at all
         if (result === undefined) return yield* Effect.fail(new RouteNotFound({ path }))
 
+        const input = { ...result.params, ...result.searchParams }
+        const decode = Schema.decodeUnknownEffect(result.handler.route.paramsSchema)
+        const params = yield* Effect.mapErrorEager(decode(input), (cause) => new RouteDecodeError({ path, cause: defaultFormatter(cause.issue) }))
+
         // Match found, but the route is the same as the current one
         if (currentState !== null && currentState.route === result.handler.route) {
           // Update the params
-          yield* RefSubject.set(currentState.params, result.params)
+          yield* RefSubject.set(currentState.params, params)
           // Return the current fx, skipRepeats will keep us from remounting
           return currentState.fx
         }
@@ -141,15 +152,15 @@ export function run<A, E, R>(
         }
 
         const scope = yield* Scope.fork(rootScope)
-        const params = yield* RefSubject.make(result.params).pipe(
+        const paramsRef = yield* RefSubject.make(params).pipe(
           Scope.provide(scope)
         )
 
         currentState = {
-          params,
+          params: paramsRef,
           route: result.handler.route,
           scope,
-          fx: result.handler.handler(params).pipe(
+          fx: result.handler.handler(paramsRef).pipe(
             provideServices(ServiceMap.make(Scope.Scope, scope))
           )
         }
