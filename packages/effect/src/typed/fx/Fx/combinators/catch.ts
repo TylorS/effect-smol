@@ -1,4 +1,4 @@
-import * as Cause from "../../../../Cause.js"
+import * as Cause from "../../../../Cause.ts"
 import { dual } from "../../../../Function.ts"
 import type * as Arr from "../../../../Array.ts"
 import type { ExcludeTag, ExtractTag, NoInfer, Tags } from "../../../../Types.ts"

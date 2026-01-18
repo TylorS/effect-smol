@@ -23,6 +23,11 @@ import { CurrentRoute } from "./CurrentRoute.ts"
 import { join, type Route } from "./Route.ts"
 import { defaultFormatter } from "../../SchemaIssue.ts"
 
+// TODO: not found handling 
+// TODO: providing environments
+// TODO: adding layouts
+// TODO: middlewares and/or guards ?
+
 export interface Matcher<A, E = never, R = never> extends Pipeable {
   readonly cases: ReadonlyArray<MatchCase<Route.Any, A, E, R>>
   readonly match: <Rt extends Route.Any, B, E2 = never, R2 = never>(
@@ -114,7 +119,7 @@ export function run<A, E, R>(
     const rootScope = yield* Effect.scope
     const current = yield* CurrentRoute
     const prefixed = matcher.prefix(current.route)
-    const router = findMyWay.make<MatchCase<Route.Any, A, E, R>>()
+    const router = findMyWay.make<MatchCase<Route.Any, A, E, R>>({ ignoreTrailingSlash: true, caseSensitive: false })
 
     for (const c of prefixed.cases) {
       router.all(c.route.path, c)
@@ -172,3 +177,4 @@ export function run<A, E, R>(
     )
   }))
 }
+
