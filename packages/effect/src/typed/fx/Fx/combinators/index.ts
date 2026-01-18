@@ -1,4 +1,5 @@
 export * from "./causes.ts"
+export * from "./catch.ts"
 export * from "./compact.ts"
 export * from "./continueWith.ts"
 export * from "./exhaustLatestMap.ts"
