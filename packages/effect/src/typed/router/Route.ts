@@ -5,12 +5,13 @@ import { singleton } from "../../Record.ts"
 import * as Schema from "../../Schema.ts"
 import * as Parser from "../../SchemaParser.ts"
 import * as Transformation from "../../SchemaTransformation.ts"
+import type { Simplify } from "../../Types.ts"
 import * as AST from "./AST.ts"
 import * as Path from "./Path.ts"
 
 export interface Route<
   P extends string,
-  S extends Schema.Codec<Record<string, any>, Path.Params<P>, any, any> = Schema.Codec<Path.Params<P>>
+  S extends Schema.Codec<any, Path.Params<P>, any, any> = Schema.Codec<Path.Params<P>>
 > extends Pipeable {
   readonly ast: AST.RouteAst
   readonly path: P
@@ -22,6 +23,16 @@ export interface Route<
 
 export declare namespace Route {
   export type Any = Route<any, any>
+
+  export type Path<T> = T extends Route<infer P, any> ? P : never
+  export type Schema<T> = T extends Route<any, infer S> ? S : never
+  export type Type<T> = T extends Route<any, infer S> ? S["Type"] : never
+  export type Params<T> = T extends Route<infer P, infer _S> ? Path.Params<P> : never
+  export type DecodingServices<T> = T extends Route<any, infer S> ? S["DecodingServices"] : never
+  export type EncodingServices<T> = T extends Route<any, infer S> ? S["EncodingServices"] : never
+
+  export type PathType<T extends Any> = T["pathSchema"]["Type"]
+  export type QueryType<T extends Any> = T["querySchema"]["Type"]
 }
 
 export function make<
@@ -174,24 +185,29 @@ function getQuerySchema(ast: AST.RouteAst): Schema.Top {
   return Schema.Struct(queryFields)
 }
 
-export const literal = <const P extends string>(path: P): Route<P> => make<P>(AST.path(AST.literal(path)))
+export const Parse = <const P extends string>(path: P): Route<Path.Join<Path.ParseAsts<P>>> => {
+  const asts = Path.parse(path) as ReadonlyArray<AST.PathAst>
+  if (asts.length === 0) return Slash as unknown as Route<Path.Join<Path.ParseAsts<P>>>
+  if (asts.length === 1) return make(AST.path(asts[0]))
+  return join<Array<any>>(...asts.map((ast) => make(AST.path(ast)))) as unknown as Route<Path.Join<Path.ParseAsts<P>>>
+}
 
-export const slash = make<"/">(AST.path(AST.literal("")))
+export const Slash = make<"/">(AST.path(AST.literal("")))
 
-export const wildcard = make<"*">(AST.path(AST.wildcard()))
+export const Wildcard = make<"*">(AST.path(AST.wildcard()))
 
-export const param = <const P extends string>(paramName: P): Route<`:${P}`> =>
-  make<`:${P}`>(AST.path(AST.parameter(paramName)))
+export const Param = <const P extends string>(paramName: P): Route<`/:${P}`> =>
+  make<`/:${P}`>(AST.path(AST.parameter(paramName)))
 
-export const paramWithSchema = <
+export const ParamWithSchema = <
   const P extends string,
   S extends Schema.Codec<any, string, any, any> = Schema.Codec<string>
 >(
   paramName: P,
   schema: S
 ): Route<
-  `:${P}`,
-  Schema.Codec<{ readonly [K in P]: S["Type"] }, Path.Params<`:${P}`>, S["DecodingServices"], S["EncodingServices"]>
+  `/:${P}`,
+  Schema.Codec<{ readonly [K in P]: S["Type"] }, Path.Params<`/:${P}`>, S["DecodingServices"], S["EncodingServices"]>
 > => {
   const decode = Parser.decodeEffect(schema)
   const encode = Parser.encodeEffect(schema)
@@ -208,24 +224,52 @@ export const paramWithSchema = <
   ))
 }
 
-export const number = <const P extends string>(
+export const Number = <const P extends string>(
   paramName: P
-): Route<`:${P}`, Schema.Codec<{ readonly [K in P]: number }, Path.Params<`:${P}`>>> =>
-  paramWithSchema(paramName, Schema.NumberFromString)
+): Route<`/:${P}`, Schema.Codec<{ readonly [K in P]: number }, Path.Params<`/:${P}`>>> =>
+  ParamWithSchema(paramName, Schema.NumberFromString)
 
-export const integer = <const P extends string>(
+export const Int = <const P extends string>(
   paramName: P
-): Route<`:${P}`, Schema.Codec<{ readonly [K in P]: number }, Path.Params<`:${P}`>>> =>
-  paramWithSchema(paramName, Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int)))
+): Route<`/:${P}`, Schema.Codec<{ readonly [K in P]: number }, Path.Params<`/:${P}`>>> =>
+  ParamWithSchema(paramName, Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int)))
 
-export const join = <const Routes extends ReadonlyArray<Route<any, any>>>(
-  ...routes: Routes
-): Route<
-  Path.Join<{ [K in keyof Routes]: Routes[K]["path"] }>,
-  Schema.Codec<
-    Routes[number]["paramsSchema"]["Type"],
-    Path.Params<Path.Join<{ [K in keyof Routes]: Routes[K]["path"] }>>,
-    Routes[number]["paramsSchema"]["DecodingServices"],
-    Routes[number]["paramsSchema"]["EncodingServices"]
+export type Join<Routes extends ReadonlyArray<Route<any, any>>> = [
+  Route<
+    RouteJoinPath<Routes>,
+    Schema.Codec<
+      Simplify<UnionToIntersection<Routes[number]["paramsSchema"]["Type"]>>,
+      Path.Params<RouteJoinPath<Routes>>,
+      Routes[number]["paramsSchema"]["DecodingServices"],
+      Routes[number]["paramsSchema"]["EncodingServices"]
+    >
   >
-> => make(AST.join(routes.map((route) => route.ast)))
+] extends [Route<infer Path, infer Schema>] ? Route<Path, Schema> : never
+
+type AnyRoutes = ReadonlyArray<Route<any, any> | ReadonlyArray<Route<any, any>>>
+type FlattenRoutes<T extends AnyRoutes> = T extends
+  readonly [infer Head extends Route<any, any> | ReadonlyArray<Route<any, any>>, ...infer Tail extends AnyRoutes]
+  ? readonly [...(Head extends ReadonlyArray<Route<any, any>> ? FlattenRoutes<Head> : [Head]), ...FlattenRoutes<Tail>]
+  : []
+
+const removeSlash = (ast: AST.RouteAst): ReadonlyArray<AST.RouteAst> => {
+  if (ast.type === "path" && ast.path.type === "slash") return []
+  return [ast]
+}
+
+export const join = <const Routes extends AnyRoutes>(
+  ...routes: Routes
+): Join<FlattenRoutes<Routes>> =>
+  make(AST.join(routes.flatMap((route) => {
+    if (Array.isArray(route)) return route.flatMap(removeSlash)
+    return removeSlash((route as Route<any, any>).ast)
+  })))
+
+type UnionToIntersection<T> = (T extends any ? (x: T) => any : never) extends (x: infer R) => any ? R : never
+type RouteJoinPath<Routes extends ReadonlyArray<Route<any, any>>, R extends string = ""> = Routes extends
+  readonly [infer First extends Route<any, any>, ...infer Rest extends ReadonlyArray<Route<any, any>>]
+  ? RouteJoinPath<Rest, `${R}/${StripSlashes<First["path"]>}`>
+  : R
+type StripSlashes<T extends string> = StripTrailingSlash<StripLeadingSlash<T>>
+type StripLeadingSlash<T extends string> = T extends `/${infer Rest}` ? StripLeadingSlash<Rest> : T
+type StripTrailingSlash<T extends string> = T extends `/${infer Rest}` ? StripTrailingSlash<Rest> : T

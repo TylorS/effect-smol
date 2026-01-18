@@ -14,8 +14,11 @@ import * as Option from "../../../Option.ts"
 import { pipeArguments } from "../../../Pipeable.ts"
 import type * as Scope from "../../../Scope.ts"
 import * as ServiceMap from "../../../ServiceMap.ts"
-import * as FxCombinators from "../Fx/combinators/index.ts"
-import * as FxCtor from "../Fx/constructors/index.ts"
+import { map as fxMap } from "../Fx/combinators/map.ts"
+import { mapEffect as fxMapEffect } from "../Fx/combinators/mapEffect.ts"
+import { provide as fxProvide, provideServices as fxProvideServices } from "../Fx/combinators/provide.ts"
+import { struct as fxStruct, tuple as fxTuple } from "../Fx/combinators/tuple.ts"
+import { succeed as fxSucceed } from "../Fx/constructors/succeed.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import { MulticastEffect } from "../Fx/internal/multicast.ts"
 import { YieldableFx } from "../Fx/internal/yieldable.ts"
@@ -262,7 +265,7 @@ export const map: {
     onEffect: (b: B) => D
   }
 ): Versioned<never, never, C, E, R, D, E0 | E2, R0 | R2> {
-  return transform(versioned, (fx) => FxCombinators.map(fx, options.onFx), Effect.map(options.onEffect))
+  return transform(versioned, (fx) => fxMap(fx, options.onFx), Effect.map(options.onEffect))
 })
 
 /**
@@ -288,7 +291,7 @@ export const mapEffect: {
     onEffect: (b: B) => Effect.Effect<D, E4, R4>
   }
 ): Versioned<never, never, C, E | E3, R | R3, D, E0 | E2 | E4, R0 | R2 | R4> {
-  return transform(versioned, (fx) => FxCombinators.mapEffect(fx, options.onFx), Effect.flatMap(options.onEffect))
+  return transform(versioned, (fx) => fxMapEffect(fx, options.onFx), Effect.flatMap(options.onEffect))
 })
 
 /**
@@ -310,7 +313,7 @@ export function tuple<const VS extends ReadonlyArray<Versioned<any, any, any, an
 > {
   return make(
     Effect.map(Effect.all(versioneds.map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
-    FxCombinators.tuple(...versioneds),
+    fxTuple(...versioneds),
     Effect.all(versioneds.map((v) => v.asEffect()), { concurrency: "unbounded" })
   ) as any
 }
@@ -334,7 +337,7 @@ export function struct<const VS extends Readonly<Record<string, Versioned<any, a
 > {
   return make(
     Effect.map(Effect.all(Object.values(versioneds).map((v) => v.version)), (versions) => versions.reduce(sum, 0)),
-    FxCombinators.struct(versioneds),
+    fxStruct(versioneds),
     Effect.all(mapRecord(versioneds, (v) => v.asEffect()), { concurrency: "unbounded" }) as any
   )
 }
@@ -350,7 +353,7 @@ export const provide = <R0, E0, A, E, R, B, E2, R2, R3 = never, S = never>(
 ): Versioned<R3 | Exclude<R0, S>, E0, A, E, R3 | Exclude<R, S>, B, E2, R3 | Exclude<R2, S>> => {
   return make(
     Effect.provide(versioned.version, layer),
-    FxCombinators.provide(versioned, layer),
+    fxProvide(versioned, layer),
     Effect.provide(versioned.asEffect(), layer)
   )
 }
@@ -365,7 +368,7 @@ function mapRecord<K extends string, V, R>(record: Record<K, V>, f: (v: V, k: K)
  * @category constructors
  */
 export function of<A>(value: A): Versioned<never, never, A, never, never, A, never, never> {
-  return make(Effect.succeed(1), FxCtor.succeed(value), Effect.succeed(value))
+  return make(Effect.succeed(1), fxSucceed(value), Effect.succeed(value))
 }
 
 /**
@@ -440,7 +443,7 @@ export function Service<Self, E1 = never, A2 = never, E2 = never, A3 = never, E3
             Effect.map((context) =>
               make(
                 Effect.provide(version, context),
-                FxCombinators.provideServices(fx, context),
+                fxProvideServices(fx, context),
                 Effect.provide(effect.asEffect(), context)
               )
             )

@@ -1,6 +1,6 @@
 # Typed: Reactive Applications with Effect
 
-Welcome to **Typed**, a set of libraries for building reactive applications using Effect. 
+Welcome to **Typed**, a set of libraries for building reactive applications using Effect.
 
 If you are a TypeScript developer looking to build robust, type-safe, and reactive applications (web, backend, or CLI), you are in the right place.
 
@@ -10,9 +10,9 @@ We have designed a progressive learning path to take you from basic concepts to 
 
 ### 1. The Foundation: [Fx](FX.md)
 
-Everything in Typed starts with **Fx**. 
+Everything in Typed starts with **Fx**.
 
-If you know `Promise` or `Effect`, you know how to handle *one* value. **Fx** is how you handle *streams* of values over time.
+If you know `Promise` or `Effect`, you know how to handle _one_ value. **Fx** is how you handle _streams_ of values over time.
 
 - **What it is**: A type-safe reactive stream (like RxJS Observables but simpler).
 - **Why learn it**: It's the backbone of all reactivity in Typed.
@@ -66,10 +66,10 @@ Here is a glimpse of how these pieces fit together:
 ```ts
 import { Effect, Layer } from "effect"
 import { Fx, RefSubject } from "effect/typed/fx"
-import { html, render, DomRenderTemplate } from "effect/typed/template"
+import { DomRenderTemplate, html, render } from "effect/typed/template"
 
 // 1. Define State (RefSubject)
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(0)
 
   // 2. Derive State (Computed)
@@ -98,4 +98,3 @@ Effect.runPromise(program)
 ## Next Steps
 
 Start with the [Fx Guide](FX.md) to understand the core reactive primitive, then move through the sections to build your mastery.
-

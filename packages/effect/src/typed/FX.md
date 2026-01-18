@@ -11,20 +11,23 @@ While Effect's `Stream` is a **pull-based** stream (great for data processing, I
 Understanding the difference between "Push" and "Pull" is key to knowing when to use `Fx` vs `Stream`.
 
 ### Pull-Based (Stream)
-*   **Consumer drives**: The consumer asks for the next value ("pulls").
-*   **Backpressure**: Built-in. If the consumer is slow, the producer pauses.
-*   **Use cases**: Reading files, processing large datasets, database queries.
+
+- **Consumer drives**: The consumer asks for the next value ("pulls").
+- **Backpressure**: Built-in. If the consumer is slow, the producer pauses.
+- **Use cases**: Reading files, processing large datasets, database queries.
 
 ### Push-Based (Fx)
-*   **Producer drives**: The producer emits values as they happen ("pushes").
-*   **No Backpressure**: Values are emitted regardless of whether the consumer is ready. Strategies like buffering or dropping are used if needed.
-*   **Use cases**: User events (clicks, keystrokes), WebSocket messages, timers, state changes.
+
+- **Producer drives**: The producer emits values as they happen ("pushes").
+- **No Backpressure**: Values are emitted regardless of whether the consumer is ready. Strategies like buffering or dropping are used if needed.
+- **Use cases**: User events (clicks, keystrokes), WebSocket messages, timers, state changes.
 
 `Fx` is designed to model the "live" nature of applications where events happen spontaneously.
 
 ## What is Fx?
 
 An `Fx<A, E, R>` is a push-based stream that:
+
 - **Emits values** of type `A` over time
 - **Can fail** with an error of type `E`
 - **Requires context** of type `R` (services, dependencies)
@@ -54,6 +57,7 @@ const stream = Fx.fromIterable([1, 2, 3, 4, 5])
 ### Sink: The Consumer Protocol
 
 `Fx` uses a `Sink` protocol to consume values. A `Sink<A, E, R>` has two methods:
+
 - `onSuccess(value: A)`: Called for each emitted value
 - `onFailure(cause: Cause<E>)`: Called when the stream fails
 
@@ -124,7 +128,7 @@ const delayed = Fx.at("5 seconds", "Hello")
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const numbers = Fx.fromIterable([1, 2, 3, 4, 5])
 
   // Transform values
@@ -134,9 +138,7 @@ const program = Effect.gen(function* () {
   const evens = Fx.filter(doubled, (n) => n % 2 === 0)
 
   // Effectful transformation
-  const logged = Fx.tapEffect(evens, (n) => 
-    Effect.log(`Saw even number: ${n}`)
-  )
+  const logged = Fx.tapEffect(evens, (n) => Effect.log(`Saw even number: ${n}`))
 })
 ```
 
@@ -152,19 +154,15 @@ const triggers = Fx.fromIterable([1, 2, 3])
 
 // flatMap: Concatenates streams (runs one after another)
 // Not common in Fx/Push streams unless inner streams are finite
-const sequenced = Fx.flatMap(triggers, n => Fx.succeed(n))
+const sequenced = Fx.flatMap(triggers, (n) => Fx.succeed(n))
 
 // switchMap: Switches to the latest stream, cancelling the previous one
 // Perfect for "latest state" or "autocomplete"
-const switched = Fx.switchMap(triggers, query => 
-  Fx.fromEffect(searchApi(query))
-)
+const switched = Fx.switchMap(triggers, (query) => Fx.fromEffect(searchApi(query)))
 
 // mergeMap (flatMapConcurrently): Runs inner streams concurrently
 // Good for handling multiple independent events
-const merged = Fx.flatMapConcurrently(triggers, n => 
-  Fx.fromEffect(longRunningTask(n))
-)
+const merged = Fx.flatMapConcurrently(triggers, (n) => Fx.fromEffect(longRunningTask(n)))
 ```
 
 ## Resource Management
@@ -177,7 +175,7 @@ import { Fx } from "effect/typed/fx"
 
 // A stream that manages a WebSocket connection
 const socketStream = Fx.make((sink) =>
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     // Acquire the socket
     const socket = yield* Effect.acquireRelease(
       Effect.sync(() => new WebSocket("ws://api.example.com")),
@@ -211,15 +209,11 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
 const stream = Fx.fromIterable([1, 2, 3]).pipe(
-  Fx.mapEffect((n) =>
-    n === 2 ? Effect.fail("Error at 2") : Effect.succeed(n)
-  ),
+  Fx.mapEffect((n) => n === 2 ? Effect.fail("Error at 2") : Effect.succeed(n)),
   // Recover from specific errors
   Fx.catchTag("MyError", (e) => Fx.succeed(0)),
-  
   // Recover from all errors
   Fx.catchAll((e) => Fx.succeed(`Recovered: ${e}`)),
-  
   // Retry on failure
   Fx.retry({ times: 3, schedule: Schedule.exponential("100 millis") })
 )
@@ -227,7 +221,7 @@ const stream = Fx.fromIterable([1, 2, 3]).pipe(
 
 ## Concurrency & Scheduling
 
-Since Fx is push-based, controlling the *rate* of events is often necessary.
+Since Fx is push-based, controlling the _rate_ of events is often necessary.
 
 ```ts
 import { Fx } from "effect/typed/fx"
@@ -277,14 +271,14 @@ const fx = Fx.fromStream(stream) // Fx<number>
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Fx.gen(function* () {
+const program = Fx.gen(function*() {
   const a = yield* someFx
   const b = yield* anotherFx
-  
-  // If 'a' emits multiple times, this block re-runs? 
+
+  // If 'a' emits multiple times, this block re-runs?
   // NO: Fx.gen is for *creating* a stream, not consuming it like async/await.
   // It's primarily used for *composition* of Effects into an Fx.
-  
+
   const user = yield* Effect.succeed({ name: "Alice" })
   return Fx.succeed(user)
 })
@@ -298,17 +292,17 @@ Fx streams can require services, just like Effect:
 import { Effect, ServiceMap } from "effect"
 import { Fx } from "effect/typed/fx"
 
-class Database extends ServiceMap.Service<Database, { readonly query: (sql: string) => Effect.Effect<string[]> }>()("Database") {}
+class Database
+  extends ServiceMap.Service<Database, { readonly query: (sql: string) => Effect.Effect<string[]> }>()("Database")
+{}
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const stream = Fx.fromEffect(
     Effect.flatMap(Database, (db) => db.query("SELECT * FROM users"))
   )
 
   // Stream requires Database service
-  yield* Fx.observe(stream, (users) =>
-    Effect.sync(() => console.log(users))
-  )
+  yield* Fx.observe(stream, (users) => Effect.sync(() => console.log(users)))
 })
 ```
 
@@ -327,4 +321,3 @@ const program = Effect.gen(function* () {
 - Explore **Computed** for derived reactive values
 - See **Subject** for sharing streams across multiple subscribers
 - Check out **Versioned** for optimistic UI updates
-

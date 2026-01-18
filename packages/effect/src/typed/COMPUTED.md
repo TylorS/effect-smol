@@ -9,6 +9,7 @@ If you understand `RefSubject` for mutable state, `Computed` is for values that 
 ## What is Computed?
 
 A `Computed<A, E, R>` is:
+
 - **A read-only view** of a value that changes over time
 - **An Fx** that emits the current value and subsequent updates
 - **An Effect** that samples the current value
@@ -18,7 +19,7 @@ A `Computed<A, E, R>` is:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(5)
 
   // Create a computed that doubles the count
@@ -47,7 +48,7 @@ The most common way to create a `Computed` is by transforming a `RefSubject`:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(10)
 
   // Map creates a Computed
@@ -69,17 +70,16 @@ Use `mapEffect` when the transformation requires an Effect:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const userId = yield* RefSubject.make(1)
 
   // Transform with async operation
   const user = RefSubject.mapEffect(userId, (id) =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       // Simulate API call
       yield* Effect.sleep("100 millis")
       return { id, name: `User ${id}` }
-    })
-  )
+    }))
 
   const data = yield* user
   console.log(data) // { id: 1, name: "User 1" }
@@ -94,7 +94,7 @@ Combine multiple reactive sources:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const price = yield* RefSubject.make(100)
   const quantity = yield* RefSubject.make(2)
   const discount = yield* RefSubject.make(0.1)
@@ -102,8 +102,7 @@ const program = Effect.gen(function* () {
   // Compute total from multiple sources
   const total = RefSubject.map(
     RefSubject.struct({ price, quantity, discount }),
-    ({ price, quantity, discount }) =>
-      price * quantity * (1 - discount)
+    ({ price, quantity, discount }) => price * quantity * (1 - discount)
   )
 
   const value = yield* total
@@ -119,13 +118,11 @@ const program = Effect.gen(function* () {
 import { Effect, Option } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const numbers = yield* RefSubject.make([1, 2, 3, 4, 5])
 
   // Find first even number (may not exist)
-  const firstEven = RefSubject.filterMap(numbers, (arr) =>
-    Option.fromNullable(arr.find((n) => n % 2 === 0))
-  )
+  const firstEven = RefSubject.filterMap(numbers, (arr) => Option.fromNullable(arr.find((n) => n % 2 === 0)))
 
   // Try to get the value (may fail with NoSuchElementError)
   const value = yield* firstEven
@@ -147,7 +144,7 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(0)
   const doubled = RefSubject.map(count, (n) => n * 2)
 
@@ -174,7 +171,7 @@ Computed values can be chained:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(5)
 
   // Chain multiple transformations
@@ -209,13 +206,11 @@ Use `filterMap` for conditional computations:
 import { Effect, Option } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const age = yield* RefSubject.make(25)
 
   // Only compute if age >= 18
-  const canVote = RefSubject.filterMap(age, (a) =>
-    a >= 18 ? Option.some("Can vote") : Option.none()
-  )
+  const canVote = RefSubject.filterMap(age, (a) => a >= 18 ? Option.some("Can vote") : Option.none())
 
   const status = yield* canVote
   console.log(status) // "Can vote"
@@ -236,7 +231,7 @@ Use `compact` to unwrap `Option` values:
 import { Effect, Option } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const maybeValue = yield* RefSubject.make(Option.some(42))
 
   // Compact unwraps the Option
@@ -259,7 +254,7 @@ Use `proxy` to access nested properties:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const user = yield* RefSubject.make({
     name: "Alice",
     age: 30,
@@ -303,7 +298,7 @@ const program = Effect.gen(function* () {
 import { Effect, Option } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const FormValidation = Effect.gen(function* () {
+const FormValidation = Effect.gen(function*() {
   const email = yield* RefSubject.make("")
   const password = yield* RefSubject.make("")
 
@@ -322,8 +317,7 @@ const FormValidation = Effect.gen(function* () {
   // Combined validation
   const isFormValid = RefSubject.map(
     RefSubject.struct({ isValidEmail, isValidPassword }),
-    ({ isValidEmail, isValidPassword }) =>
-      isValidEmail && isValidPassword
+    ({ isValidEmail, isValidPassword }) => isValidEmail && isValidPassword
   )
 
   return { email, password, isFormValid }
@@ -336,7 +330,7 @@ const FormValidation = Effect.gen(function* () {
 import { Effect, Option } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const Search = Effect.gen(function* () {
+const Search = Effect.gen(function*() {
   const query = yield* RefSubject.make("")
   const items = yield* RefSubject.make([
     "apple",
@@ -350,9 +344,7 @@ const Search = Effect.gen(function* () {
     RefSubject.struct({ query, items }),
     ({ query, items }) => {
       if (query.length === 0) return Option.none()
-      const filtered = items.filter((item) =>
-        item.includes(query.toLowerCase())
-      )
+      const filtered = items.filter((item) => item.includes(query.toLowerCase()))
       return Option.some(filtered)
     }
   )
@@ -367,7 +359,7 @@ const Search = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const Pricing = Effect.gen(function* () {
+const Pricing = Effect.gen(function*() {
   const basePrice = yield* RefSubject.make(100)
   const quantity = yield* RefSubject.make(2)
   const taxRate = yield* RefSubject.make(0.1)
@@ -388,8 +380,7 @@ const Pricing = Effect.gen(function* () {
   // Compute final total
   const total = RefSubject.map(
     RefSubject.struct({ subtotal, discountAmount, taxRate }),
-    ({ subtotal, discountAmount, taxRate }) =>
-      (subtotal - discountAmount) * (1 + taxRate)
+    ({ subtotal, discountAmount, taxRate }) => (subtotal - discountAmount) * (1 + taxRate)
   )
 
   return {
@@ -417,4 +408,3 @@ const Pricing = Effect.gen(function* () {
 - Explore **Filtered** for optional computed values
 - See how **Versioned** enables optimistic UI updates
 - Check out **Subject** for sharing streams
-

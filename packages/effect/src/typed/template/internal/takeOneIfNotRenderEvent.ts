@@ -1,7 +1,8 @@
 import * as Effect from "../../../Effect.ts"
 import type { Fx } from "../../fx/Fx.ts"
 import { make } from "../../fx/Fx.ts"
-import { make as makeSink, withEarlyExit } from "../../fx/Sink/index.ts"
+import { withEarlyExit } from "../../fx/Sink/combinators.ts"
+import { make as makeSink } from "../../fx/Sink/Sink.ts"
 import type { HtmlRenderEvent } from "../RenderEvent.ts"
 import { isHtmlRenderEvent } from "../RenderEvent.ts"
 

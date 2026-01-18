@@ -10,9 +10,9 @@ import type * as Option from "../../../Option.ts"
 import { pipeArguments } from "../../../Pipeable.ts"
 import type * as Scope from "../../../Scope.ts"
 import * as ServiceMap from "../../../ServiceMap.ts"
-import * as Fx from "../Fx/index.ts"
+import * as Fx from "../Fx.ts"
 import { FxTypeId } from "../Fx/TypeId.ts"
-import * as Sink from "../Sink/index.ts"
+import * as Sink from "../Sink.ts"
 
 /**
  * Push is an abstract type which represents a Type which is both an Fx and a Sink. The type parameters

@@ -171,7 +171,7 @@ type GetAsts<R> = [R] extends [never] ? never
   : R extends readonly [infer Asts extends ReadonlyArray<PathAst>, infer _Rest extends string] ? Asts
   : never
 
-type ParseAsts<Input extends string> = GetAsts<ParseAstsResult<Input>>
+export type ParseAsts<Input extends string> = GetAsts<ParseAstsResult<Input>>
 
 type ParamsOfAst<T> = T extends { type: "parameter"; name: infer Name extends string; optional: true } ?
   { [K in Name]?: string } :

@@ -2,7 +2,7 @@ import type * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type * as Scope from "effect/Scope"
-import { Fx } from "effect/typed/fx"
+import * as Fx from "effect/typed/fx/Fx"
 
 import type * as V from "vitest"
 import { assert } from "vitest"

@@ -6,6 +6,7 @@
 import * as ReadonlyArray from "../../../Array.ts"
 import type * as Effect from "../../../Effect.ts"
 import { equals } from "../../../Equal.ts"
+import * as Equivalence_ from "../../../Equivalence.ts"
 import type { Equivalence } from "../../../Equivalence.ts"
 import { dual } from "../../../Function.ts"
 import * as Option from "../../../Option.ts"
@@ -55,7 +56,7 @@ export function make<A, E, R>(
   initial: ReadonlyArray<A> | Effect.Effect<ReadonlyArray<A>, E, R> | Fx.Fx<ReadonlyArray<A>, E, R>,
   eq: Equivalence<A> = equals
 ): Effect.Effect<RefArray<A, E>, never, R | Scope.Scope> {
-  return RefSubject.make(initial, { eq: ReadonlyArray.getEquivalence(eq) })
+  return RefSubject.make(initial, { eq: Equivalence_.Array(eq) })
 }
 
 /**

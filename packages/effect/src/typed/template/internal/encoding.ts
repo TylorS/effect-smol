@@ -112,7 +112,7 @@ export function unescapeHtml(html: string) {
 
 export function renderToString(value: unknown, delimiter: string = ""): string {
   if (Array.isArray(value)) {
-    return value.map((v) => renderToString(v, delimiter)).join("")
+    return value.map((v) => renderToString(v, delimiter)).join(delimiter)
   }
   if (isNullish(value)) {
     return ""

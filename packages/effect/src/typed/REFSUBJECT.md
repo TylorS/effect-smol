@@ -9,6 +9,7 @@ If you're familiar with React's `useState` or MobX observables, `RefSubject` pro
 ## What is RefSubject?
 
 A `RefSubject<A, E, R>` is:
+
 - **A mutable reference** that holds a value of type `A`
 - **An observable stream** that emits updates when the value changes
 - **An Effect** that can sample the current value
@@ -18,7 +19,7 @@ A `RefSubject<A, E, R>` is:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   // Create a RefSubject with initial value
   const count = yield* RefSubject.make(0)
 
@@ -43,7 +44,7 @@ const program = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(42)
   const value = yield* count
   console.log(value) // 42
@@ -56,10 +57,10 @@ const program = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   // Initialize from an async operation
   const user = yield* RefSubject.make(
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       // Simulate API call
       yield* Effect.sleep("100 millis")
       return { name: "Alice", age: 30 }
@@ -78,7 +79,7 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   // Track the latest value from a stream
   const latest = yield* RefSubject.make(
     Fx.fromIterable([1, 2, 3, 4, 5])
@@ -98,7 +99,7 @@ const program = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(10)
 
   // Sample the current value
@@ -113,7 +114,7 @@ const program = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(0)
 
   // Set a new value
@@ -134,7 +135,7 @@ const program = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(5)
 
   // Update using a function
@@ -160,7 +161,7 @@ const program = Effect.gen(function* () {
 import { Effect, Option } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(0)
 
   yield* RefSubject.set(count, 10)
@@ -186,7 +187,7 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(0)
 
   // Observe changes
@@ -212,12 +213,12 @@ Use `updates` for atomic, serialized operations:
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const balance = yield* RefSubject.make(100)
 
   // Atomic transfer operation
   yield* balance.updates((ref) =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const current = yield* ref.get
       if (current >= 50) {
         yield* ref.set(current - 50)
@@ -241,7 +242,7 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const count = yield* RefSubject.make(5)
 
   // Create a computed that doubles the count
@@ -267,7 +268,7 @@ const program = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const x = yield* RefSubject.make(10)
   const y = yield* RefSubject.make(20)
   const z = yield* RefSubject.make(30)
@@ -293,7 +294,7 @@ const program = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const firstName = yield* RefSubject.make("Alice")
   const lastName = yield* RefSubject.make("Smith")
   const age = yield* RefSubject.make(30)
@@ -326,13 +327,11 @@ Use `Filtered` for values that may not always exist:
 import { Effect, Option } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const numbers = yield* RefSubject.make([1, 2, 3, 4, 5])
 
   // Get first even number (may not exist)
-  const firstEven = RefSubject.filterMap(numbers, (arr) =>
-    Option.fromNullable(arr.find((n) => n % 2 === 0))
-  )
+  const firstEven = RefSubject.filterMap(numbers, (arr) => Option.fromNullable(arr.find((n) => n % 2 === 0)))
 
   const value = yield* firstEven
   console.log(value) // 2
@@ -351,7 +350,7 @@ Use `RefArray` for specialized array operations:
 import { Effect } from "effect"
 import * as RefArray from "effect/typed/fx/RefSubject/RefArray"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const items = yield* RefArray.make([1, 2, 3])
 
   // Append a value
@@ -395,7 +394,7 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const Counter = Effect.gen(function* () {
+const Counter = Effect.gen(function*() {
   const count = yield* RefSubject.make(0)
 
   const increment = () => RefSubject.increment(count)
@@ -415,7 +414,7 @@ const Counter = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const FormState = Effect.gen(function* () {
+const FormState = Effect.gen(function*() {
   const name = yield* RefSubject.make("")
   const email = yield* RefSubject.make("")
   const age = yield* RefSubject.make(0)
@@ -432,7 +431,7 @@ const FormState = Effect.gen(function* () {
 import { Effect } from "effect"
 import * as RefSubject from "effect/typed/fx/RefSubject"
 
-const program = Effect.gen(function* () {
+const program = Effect.gen(function*() {
   const price = yield* RefSubject.make(100)
   const quantity = yield* RefSubject.make(2)
 
@@ -460,4 +459,3 @@ const program = Effect.gen(function* () {
 - Explore **Filtered** for optional values
 - See how **Versioned** enables optimistic UI updates
 - Check out **Subject** for sharing streams
-

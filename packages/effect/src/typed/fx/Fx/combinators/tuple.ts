@@ -1,5 +1,5 @@
 import * as Effect from "../../../../Effect.ts"
-import * as Sink from "../../Sink/index.ts"
+import { make as makeSink } from "../../Sink/Sink.ts"
 import { make } from "../constructors/make.ts"
 import { succeed } from "../constructors/succeed.ts"
 import type { Fx } from "../Fx.ts"
@@ -25,7 +25,7 @@ export function tuple<FX extends ReadonlyArray<Fx<any, any, any>>>(
     const values = new Map<number, Fx.Success<FX[number]>>()
 
     return yield* Effect.forEach(fxs, (fx, i) =>
-      fx.run(Sink.make(
+      fx.run(makeSink(
         sink.onFailure,
         Effect.fn(function*(value) {
           values.set(i, value)
