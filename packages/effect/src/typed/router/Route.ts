@@ -2,22 +2,22 @@
 import * as Effect from "../../Effect.ts"
 import { type Pipeable, pipeArguments } from "../../Pipeable.ts"
 import { singleton } from "../../Record.ts"
-import * as Schema from "../../Schema.js"
+import * as Schema from "../../Schema.ts"
 import * as Parser from "../../SchemaParser.ts"
 import * as Transformation from "../../SchemaTransformation.ts"
 import * as AST from "./AST.ts"
-import * as Path from "./Path.js"
+import * as Path from "./Path.ts"
 
 export interface Route<
   P extends string,
-  S extends Schema.Codec<Record<string, any>, string, any, any> = Schema.Codec<Path.Params<P>, string>
+  S extends Schema.Codec<Record<string, any>, Path.Params<P>, any, any> = Schema.Codec<Path.Params<P>>
 > extends Pipeable {
   readonly ast: AST.RouteAst
   readonly path: P
 
   readonly paramsSchema: S
-  readonly pathSchema: Schema.Codec<Path.PathParams<P>, string>
-  readonly querySchema: Schema.Codec<Path.QueryParams<P>, string>
+  readonly pathSchema: Schema.Codec<Path.PathParams<P>>
+  readonly querySchema: Schema.Codec<Path.QueryParams<P>>
 }
 
 export declare namespace Route {
@@ -33,8 +33,8 @@ export function make<
   const getParts = once(() => getPathAst(ast))
   const path = once(() => Path.join(getParts()) as P)
   const paramsSchema = once(() => getParamsSchema(ast) as S)
-  const pathSchema = once(() => getPathSchema(ast) as Schema.Codec<Path.PathParams<P>, string>)
-  const querySchema = once(() => getQuerySchema(ast) as Schema.Codec<Path.QueryParams<P>, string>)
+  const pathSchema = once(() => getPathSchema(ast) as Schema.Codec<Path.PathParams<P>>)
+  const querySchema = once(() => getQuerySchema(ast) as Schema.Codec<Path.QueryParams<P>>)
 
   return {
     ast,
@@ -74,8 +74,16 @@ function getPathAst(ast: AST.RouteAst): ReadonlyArray<AST.PathAst> {
       return [ast.path]
     case "transform":
       return getPathAst(ast.from)
-    case "join":
-      return ast.parts.flatMap(getPathAst)
+    case "join": {
+      const result: Array<AST.PathAst> = []
+      for (let i = 0; i < ast.parts.length; i++) {
+        if (i > 0) {
+          result.push(AST.slash())
+        }
+        result.push(...getPathAst(ast.parts[i]))
+      }
+      return result
+    }
   }
 }
 
@@ -168,7 +176,7 @@ function getQuerySchema(ast: AST.RouteAst): Schema.Top {
 
 export const literal = <const P extends string>(path: P): Route<P> => make<P>(AST.path(AST.literal(path)))
 
-export const slash = make<"/">(AST.path(AST.slash()))
+export const slash = make<"/">(AST.path(AST.literal("")))
 
 export const wildcard = make<"*">(AST.path(AST.wildcard()))
 
@@ -183,7 +191,7 @@ export const paramWithSchema = <
   schema: S
 ): Route<
   `:${P}`,
-  Schema.Codec<{ readonly [K in P]: S["Type"] }, string, S["DecodingServices"], S["EncodingServices"]>
+  Schema.Codec<{ readonly [K in P]: S["Type"] }, Path.Params<`:${P}`>, S["DecodingServices"], S["EncodingServices"]>
 > => {
   const decode = Parser.decodeEffect(schema)
   const encode = Parser.encodeEffect(schema)
@@ -202,12 +210,12 @@ export const paramWithSchema = <
 
 export const number = <const P extends string>(
   paramName: P
-): Route<`:${P}`, Schema.Codec<{ readonly [K in P]: number }, string>> =>
+): Route<`:${P}`, Schema.Codec<{ readonly [K in P]: number }, Path.Params<`:${P}`>>> =>
   paramWithSchema(paramName, Schema.NumberFromString)
 
 export const integer = <const P extends string>(
   paramName: P
-): Route<`:${P}`, Schema.Codec<{ readonly [K in P]: number }, string>> =>
+): Route<`:${P}`, Schema.Codec<{ readonly [K in P]: number }, Path.Params<`:${P}`>>> =>
   paramWithSchema(paramName, Schema.NumberFromString.pipe(Schema.decodeTo(Schema.Int)))
 
 export const join = <const Routes extends ReadonlyArray<Route<any, any>>>(
@@ -216,7 +224,7 @@ export const join = <const Routes extends ReadonlyArray<Route<any, any>>>(
   Path.Join<{ [K in keyof Routes]: Routes[K]["path"] }>,
   Schema.Codec<
     Routes[number]["paramsSchema"]["Type"],
-    string,
+    Path.Params<Path.Join<{ [K in keyof Routes]: Routes[K]["path"] }>>,
     Routes[number]["paramsSchema"]["DecodingServices"],
     Routes[number]["paramsSchema"]["EncodingServices"]
   >

@@ -1,4 +1,4 @@
-import * as Effect from "../../../../Effect.js"
+import * as Effect from "../../../../Effect.ts"
 import type { SpanOptionsNoTrace } from "../../../../Tracer.ts"
 import type { unassigned } from "../../../../Types.ts"
 import { unwrap } from "../combinators/unwrap.ts"

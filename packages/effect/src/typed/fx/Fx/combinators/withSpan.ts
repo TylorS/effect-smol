@@ -1,6 +1,6 @@
 import { Effect } from "../../../../index.ts"
 import type { SpanOptionsNoTrace } from "../../../../Tracer.ts"
-import { make as makeSink, type Sink } from "../../Sink.js"
+import { make as makeSink, type Sink } from "../../Sink.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
 

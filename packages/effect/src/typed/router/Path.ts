@@ -1,6 +1,6 @@
 import type { Arg0, TypeLambda1 } from "hkt-core"
 
-import * as Schema from "../../Schema.js"
+import * as Schema from "../../Schema.ts"
 import type { PathAst } from "./AST.ts"
 import * as AST from "./AST.ts"
 import type { Parser } from "./Parser.ts"

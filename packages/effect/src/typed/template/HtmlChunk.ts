@@ -322,7 +322,7 @@ function recordWithPrefix(prefix: string, r: {}) {
 }
 
 const AttributeOrder = Order.mapInput(
-  Order.number,
+  Order.Number,
   // Order such that static attributes can be streamed out first
   // and sparse attributes can be streamed out last
   (attr: Template.Attribute) => isStaticAttribute(attr) ? -1 : isSparseAttribute(attr) ? 1 : 0
