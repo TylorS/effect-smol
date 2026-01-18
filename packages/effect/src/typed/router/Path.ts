@@ -1,5 +1,6 @@
 import type { Arg0, TypeLambda1 } from "hkt-core"
 
+import * as Schema from "../../Schema.js"
 import type { PathAst } from "./AST.ts"
 import * as AST from "./AST.ts"
 import type { Parser } from "./Parser.ts"
@@ -267,7 +268,7 @@ export function parseWithRest(input: string): RuntimeParseResult {
   return [asts, input.slice(index)]
 }
 
-export function parse(input: string): ReadonlyArray<PathAst> {
+export function parse<const P extends string>(input: P): ParseAsts<P> {
   const [asts, rest] = parseWithRest(input)
   for (let i = 0; i < rest.length; i++) {
     if (rest[i] !== "/") {
@@ -275,7 +276,55 @@ export function parse(input: string): ReadonlyArray<PathAst> {
       throw new Error(`Failed to parse path at index ${index}`)
     }
   }
-  return asts
+  return asts as ParseAsts<P>
+}
+
+export type Join<Parts extends ReadonlyArray<PathAst>> = `/${StringJoin<
+  {
+    [K in keyof Parts]: FormatAst<Parts[K]>
+  },
+  ""
+>}`
+
+type StringJoin<Input extends ReadonlyArray<string>, R extends string = ""> = Input extends
+  readonly [infer A extends string, ...infer Rest extends ReadonlyArray<string>] ? StringJoin<Rest, `${R}${A}`> : R
+
+type FormatAst<T extends PathAst> = [T] extends [PathAst.Literal] ? T["value"] :
+  [T] extends [PathAst.Parameter] ? FormatParameterAst<T> :
+  [T] extends [PathAst.Wildcard] ? `*` :
+  [T] extends [PathAst.Slash] ? `/` :
+  [T] extends [PathAst.QueryParams] ? FormatQueryParamsAst<T["value"]> :
+  never
+
+type FormatParameterAst<T extends PathAst.Parameter> = `:${T["name"]}${T["optional"] extends true ? "?" : ""}`
+type FormatQueryParamsAst<T extends ReadonlyArray<PathAst.QueryParam>, R extends string = "?"> = T extends
+  readonly [infer Head extends PathAst.QueryParam, ...infer Tail extends ReadonlyArray<PathAst.QueryParam>]
+  ? FormatQueryParamsAst<Tail, `${R}${R extends "?" ? "" : "&"}${FormatQueryParamAst<Head>}`>
+  : R
+
+type FormatQueryParamAst<T extends PathAst.QueryParam> = `${T["name"]}=${FormatAst<T["value"]>}`
+
+export function join<const Parts extends ReadonlyArray<PathAst>>(asts: Parts): Join<Parts> {
+  return `/${asts.map(formatAst).join("")}` as Join<Parts>
+}
+
+function formatAst(ast: PathAst): string {
+  switch (ast.type) {
+    case "literal":
+      return ast.value
+    case "parameter":
+      return `:${ast.name}`
+    case "wildcard":
+      return "*"
+    case "slash":
+      return "/"
+    case "query-params":
+      return `?${ast.value.map(getQueryParamAst).join("&")}`
+  }
+}
+
+function getQueryParamAst(ast: PathAst.QueryParam): string {
+  return `${ast.name}=${formatAst(ast.value)}`
 }
 
 type Atom = {
@@ -451,4 +500,85 @@ function isPathStopChar(char: string): boolean {
 
 function isAlphaNumeric(char: string): boolean {
   return char >= "0" && char <= "9" || char >= "a" && char <= "z" || char >= "A" && char <= "Z"
+}
+
+/**
+ * @internal
+ */
+export function getSchemaFields<const Parts extends ReadonlyArray<PathAst>>(parts: Parts) {
+  const requiredFields: Array<[string, Schema.Top]> = []
+  const optionalFields: Array<[Schema.Record.Key, Schema.Top]> = []
+  const queryParams: Array<[string, {
+    readonly requiredFields: Array<[string, Schema.Top]>
+    readonly optionalFields: Array<[Schema.Record.Key, Schema.Top]>
+  }]> = []
+
+  function addParameter(param: PathAst.Parameter) {
+    const base = param.regex
+      ? Schema.String.pipe(Schema.check(Schema.isPattern(new RegExp(param.regex))))
+      : Schema.String
+
+    if (param.optional) {
+      optionalFields.push([Schema.optionalKey(Schema.Literal(param.name)), Schema.optional(base)])
+    } else {
+      requiredFields.push([param.name, base])
+    }
+  }
+
+  function addQueryParams(params: ReadonlyArray<PathAst.QueryParam>) {
+    for (const param of params) {
+      const { optionalFields, queryParams: _queryParams, requiredFields } = getSchemaFields([param.value])
+      queryParams.push([param.name, { optionalFields, requiredFields }])
+      // eslint-disable-next-line no-restricted-syntax
+      queryParams.push(..._queryParams)
+    }
+  }
+
+  function addParts(parts: ReadonlyArray<PathAst>) {
+    for (const part of parts) {
+      if (part.type === "parameter") {
+        addParameter(part)
+      } else if (part.type === "wildcard") {
+        requiredFields.push(["*", Schema.String])
+      } else if (part.type === "query-params") {
+        addQueryParams(part.value)
+      }
+    }
+  }
+
+  addParts(parts)
+
+  return {
+    requiredFields,
+    optionalFields,
+    queryParams
+  }
+}
+
+export function getSchemas<const Parts extends ReadonlyArray<PathAst>>(parts: Parts) {
+  const { optionalFields, queryParams, requiredFields } = getSchemaFields(parts)
+  const pathFields = Object.fromEntries(requiredFields)
+  const queryFields = Object.fromEntries(queryParams.map(([name, { optionalFields, requiredFields }]) => [
+    name,
+    Schema.StructWithRest(
+      Schema.Struct(Object.fromEntries(requiredFields)),
+      optionalFields.map(([key, value]) => Schema.Record(key, value))
+    )
+  ]))
+
+  const pathSchema = Schema.StructWithRest(
+    Schema.Struct(pathFields),
+    optionalFields.map(([key, value]) => Schema.Record(key, value))
+  )
+  const querySchema = Schema.Struct(queryFields)
+  const paramsSchema = Schema.StructWithRest(
+    Schema.Struct({ ...pathFields, ...queryFields }),
+    optionalFields.map(([key, value]) => Schema.Record(key, value))
+  )
+
+  return {
+    pathSchema,
+    querySchema,
+    paramsSchema
+  } as const
 }

@@ -1,4 +1,4 @@
-import type { Codec } from "../../Schema.ts"
+import type { Top } from "../../Schema.ts"
 import type { Transformation } from "../../SchemaTransformation.ts"
 
 export type PathAst =
@@ -57,7 +57,6 @@ export const queryParam = (name: string, value: PathAst): PathAst.QueryParam => 
 
 export type RouteAst =
   | RouteAst.Path
-  | RouteAst.Schema
   | RouteAst.Transform
   | RouteAst.Join
 
@@ -67,15 +66,10 @@ export declare namespace RouteAst {
     path: PathAst
   }
 
-  export interface Schema {
-    type: "schema"
-    path: PathAst
-    schema: Codec<any, string, any, any>
-  }
-
   export interface Transform {
     type: "transform"
     from: RouteAst
+    to: Top
     transformation: Transformation<any, any, any, any>
   }
 
@@ -86,14 +80,14 @@ export declare namespace RouteAst {
 }
 
 export const path = (path: PathAst): RouteAst.Path => ({ type: "path", path })
-export const schema = (path: PathAst, schema: Codec<any, string, any, any>): RouteAst.Schema => ({
-  type: "schema",
-  path,
-  schema
-})
-export const transform = (from: RouteAst, transformation: Transformation<any, any, any, any>): RouteAst.Transform => ({
+export const transform = (
+  from: RouteAst,
+  to: Top,
+  transformation: Transformation<any, any, any, any>
+): RouteAst.Transform => ({
   type: "transform",
   from,
+  to,
   transformation
 })
 export const join = (parts: ReadonlyArray<RouteAst>): RouteAst.Join => ({ type: "join", parts })
