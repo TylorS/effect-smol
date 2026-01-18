@@ -21,8 +21,7 @@ import * as RefSubject from "./RefSubject.ts"
  * @category models
  */
 export interface RefArray<in out A, in out E = never, out R = never>
-  extends RefSubject.RefSubject<ReadonlyArray<A>, E, R>
-{}
+  extends RefSubject.RefSubject<ReadonlyArray<A>, E, R> { }
 
 /**
  * Creates a new `RefArray` from an array, `Effect`, or `Fx`.
