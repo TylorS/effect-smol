@@ -41,7 +41,8 @@ import * as Subject from "../Subject/Subject.ts"
  * @category models
  */
 export interface Versioned<out R1, out E1, out A2, out E2, out R2, out A3, out E3, out R3>
-  extends Fx.Fx<A2, E2, R2>, Effect.Yieldable<Versioned<R1, E1, A2, E2, R2, A3, E3, R3>, A3, E3, R3> {
+  extends Fx.Fx<A2, E2, R2>, Effect.Yieldable<Versioned<R1, E1, A2, E2, R2, A3, E3, R3>, A3, E3, R3>
+{
   readonly version: Effect.Effect<number, E1, R1>
   readonly interrupt: Effect.Effect<void, never, R2>
 }
@@ -72,7 +73,8 @@ export namespace Versioned {
   export type VersionError<T> = T extends Versioned<any, infer E, any, any, any, any, any, any> ? E : never
 
   export interface Service<Self, Id extends string, E1, A2, E2, A3, E3>
-    extends Versioned<Self, E1, A2, E2, Self, A3, E3, Self> {
+    extends Versioned<Self, E1, A2, E2, Self, A3, E3, Self>
+  {
     readonly id: Id
     readonly service: ServiceMap.Service<Self, Versioned<never, E1, A2, E2, never, A3, E3, never>>
     readonly make: <R1 = never, R2 = never, R3 = never>(
@@ -106,7 +108,8 @@ export function make<R1, E1, A2, E2, R2, A3, E3, R3>(
 }
 
 class VersionedImpl<R1, E1, A2, E2, R2, A3, E3, R3> extends YieldableFx<A2, E2, R2, A3, E3, R3>
-  implements Versioned<R1, E1, A2, E2, R2, A3, E3, R3> {
+  implements Versioned<R1, E1, A2, E2, R2, A3, E3, R3>
+{
   readonly version: Effect.Effect<number, E1, R1>
   readonly fx: Fx.Fx<A2, E2, R2>
   readonly effect: MulticastEffect<A3, E3, R3>
@@ -164,7 +167,8 @@ export function transform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4>(
  */
 export class VersionedTransform<R0, E0, A, E, R, B, E2, R2, C, E3, R3, D, E4, R4>
   extends YieldableFx<C, E3, R3, D, E0 | E4, R0 | R4>
-  implements Versioned<never, never, C, E3, R3, D, E0 | E4, R0 | R4> {
+  implements Versioned<never, never, C, E3, R3, D, E0 | E4, R0 | R4>
+{
   public _version = -1
   public _currentValue: Option.Option<Exit.Exit<D, E0 | E4>> = Option.none()
   public _fx: Fx.Fx<C, E3, R3>
@@ -450,7 +454,7 @@ export function Service<Self, E1 = never, A2 = never, E2 = never, A3 = never, E3
         )
 
       static readonly [FxTypeId] = VARIANCE
-      static readonly pipe = function (this: any) {
+      static readonly pipe = function(this: any) {
         return pipeArguments(this, arguments)
       }
 
@@ -460,7 +464,7 @@ export function Service<Self, E1 = never, A2 = never, E2 = never, A3 = never, E3
       static readonly run = <RSink>(sink: Sink.Sink<A2, E2, RSink>) =>
         Effect.flatMap(service.asEffect(), (v) => v.run(sink))
 
-      static readonly [Symbol.iterator] = function* () {
+      static readonly [Symbol.iterator] = function*() {
         const v = yield* service
         return yield* v
       }

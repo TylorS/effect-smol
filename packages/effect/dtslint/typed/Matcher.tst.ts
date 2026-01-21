@@ -9,9 +9,9 @@ import * as Route from "effect/typed/router/Route"
 import { describe, expect, it } from "tstyche"
 
 // Test fixtures
-class TestError extends Data.TaggedError("TestError")<{ readonly message: string }> { }
-class OtherError extends Data.TaggedError("OtherError")<{ readonly code: number }> { }
-class GuardError extends Data.TaggedError("GuardError")<{ readonly reason: string }> { }
+class TestError extends Data.TaggedError("TestError")<{ readonly message: string }> {}
+class OtherError extends Data.TaggedError("OtherError")<{ readonly code: number }> {}
+class GuardError extends Data.TaggedError("GuardError")<{ readonly reason: string }> {}
 
 // Routes
 const usersRoute = Route.Parse("users")
@@ -389,15 +389,12 @@ describe("Matcher", () => {
   })
 
   describe("match with full options object (Overload 9)", () => {
-    // Note: Full options object inference requires explicit return type annotation
-    // for full type safety. Tests document current behavior.
     it("accepts full options object", () => {
       const matcher = Matcher.empty.match({
         route: userIdRoute,
         handler: "value"
       })
-      // Returns Matcher<any, any, any> due to inference limitations
-      expect(matcher).type.toBe<Matcher.Matcher<any, any, any>>()
+      expect(matcher).type.toBe<Matcher.Matcher<string, never, Scope.Scope>>()
     })
   })
 
@@ -447,8 +444,8 @@ describe("Matcher", () => {
     })
 
     it("provideServices removes multiple requirements from R", () => {
-      class ServiceA extends ServiceMap.Service<ServiceA, { readonly a: string }>()("ServiceA") { }
-      class ServiceB extends ServiceMap.Service<ServiceB, { readonly b: number }>()("ServiceB") { }
+      class ServiceA extends ServiceMap.Service<ServiceA, { readonly a: string }>()("ServiceA") {}
+      class ServiceB extends ServiceMap.Service<ServiceB, { readonly b: number }>()("ServiceB") {}
 
       const base = Matcher.empty.match(usersRoute, "ok")
       const services = ServiceMap.make(ServiceA, { a: "hello" }).pipe(

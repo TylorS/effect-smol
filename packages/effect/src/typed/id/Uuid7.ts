@@ -18,7 +18,7 @@ export type Uuid7Seed = {
 }
 
 export class Uuid7State extends ServiceMap.Service<Uuid7State>()("@typed/id/Uuid7State", {
-  make: Effect.gen(function* () {
+  make: Effect.gen(function*() {
     const { now } = yield* DateTimes
     const getRandomValues = yield* RandomValues
     const state = {
@@ -44,7 +44,7 @@ export class Uuid7State extends ServiceMap.Service<Uuid7State>()("@typed/id/Uuid
       }
     }
 
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const randomBytes = yield* getRandomValues<Uuid7Seed["randomBytes"]>(16)
       updateV7State(yield* now, randomBytes)
       return { timestamp: state.msecs, seq: state.seq, randomBytes }

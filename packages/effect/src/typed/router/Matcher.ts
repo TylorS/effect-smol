@@ -153,7 +153,7 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     E2 = never,
     R2 = never,
     D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    LB = never,
+    LB = B,
     LE2 = never,
     LR2 = never,
     C extends CatchHandler<any, any, any, any> | undefined = undefined
@@ -322,12 +322,89 @@ function isHandlerOptions(value: unknown): value is { readonly handler: unknown 
   return typeof value === "object" && value !== null && "handler" in value
 }
 
+// Monomorphic shape - all properties always present for V8 optimization
+type ParsedMatch = {
+  readonly route: Route.Any
+  readonly handler: unknown
+  readonly guard: AnyGuard | undefined
+  readonly layout: AnyLayout | undefined
+  readonly catchFn: AnyCatch | undefined
+  readonly dependencies: ReadonlyArray<AnyDependency> | undefined
+}
+
+function parseMatchArgs(args: [unknown, ...Array<unknown>]): ParsedMatch {
+  const [first, second, third] = args
+
+  // Single arg: full options object (Overload 9)
+  if (second === undefined) {
+    const opts = first as MatchOptions<Route.Any, any, any, any, any, any, any, any, any>
+    return {
+      route: opts.route,
+      handler: opts.handler,
+      guard: undefined,
+      layout: opts.layout as AnyLayout | undefined,
+      catchFn: opts.catch as AnyCatch | undefined,
+      dependencies: opts.dependencies as ReadonlyArray<AnyDependency> | undefined
+    }
+  }
+
+  // Two args
+  if (third === undefined) {
+    if (isHandlerOptions(second)) {
+      // Overload 3: match(route, options)
+      const opts = second as MatchHandlerOptions<any, any, any, any, any, any, any, any, any>
+      return {
+        route: first as Route.Any,
+        handler: opts.handler,
+        guard: undefined,
+        layout: opts.layout as AnyLayout | undefined,
+        catchFn: opts.catch as AnyCatch | undefined,
+        dependencies: opts.dependencies as ReadonlyArray<AnyDependency> | undefined
+      }
+    }
+    // Overloads 1, 2, 4: match(route, handler)
+    return {
+      route: first as Route.Any,
+      handler: second,
+      guard: undefined,
+      layout: undefined,
+      catchFn: undefined,
+      dependencies: undefined
+    }
+  }
+
+  // Three args
+  if (isHandlerOptions(third)) {
+    // Overload 7: match(route, guard, options)
+    const opts = third as MatchHandlerOptions<any, any, any, any, any, any, any, any, any>
+    return {
+      route: first as Route.Any,
+      handler: opts.handler,
+      guard: second as AnyGuard,
+      layout: opts.layout as AnyLayout | undefined,
+      catchFn: opts.catch as AnyCatch | undefined,
+      dependencies: opts.dependencies as ReadonlyArray<AnyDependency> | undefined
+    }
+  }
+
+  // Overloads 5, 6, 8: match(route, guard, handler)
+  return {
+    route: first as Route.Any,
+    handler: third,
+    guard: second as AnyGuard,
+    layout: undefined,
+    catchFn: undefined,
+    dependencies: undefined
+  }
+}
+
 class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
   readonly cases: ReadonlyArray<MatchAst>
   constructor(cases: ReadonlyArray<MatchAst>) {
     this.cases = cases
   }
 
+  // Implementation overloads for type inference - use simplified return types
   match<Rt extends Route.Any, B, E2 = never, R2 = never>(
     route: Rt,
     handler: (params: RefSubject.RefSubject<Route.Type<Rt>>) => MatchHandlerReturnValue<B, E2, R2>
@@ -336,179 +413,58 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
     route: Rt,
     handler: Fx.Fx<B, E2, R2> | Effect.Effect<B, E2, R2> | Stream.Stream<B, E2, R2>
   ): Matcher<A | B, E | E2, R | R2 | Scope.Scope>
-  match<
-    Rt extends Route.Any,
-    B,
-    E2 = never,
-    R2 = never,
-    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    LB = B,
-    LE2 = never,
-    LR2 = never,
-    C extends CatchHandler<any, any, any, any> | undefined = undefined
-  >(
+  match<Rt extends Route.Any, B, E2 = never, R2 = never, D extends ReadonlyArray<AnyDependency> | undefined = undefined>(
     route: Rt,
-    options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C>
-  ): Matcher<
-    | A
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["a"],
-    | E
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["e"],
-    | R
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["r"]
-    | Scope.Scope
-  >
-  match<Rt extends Route.Any, B>(
-    route: Rt,
-    handler: B
-  ): Matcher<A | B, E, R | Scope.Scope>
-  match<
-    Rt extends Route.Any,
-    G extends GuardInput<Route.Type<Rt>, any, any, any>,
-    B,
-    E2,
-    R2
-  >(
+    options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, B, never, never, undefined>
+  ): Matcher<A | B, E | E2 | DependencyError<D extends ReadonlyArray<infer Dep> ? Dep : never>, R | R2 | Scope.Scope>
+  match<Rt extends Route.Any, B>(route: Rt, handler: B): Matcher<A | B, E, R | Scope.Scope>
+  match<Rt extends Route.Any, G extends GuardInput<Route.Type<Rt>, any, any, any>, B, E2, R2>(
     route: Rt,
     guard: G,
     handler: (params: RefSubject.RefSubject<GuardOutput<G>>) => MatchHandlerReturnValue<B, E2, R2>
   ): Matcher<A | B, E | E2 | GuardError<G>, R | R2 | GuardServices<G> | Scope.Scope>
-  match<
-    Rt extends Route.Any,
-    G extends GuardInput<Route.Type<Rt>, any, any, any>,
-    B,
-    E2,
-    R2
-  >(
+  match<Rt extends Route.Any, G extends GuardInput<Route.Type<Rt>, any, any, any>, B, E2, R2>(
     route: Rt,
     guard: G,
     handler: Fx.Fx<B, E2, R2> | Effect.Effect<B, E2, R2> | Stream.Stream<B, E2, R2>
   ): Matcher<A | B, E | E2 | GuardError<G>, R | R2 | GuardServices<G> | Scope.Scope>
-  match<
-    Rt extends Route.Any,
-    G extends GuardInput<Route.Type<Rt>, any, any, any>,
-    B,
-    E2 = never,
-    R2 = never,
-    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    LB = B,
-    LE2 = never,
-    LR2 = never,
-    C extends CatchHandler<any, any, any, any> | undefined = undefined
-  >(
+  match<Rt extends Route.Any, G extends GuardInput<Route.Type<Rt>, any, any, any>, B, E2 = never, R2 = never, D extends ReadonlyArray<AnyDependency> | undefined = undefined>(
     route: Rt,
     guard: G,
-    options: MatchHandlerOptions<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C>
-  ): Matcher<
-    | A
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["a"],
-    | E
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["e"],
-    | R
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["r"]
-    | Scope.Scope
-  >
-  match<
-    Rt extends Route.Any,
-    G extends GuardInput<Route.Type<Rt>, any, any, any>,
-    B
-  >(
+    options: MatchHandlerOptions<GuardOutput<G>, B, E2, R2, D, B, never, never, undefined>
+  ): Matcher<A | B, E | E2 | GuardError<G> | DependencyError<D extends ReadonlyArray<infer Dep> ? Dep : never>, R | R2 | GuardServices<G> | Scope.Scope>
+  match<Rt extends Route.Any, G extends GuardInput<Route.Type<Rt>, any, any, any>, B>(
     route: Rt,
     guard: G,
     handler: B
   ): Matcher<A | B, E | GuardError<G>, R | GuardServices<G> | Scope.Scope>
-  match<
-    Rt extends Route.Any,
-    B,
-    E2 = never,
-    R2 = never,
-    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    LB = B,
-    LE2 = never,
-    LR2 = never,
-    C extends CatchHandler<any, any, any, any> | undefined = undefined
-  >(
-    options: MatchOptions<Rt, B, E2, R2, D, LB, LE2, LR2, C>
-  ): Matcher<
-    | A
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["a"],
-    | E
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["e"],
-    | R
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["r"]
-    | Scope.Scope
-  >
-  match(
-    routeOrOptions: Route.Any | MatchOptions<Route.Any, any, any, any, any, any, any, any, any>,
-    guardOrHandlerOrOptions?: unknown,
-    handlerOrOptions?: unknown
-  ): Matcher<any, any, any> {
-    let route: Route.Any
-    let handler: unknown
-    let guard: AnyGuard | undefined
-    let layout: AnyLayout | undefined
-    let catchFn: AnyCatch | undefined
-    let dependencies: ReadonlyArray<AnyDependency> | undefined
+  match<Rt extends Route.Any, B, E2 = never, R2 = never, D extends ReadonlyArray<AnyDependency> | undefined = undefined>(
+    options: MatchOptions<Rt, B, E2, R2, D, B, never, never, undefined>
+  ): Matcher<A | B, E | E2 | DependencyError<D extends ReadonlyArray<infer Dep> ? Dep : never>, R | R2 | Scope.Scope>
+  match(...args: [unknown, ...Array<unknown>]): Matcher<any, any, any> {
+    const parsed = parseMatchArgs(args)
+    const normalizedGuard = parsed.guard !== undefined
+      ? getGuard(parsed.guard as GuardInput<any, any, any, any>)
+      : defaultGuard()
 
-    if (guardOrHandlerOrOptions === undefined) {
-      // Overload 9: match(fullOptions)
-      const opts = routeOrOptions as MatchOptions<Route.Any, any, any, any, any, any, any, any, any>
-      route = opts.route
-      handler = opts.handler
-      layout = opts.layout as AnyLayout | undefined
-      catchFn = opts.catch as AnyCatch | undefined
-      dependencies = opts.dependencies as ReadonlyArray<AnyDependency> | undefined
-    } else if (handlerOrOptions === undefined) {
-      if (isHandlerOptions(guardOrHandlerOrOptions)) {
-        // Overload 3: match(route, options)
-        const opts = guardOrHandlerOrOptions as MatchHandlerOptions<any, any, any, any, any, any, any, any, any>
-        route = routeOrOptions as Route.Any
-        handler = opts.handler
-        layout = opts.layout as AnyLayout | undefined
-        catchFn = opts.catch as AnyCatch | undefined
-        dependencies = opts.dependencies as ReadonlyArray<AnyDependency> | undefined
-      } else {
-        // Overloads 1, 2, 4: match(route, handler)
-        route = routeOrOptions as Route.Any
-        handler = guardOrHandlerOrOptions
-      }
-    } else if (isHandlerOptions(handlerOrOptions)) {
-      // Overload 7: match(route, guard, options)
-      const opts = handlerOrOptions as MatchHandlerOptions<any, any, any, any, any, any, any, any, any>
-      route = routeOrOptions as Route.Any
-      guard = guardOrHandlerOrOptions as AnyGuard
-      handler = opts.handler
-      layout = opts.layout as AnyLayout | undefined
-      catchFn = opts.catch as AnyCatch | undefined
-      dependencies = opts.dependencies as ReadonlyArray<AnyDependency> | undefined
-    } else {
-      // Overloads 5, 6, 8: match(route, guard, handler)
-      route = routeOrOptions as Route.Any
-      guard = guardOrHandlerOrOptions as AnyGuard
-      handler = handlerOrOptions
-    }
-
-    const normalizedGuards = normalizeGuards<Route.Any>(guard)
-    const routeAsts = normalizedGuards.map((g) =>
-      AST.route(
-        route.ast,
-        handler as MatchHandler<Route.Type<Route.Any>, any, any, any>,
-        g
-      )
+    const routeAst = AST.route(
+      parsed.route.ast,
+      parsed.handler as MatchHandler<any, any, any, any>,
+      normalizedGuard
     )
 
-    let matches: ReadonlyArray<MatchAst> = routeAsts
-    if (layout !== undefined) {
-      matches = wrapLayout(matches, layout)
+    let matches: ReadonlyArray<MatchAst> = [routeAst]
+    if (parsed.layout !== undefined) {
+      matches = [AST.layout(matches, parsed.layout)]
     }
-    if (catchFn !== undefined) {
-      matches = [AST.catchCause(matches, catchFn)]
+    if (parsed.catchFn !== undefined) {
+      matches = [AST.catchCause(matches, parsed.catchFn)]
     }
-    if (dependencies !== undefined && dependencies.length > 0) {
-      matches = [AST.layer(matches, normalizeDependencies(dependencies))]
+    if (parsed.dependencies !== undefined && parsed.dependencies.length > 0) {
+      matches = [AST.layer(matches, normalizeDependencies(parsed.dependencies))]
     }
 
-    return new MatcherImpl(appendMatches(this.cases, matches))
+    return new MatcherImpl([...this.cases, ...matches])
   }
 
   prefix<Rt extends Route.Any>(route: Rt): Matcher<A, E, R> {
@@ -796,14 +752,6 @@ const matchesTag = <E, K extends string>(
   return tag.some((t) => t === error._tag)
 }
 
-function wrapLayout(matches: ReadonlyArray<MatchAst>, layout: AnyLayout): ReadonlyArray<MatchAst> {
-  return [AST.layout(matches, layout)]
-}
-
-function appendMatches(current: ReadonlyArray<MatchAst>, next: ReadonlyArray<MatchAst>): ReadonlyArray<MatchAst> {
-  return [...current, ...next]
-}
-
 function normalizeDependencies(dependencies: ReadonlyArray<AnyDependency>): ReadonlyArray<AnyLayer> {
   return dependencies.map((dep) =>
     Layer.isLayer(dep) ? dep : Layer.succeedServices(dep as ServiceMap.ServiceMap<any>) as AnyLayer
@@ -812,17 +760,6 @@ function normalizeDependencies(dependencies: ReadonlyArray<AnyDependency>): Read
 
 function getGuard<I, O, E, R>(guard: GuardInput<I, O, E, R>): GuardType<I, O, E, R> {
   return "asGuard" in guard ? guard.asGuard() : guard
-}
-
-function normalizeGuards<Rt extends Route.Any>(
-  guard:
-    | GuardInput<Route.Type<Rt>, any, any, any>
-    | undefined
-): ReadonlyArray<GuardType<Route.Type<Rt>, any, any, any>> {
-  if (guard === undefined) {
-    return [defaultGuard<Route.Type<Rt>>()]
-  }
-  return [getGuard(guard as GuardInput<Route.Type<Rt>, any, any, any>)]
 }
 
 function defaultGuard<A>(): GuardType<A, A> {
@@ -908,6 +845,17 @@ function applyPrefixes(route: Route.Any, prefixes: ReadonlyArray<RouteAst>): Rou
   return join(...prefixRoutes, route)
 }
 
+// Parallel scope cleanup helper
+const closeScopes = (
+  scopes: Iterable<Scope.Closeable>,
+  fiberId: number
+) =>
+  Effect.forEach(
+    scopes,
+    (scope) => Scope.close(scope, interrupt(fiberId)),
+    { concurrency: "unbounded", discard: true }
+  )
+
 function makeLayerManager(
   memoMap: Layer.MemoMap,
   rootScope: Scope.Scope,
@@ -985,36 +933,25 @@ function makeLayerManager(
 }
 
 function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
-  const states = new Map<string, {
+  const states = new Map<AnyLayout, {
     params: RefSubject.RefSubject<any>
     content: RefSubject.RefSubject<Fx.Fx<any, any, any>>
     fx: Fx.Fx<any, any, any>
     scope: Scope.Closeable
   }>()
-  const layoutKeys = new WeakMap<AnyLayout, string>()
-  let active: ReadonlyArray<string> = []
-
-  const getKey = (layout: AnyLayout) => {
-    const existing = layoutKeys.get(layout)
-    if (existing) return existing
-    const next = layout.toString()
-    layoutKeys.set(layout, next)
-    return next
-  }
+  let active: ReadonlyArray<AnyLayout> = []
 
   const removeUnused = (layouts: ReadonlyArray<AnyLayout>) =>
     Effect.gen(function* () {
-      const next = new Set(layouts.map(getKey))
+      const next = new Set(layouts)
       const removed = active.filter((layout) => !next.has(layout))
-      for (let i = removed.length - 1; i >= 0; i--) {
-        const layout = removed[i]
-        const state = states.get(layout)
-        if (state) {
-          states.delete(layout)
-          yield* Scope.close(state.scope, interrupt(fiberId))
-        }
-      }
-      active = layouts.map(getKey)
+      const scopes = removed.map((layout) => {
+        const state = states.get(layout)!
+        states.delete(layout)
+        return state.scope
+      })
+      yield* closeScopes(scopes, fiberId)
+      active = layouts
     })
 
   const apply = (
@@ -1027,9 +964,8 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
       let current = inner
       for (let i = layouts.length - 1; i >= 0; i--) {
         const layout = layouts[i]
-        const key = getKey(layout)
-        let state = states.get(key)
-        if (!state) {
+        const state = states.get(layout)
+        if (state === undefined) {
           const scope = yield* Scope.fork(rootScope)
           const params = yield* RefSubject.make(paramsValue).pipe(Scope.provide(scope))
           const content = yield* RefSubject.make<Fx.Fx<any, any, any>>(Effect.succeed(current), {
@@ -1038,29 +974,28 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
           const fx = layout({ params, content: content.pipe(switchMap(identity)) }).pipe(
             provideServices(ServiceMap.merge(services, ServiceMap.make(Scope.Scope, scope)))
           )
-          state = { params, content, fx, scope }
-          states.set(key, state)
+          states.set(layout, { params, content, fx, scope })
+          current = fx
         } else {
-          const nextContent = current
           yield* RefSubject.set(state.params, paramsValue)
           // @effect-diagnostics-next-line floatingEffect:off
-          yield* RefSubject.set(state.content, nextContent)
+          yield* RefSubject.set(state.content, current)
+          current = state.fx
         }
-        current = state.fx
       }
       yield* removeUnused(layouts)
       return current
     })
 
   const updateParams = (layouts: ReadonlyArray<AnyLayout>, paramsValue: any) =>
-    Effect.gen(function* () {
-      for (const layout of layouts) {
-        const state = states.get(getKey(layout))
-        if (state) {
-          yield* RefSubject.set(state.params, paramsValue)
-        }
-      }
-    })
+    Effect.forEach(
+      layouts,
+      (layout) => {
+        const state = states.get(layout)
+        return state !== undefined ? RefSubject.set(state.params, paramsValue) : Effect.void
+      },
+      { discard: true }
+    )
 
   return { apply, updateParams }
 }
@@ -1078,14 +1013,12 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
     Effect.gen(function* () {
       const next = new Set(catches)
       const removed = active.filter((c) => !next.has(c))
-      for (let i = removed.length - 1; i >= 0; i--) {
-        const c = removed[i]
-        const state = states.get(c)
-        if (state) {
-          states.delete(c)
-          yield* Scope.close(state.scope, interrupt(fiberId))
-        }
-      }
+      const scopes = removed.map((c) => {
+        const state = states.get(c)!
+        states.delete(c)
+        return state.scope
+      })
+      yield* closeScopes(scopes, fiberId)
       active = catches
     })
 
@@ -1098,8 +1031,8 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
       let current = inner
       for (let i = catches.length - 1; i >= 0; i--) {
         const catcher = catches[i]
-        let state = states.get(catcher)
-        if (!state) {
+        const state = states.get(catcher)
+        if (state === undefined) {
           const scope = yield* Scope.fork(rootScope)
           const causes = yield* RefSubject.make<Cause.Cause<any>>(Cause.fail(undefined)).pipe(Scope.provide(scope))
           const content = yield* RefSubject.make<Fx.Fx<any, any, any>>(Effect.succeed(current), {
@@ -1111,24 +1044,21 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
           const fx = content.pipe(
             switchMap(identity),
             exit,
-            mapEffect(Effect.fn(function* (exit) {
-              if (isSuccess(exit)) {
-                return succeed(exit.value)
-              }
-              yield* RefSubject.set(causes, exit.cause)
+            mapEffect(Effect.fn(function* (e) {
+              if (isSuccess(e)) return succeed(e.value)
+              yield* RefSubject.set(causes, e.cause)
               return fallback
             })),
             skipRepeats,
             switchMap(identity)
           )
-          state = { causes, content, fx, scope }
-          states.set(catcher, state)
+          states.set(catcher, { causes, content, fx, scope })
+          current = fx
         } else {
-          const nextContent = current
           // @effect-diagnostics-next-line floatingEffect:off
-          yield* RefSubject.set(state.content, nextContent)
+          yield* RefSubject.set(state.content, current)
+          current = state.fx
         }
-        current = state.fx
       }
       yield* removeUnused(catches)
       return current

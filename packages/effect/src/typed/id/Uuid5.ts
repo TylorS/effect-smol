@@ -104,7 +104,7 @@ export const uuid5: {
   name: string,
   namespace: Uuid5Namespace
 ): Effect.Effect<Uuid5> {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     // Convert name to UTF-8 bytes
     const nameBytes = textEncoder.encode(name)
 
