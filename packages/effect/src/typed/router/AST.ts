@@ -1,5 +1,11 @@
+import type { Cause } from "../../Cause.ts"
+import { succeedSome } from "../../Effect.ts"
 import type { Top } from "../../Schema.ts"
 import type { Transformation } from "../../SchemaTransformation.ts"
+import type { Fx } from "../fx/Fx.ts"
+import type { RefSubject } from "../fx/RefSubject/RefSubject.ts"
+import type { Guard } from "../guard/index.ts"
+import type { AnyLayer, Layout as LayoutType, MatchHandler } from "./Matcher.ts"
 
 export type PathAst =
   | PathAst.Literal
@@ -91,3 +97,69 @@ export const transform = (
   transformation
 })
 export const join = (parts: ReadonlyArray<RouteAst>): RouteAst.Join => ({ type: "join", parts })
+
+export type MatchAst =
+  | MatchAst.Route
+  | MatchAst.Layer
+  | MatchAst.Layout
+  | MatchAst.Prefixed
+  | MatchAst.Catch
+
+export declare namespace MatchAst {
+  export interface Route {
+    type: "route"
+    route: RouteAst
+    guard: Guard<any, any, any, any>
+    handler: MatchHandler<any, any, any, any>
+  }
+
+  export interface Layer {
+    type: "layer"
+    matches: ReadonlyArray<MatchAst>
+    deps: ReadonlyArray<AnyLayer>
+  }
+
+  export interface Layout {
+    type: "layout"
+    matches: ReadonlyArray<MatchAst>
+    layout: LayoutType<any, any, any, any, any, any, any>
+  }
+
+  export interface Prefixed {
+    type: "prefixed"
+    matches: ReadonlyArray<MatchAst>
+    prefix: RouteAst
+  }
+
+  export interface Catch {
+    type: "catch"
+    matches: ReadonlyArray<MatchAst>
+    f: (cause: RefSubject<Cause<any>>) => Fx<any, any, any>
+  }
+}
+
+export const route = (
+  route: RouteAst,
+  handler: MatchHandler<any, any, any, any>,
+  guard: Guard<any, any, any, any> = succeedSome
+): MatchAst.Route => ({ type: "route", route, guard, handler })
+
+export const layer = (
+  matches: ReadonlyArray<MatchAst>,
+  deps: ReadonlyArray<AnyLayer>
+): MatchAst.Layer => ({ type: "layer", matches, deps })
+
+export const layout = (
+  matches: ReadonlyArray<MatchAst>,
+  layout: LayoutType<any, any, any, any, any, any, any>
+): MatchAst.Layout => ({ type: "layout", matches, layout })
+
+export const prefixed = (
+  matches: ReadonlyArray<MatchAst>,
+  prefix: RouteAst
+): MatchAst.Prefixed => ({ type: "prefixed", matches, prefix })
+
+export const catchCause = (
+  matches: ReadonlyArray<MatchAst>,
+  f: (cause: RefSubject<Cause<any>>) => Fx<any, any, any>
+): MatchAst.Catch => ({ type: "catch", matches, f })

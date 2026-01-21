@@ -11,8 +11,8 @@ const toFinalizer = <XE, XR>(
   f:
     | Effect.Effect<void, XE, XR>
     | ((interruptors: ReadonlySet<number>) => Effect.Effect<void, XE, XR>)
-) => (interruptors: ReadonlySet<number>) =>
-    typeof f === "function" ? f(interruptors) : f
+) =>
+(interruptors: ReadonlySet<number>) => typeof f === "function" ? f(interruptors) : f
 
 /**
  * Adds an `Effect.onInterrupt`-style finalizer to an `Fx`.
@@ -43,7 +43,7 @@ export const onInterrupt: {
     | ((interruptors: ReadonlySet<number>) => Effect.Effect<void, XE, XR>)
 ): Fx<A, E | XE, R | XR> =>
   make<A, E | XE, R | XR>(
-    Effect.fnUntraced(function* (sink) {
+    Effect.fnUntraced(function*(sink) {
       const finalizer = toFinalizer(finalizer_)
       const interrupted = yield* Ref.make(Option.none<ReadonlySet<number>>())
 
@@ -76,4 +76,3 @@ export const onInterrupt: {
       )
     })
   ))
-

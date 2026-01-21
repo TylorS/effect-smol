@@ -24,6 +24,4 @@ export const ensuring: {
 } = dual(2, <A, E, R, R2>(
   self: Fx<A, E, R>,
   finalizer: Effect.Effect<void, never, R2>
-): Fx<A, E, R | R2> =>
-  make<A, E, R | R2>((sink) => self.run(sink).pipe(Effect.ensuring(finalizer))))
-
+): Fx<A, E, R | R2> => make<A, E, R | R2>((sink) => self.run(sink).pipe(Effect.ensuring(finalizer))))

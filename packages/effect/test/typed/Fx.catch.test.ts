@@ -4,11 +4,11 @@ import { Fx } from "effect/typed/fx"
 
 describe("Fx", () => {
   describe("catch / catchCause / catchTag", () => {
-    class ErrorA extends Data.TaggedError("A") { }
-    class ErrorB extends Data.TaggedError("B") { }
+    class ErrorA extends Data.TaggedError("A") {}
+    class ErrorB extends Data.TaggedError("B") {}
 
     it.effect("catch recovers from typed failures", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const fx = Fx.fail("boom").pipe(
           Fx.catch((e) => Fx.succeed(`recovered:${e}`))
         )
@@ -18,7 +18,7 @@ describe("Fx", () => {
       }))
 
     it.effect("catch does not recover from defects", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const fx = Fx.die("boom").pipe(
           Fx.catch(() => Fx.succeed("nope"))
         )
@@ -29,7 +29,7 @@ describe("Fx", () => {
       }))
 
     it.effect("catchCause recovers from defects", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const fx = Fx.die("boom").pipe(
           Fx.catchCause(() => Fx.succeed("ok"))
         )
@@ -39,7 +39,7 @@ describe("Fx", () => {
       }))
 
     it.effect("catchTag recovers from tagged failures", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const fx = Fx.fail(new ErrorA()).pipe(
           Fx.catchTag("A", () => Fx.succeed(1))
         )
@@ -49,7 +49,7 @@ describe("Fx", () => {
       }))
 
     it.effect("catchTag does not catch other tags", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const fx = Fx.fail(new ErrorB()).pipe(
           // @ts-expect-error - invalid tag
           Fx.catchTag("A", () => Fx.succeed(1))
@@ -66,4 +66,3 @@ describe("Fx", () => {
       }))
   })
 })
-

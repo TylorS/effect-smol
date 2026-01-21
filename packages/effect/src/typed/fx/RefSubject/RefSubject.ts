@@ -16,8 +16,17 @@ import * as Option from "../../../Option.ts"
 import { pipeArguments } from "../../../Pipeable.ts"
 import * as Scope from "../../../Scope.ts"
 import * as ServiceMap from "../../../ServiceMap.ts"
+import { compact as fxCompact } from "../Fx/combinators/compact.ts"
+import { continueWith } from "../Fx/combinators/continueWith.ts"
+import { filterMapEffect as fxFilterMapEffect } from "../Fx/combinators/filterMapEffect.ts"
+import { mapEffect as fxMapEffect } from "../Fx/combinators/mapEffect.ts"
+import { skipRepeats } from "../Fx/combinators/skipRepeats.ts"
 import type { Bounds } from "../Fx/combinators/slice.ts"
-import * as Fx from "../Fx/index.ts"
+import { slice as fxSlice } from "../Fx/combinators/slice.ts"
+import { unwrap } from "../Fx/combinators/unwrap.ts"
+import { fromEffect as fxFromEffect } from "../Fx/constructors/fromEffect.ts"
+import { fromYieldable } from "../Fx/constructors/fromYieldable.ts"
+import type { Error as FxError, Fx } from "../Fx/Fx.ts"
 import * as DeferredRef from "../Fx/internal/DeferredRef.ts"
 import { getExitEquivalence } from "../Fx/internal/equivalence.ts"
 import type { UnionToTuple } from "../Fx/internal/UnionToTuple.ts"
@@ -71,7 +80,8 @@ export type FilteredTypeId = typeof FilteredTypeId
  * @category models
  */
 export interface Computed<out A, out E = never, out R = never>
-  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E, R> {
+  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E, R>
+{
   readonly [ComputedTypeId]: ComputedTypeId
 }
 
@@ -117,7 +127,8 @@ export declare namespace Computed {
  * @category models
  */
 export interface Filtered<out A, out E = never, out R = never>
-  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R> {
+  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R>
+{
   readonly [FilteredTypeId]: FilteredTypeId
 
   /**
@@ -266,7 +277,7 @@ export declare namespace RefSubject {
     readonly service: ServiceMap.Service<Self, RefSubject<A, E>>
 
     readonly make: <R = never>(
-      value: A | Effect.Effect<A, E, R> | Fx.Fx<A, E, R>,
+      value: A | Effect.Effect<A, E, R> | Fx<A, E, R>,
       options?: RefSubjectOptions<A> & { readonly skip?: number; readonly take?: number }
     ) => Layer.Layer<Self, never, Exclude<R, Scope.Scope>>
 
@@ -303,7 +314,7 @@ class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   R0 | Exclude<R, Scope.Scope> | R2 | R3
 > implements Computed<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3> {
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
-  private _computed: Fx.Fx<C, E0 | E | E2 | E3, R0 | R | Scope.Scope | R2 | R3>
+  private _computed: Fx<C, E0 | E | E2 | E3, R0 | R | Scope.Scope | R2 | R3>
 
   override input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>
   readonly f: (a: A) => Effect.Effect<C, E3, R3>
@@ -314,24 +325,24 @@ class ComputedImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   ) {
     super(
       input,
-      (fx) => Fx.mapEffect(fx, f) as any,
+      (fx) => fxMapEffect(fx, f) as any,
       Effect.flatMap(f)
     )
 
     this.input = input
     this.f = f
 
-    this._computed = Subject.hold(Fx.unwrap(
+    this._computed = Subject.hold(unwrap(
       Effect.map(Effect.services(), (ctx) => {
         if (checkIsMultiple(ctx)) {
-          return Fx.fromYieldable(input).pipe(
-            Fx.continueWith(() => input),
-            Fx.skipRepeats,
-            Fx.mapEffect(f)
+          return fromYieldable(input).pipe(
+            continueWith(() => input),
+            skipRepeats,
+            fxMapEffect(f)
           )
         }
 
-        return Fx.fromEffect(Effect.flatMap(input.asEffect(), f))
+        return fxFromEffect(Effect.flatMap(input.asEffect(), f))
       })
     ))
   }
@@ -376,7 +387,7 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   R0 | Exclude<R, Scope.Scope> | R2 | R3
 > implements Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3> {
   readonly [FilteredTypeId]: FilteredTypeId = FilteredTypeId
-  private _computed: Fx.Fx<C, E0 | E | E2 | E3, R0 | R | Scope.Scope | R2 | R3>
+  private _computed: Fx<C, E0 | E | E2 | E3, R0 | R | Scope.Scope | R2 | R3>
 
   override input: Versioned.Versioned<R0, E0, A, E, R, A, E2, R2>
   readonly f: (a: A) => Effect.Effect<Option.Option<C>, E3, R3>
@@ -387,7 +398,7 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
   ) {
     super(
       input,
-      (fx) => Fx.filterMapEffect(fx, f) as any,
+      (fx) => fxFilterMapEffect(fx, f) as any,
       (effect) =>
         Effect.flatMap(
           Effect.flatMap(
@@ -401,17 +412,17 @@ class FilteredImpl<R0, E0, A, E, R, E2, R2, C, E3, R3> extends Versioned.Version
     this.input = input
     this.f = f
 
-    this._computed = Subject.hold(Fx.unwrap(
+    this._computed = Subject.hold(unwrap(
       Effect.map(Effect.services(), (ctx) => {
         if (checkIsMultiple(ctx)) {
-          return Fx.fromYieldable(input).pipe(
-            Fx.continueWith(() => input),
-            Fx.skipRepeats,
-            Fx.filterMapEffect(f)
+          return fromYieldable(input).pipe(
+            continueWith(() => input),
+            skipRepeats,
+            fxFilterMapEffect(f)
           )
         }
 
-        return Fx.compact(Fx.fromEffect(Effect.flatMap(input.asEffect(), f)))
+        return fxCompact(fxFromEffect(Effect.flatMap(input.asEffect(), f)))
       })
     ))
   }
@@ -463,7 +474,8 @@ function getSetDelete<A, E, R, R2>(ref: RefSubjectCore<A, E, R, R2>): GetSetDele
   }
 }
 class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Scope.Scope, A, E, Exclude<R, R2>>
-  implements RefSubject<A, E, Exclude<R, R2>> {
+  implements RefSubject<A, E, Exclude<R, R2>>
+{
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
@@ -560,7 +572,7 @@ class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Sco
  * @category constructors
  */
 export function make<A, E = never, R = never>(
-  effect: A | Effect.Effect<A, E, R> | Fx.Fx<A, E, R>,
+  effect: A | Effect.Effect<A, E, R> | Fx<A, E, R>,
   options?: RefSubjectOptions<A>
 ): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
   if (isFx(effect)) {
@@ -626,10 +638,10 @@ export function fromEffect<A, E, R>(
  * @category constructors
  */
 export function fromFx<A, E, R>(
-  fx: Fx.Fx<A, E, R>,
+  fx: Fx<A, E, R>,
   options?: RefSubjectOptions<A>
 ): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const core = yield* makeDeferredCore<A, E, R>(options)
     const ref = new RefSubjectImpl(core)
     yield* Effect.forkIn(
@@ -649,7 +661,7 @@ function makeCore<A, E, R>(
   options?: RefSubjectOptions<A>,
   deferredRef?: DeferredRef.DeferredRef<E, A>
 ) {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const services = yield* Effect.services<R | Scope.Scope>()
     const scope = yield* Scope.fork(ServiceMap.get(services, Scope.Scope))
     const id = yield* Effect.withFiber((fiber) => Effect.succeed(fiber.id))
@@ -670,7 +682,7 @@ function makeCore<A, E, R>(
 function makeDeferredCore<A, E = never, R = never>(
   options?: RefSubjectOptions<A>
 ) {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const deferredRef = yield* DeferredRef.make<E, A>(getExitEquivalence(options?.eq ?? equals))
     return yield* makeCore<A, E, R>(deferredRef.asEffect(), options, deferredRef)
   })
@@ -1207,7 +1219,7 @@ export function decrement<E, R>(ref: RefSubject<number, E, R>): Effect.Effect<nu
   return update(ref, (value) => value - 1)
 }
 
-const Variance: Fx.Fx.Variance<any, any, any> = {
+const Variance: Fx.Variance<any, any, any> = {
   _A: identity,
   _E: identity,
   _R: identity
@@ -1229,7 +1241,7 @@ export function Service<Self, A, E = never>() {
       ) => Layer.effect(service, make)
 
       static readonly make = <R = never>(
-        value: A | Effect.Effect<A, E, R> | Fx.Fx<A, E, R>,
+        value: A | Effect.Effect<A, E, R> | Fx<A, E, R>,
         options?: RefSubjectOptions<A> & Partial<Bounds>
       ): Layer.Layer<Self, never, R> => {
         const bounds = getDefaultBounds(options)
@@ -1240,7 +1252,7 @@ export function Service<Self, A, E = never>() {
       }
 
       // Fx
-      static readonly [FxTypeId]: Fx.Fx.Variance<A, E, Self> = Variance
+      static readonly [FxTypeId]: Fx.Variance<A, E, Self> = Variance
       static readonly run = <RSink>(sink: Sink.Sink<A, E, RSink>) =>
         Effect.flatMap(service.asEffect(), (ref) => ref.run(sink))
 
@@ -1264,7 +1276,7 @@ export function Service<Self, A, E = never>() {
 
       // Yieldable
       static readonly asEffect = () => Effect.flatMap(service.asEffect(), Effect.fromYieldable)
-      static readonly [Symbol.iterator] = function* () {
+      static readonly [Symbol.iterator] = function*() {
         const ref = yield* service
         return yield* ref
       }
@@ -1338,14 +1350,14 @@ export const proxy: {
 >(
   source: Computed<A, E, R> | Filtered<A, E, R>
 ): any => {
-    const target: any = {}
-    return new Proxy(target, {
-      get(self, prop) {
-        if (prop in self) return self[prop]
-        return self[prop] = map(source, (a) => a[prop as keyof A])
-      }
-    })
-  }
+  const target: any = {}
+  return new Proxy(target, {
+    get(self, prop) {
+      if (prop in self) return self[prop]
+      return self[prop] = map(source, (a) => a[prop as keyof A])
+    }
+  })
+}
 
 export type Services<T> = T extends RefSubject<infer _A, infer _E, infer R> ? R :
   T extends Computed<infer _A, infer _E, infer R> ? R :
@@ -1401,7 +1413,7 @@ export const mapEffect: {
   ): (
     ref: T
   ) => T extends Filtered.Any ? Filtered<B, Error<T> | E2, Services<T> | R2>
-      : Computed<B, Error<T> | E2, Services<T> | R2>
+    : Computed<B, Error<T> | E2, Services<T> | R2>
 
   <A, E, R, B, E2, R2>(
     ref: RefSubject<A, E, R> | Computed<A, E, R>,
@@ -1422,7 +1434,8 @@ export const mapEffect: {
   f: (a: A) => Effect.Effect<C, E3, R3>
 ):
   | Computed<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
-  | Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3> {
+  | Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
+{
   return FilteredTypeId in versioned
     ? new FilteredImpl(versioned, (a) => Effect.asSome(f(a)))
     : new ComputedImpl(versioned, f)
@@ -1477,7 +1490,8 @@ export const map: {
   f: (a: A) => B
 ):
   | Computed<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
-  | Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2> {
+  | Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
+{
   return mapEffect(versioned, (a) => Effect.succeed(f(a)))
 })
 
@@ -1621,26 +1635,27 @@ export const compact: {
 } = function compact<R0, E0, A, E, R, E2, R2>(
   versioned: Versioned.Versioned<R0, E0, Option.Option<A>, E, R, Option.Option<A>, E2, R2>
 ): any {
-    return new FilteredImpl(versioned, Effect.succeed)
-  }
+  return new FilteredImpl(versioned, Effect.succeed)
+}
 
 class RefSubjectSimpleTransform<A, E, R, R2, R3> extends YieldableFx<A, E, R | R2 | Scope.Scope, A, E, R | R3>
-  implements RefSubject<A, E, R | R2 | R3> {
+  implements RefSubject<A, E, R | R2 | R3>
+{
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
   readonly version: Effect.Effect<number, E, R>
   readonly interrupt: Effect.Effect<void, never, R>
   readonly subscriberCount: Effect.Effect<number, never, R>
-  private _fx: Fx.Fx<A, E, Scope.Scope | R | R2>
+  private _fx: Fx<A, E, Scope.Scope | R | R2>
 
   readonly ref: RefSubject<A, E, R>
-  readonly transformFx: (fx: Fx.Fx<A, E, Scope.Scope | R>) => Fx.Fx<A, E, Scope.Scope | R | R2>
+  readonly transformFx: (fx: Fx<A, E, Scope.Scope | R>) => Fx<A, E, Scope.Scope | R | R2>
   readonly transformEffect: (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | R3>
 
   constructor(
     ref: RefSubject<A, E, R>,
-    transformFx: (fx: Fx.Fx<A, E, Scope.Scope | R>) => Fx.Fx<A, E, Scope.Scope | R | R2>,
+    transformFx: (fx: Fx<A, E, Scope.Scope | R>) => Fx<A, E, Scope.Scope | R | R2>,
     transformEffect: (effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | R3>
   ) {
     super()
@@ -1684,7 +1699,7 @@ export const slice: {
 } = dual(
   3,
   function slice<A, E, R>(ref: RefSubject<A, E, R>, skip: number, take: number): RefSubject<A, E, R> {
-    return new RefSubjectSimpleTransform(ref, (_) => Fx.slice(_, { skip, take }), identity)
+    return new RefSubjectSimpleTransform(ref, (_) => fxSlice(_, { skip, take }), identity)
   }
 )
 
@@ -1756,7 +1771,7 @@ type FilteredStructFrom<
   {
     readonly [K in keyof Refs]: Effect.Success<Refs[K]>
   },
-  Fx.Error<Refs[keyof Refs]>,
+  FxError<Refs[keyof Refs]>,
   Effect.Services<Refs[keyof Refs]>
 >
 
@@ -1799,7 +1814,7 @@ type FilteredTupleFrom<
   {
     readonly [K in keyof Refs]: Effect.Success<Refs[K]>
   },
-  Fx.Error<Refs[number]>,
+  FxError<Refs[number]>,
   Effect.Services<Refs[number]>
 >
 
@@ -2074,7 +2089,8 @@ class RefSubjectStruct<
     },
     Error<Refs[keyof Refs]>,
     Services<Refs[keyof Refs]>
-  > {
+  >
+{
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 

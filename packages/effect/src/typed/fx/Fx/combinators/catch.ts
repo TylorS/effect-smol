@@ -1,11 +1,11 @@
-import * as Cause from "../../../../Cause.ts"
-import { dual } from "../../../../Function.ts"
 import type * as Arr from "../../../../Array.ts"
+import * as Cause from "../../../../Cause.ts"
+import { isFail } from "../../../../Filter.ts"
+import { dual } from "../../../../Function.ts"
 import type { ExcludeTag, ExtractTag, NoInfer, Tags } from "../../../../Types.ts"
 import { make as makeSink } from "../../Sink/Sink.ts"
 import { make } from "../constructors/make.ts"
 import type { Fx } from "../Fx.ts"
-import { isFail } from "../../../../Filter.ts"
 
 const hasTag = (u: unknown): u is { readonly _tag: string } =>
   typeof u === "object" && u !== null && "_tag" in u && typeof (u as Record<string, unknown>)["_tag"] === "string"
@@ -125,12 +125,15 @@ export const catchTag: {
         if (isFail(filtered)) {
           return sink.onFailure(filtered.fail)
         } else if (matchesTag(k, filtered.error)) {
-          return f(filtered.error as ExtractTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>).run(sink)
+          return f(filtered.error as ExtractTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>).run(
+            sink
+          )
         } else {
-          return sink.onFailure(cause as Cause.Cause<E2 | ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>>)
+          return sink.onFailure(
+            cause as Cause.Cause<E2 | ExcludeTag<E, K extends Arr.NonEmptyReadonlyArray<string> ? K[number] : K>>
+          )
         }
       },
       sink.onSuccess
     ))
   ))
-

@@ -24,7 +24,7 @@ export const switchMap: FlatMapLike = dual(2, <A, E, R, B, E2, R2>(
   self: Fx<A, E, R>,
   f: (a: A) => Fx<B, E2, R2>
 ): Fx<B, E | E2, R | R2 | Scope.Scope> =>
-  make<B, E | E2, R | R2 | Scope.Scope>(Effect.fn(function* (sink) {
+  make<B, E | E2, R | R2 | Scope.Scope>(Effect.fn(function*(sink) {
     const ctx = yield* Effect.services<R2 | Scope.Scope>()
     const scope = ServiceMap.get(ctx, Scope.Scope)
     const fiberRef = yield* SyncronizedRef.make<Fiber.Fiber<unknown, never> | null>(null)

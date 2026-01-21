@@ -33,4 +33,3 @@ export const onError: {
       sink.onSuccess
     ))
   ))
-

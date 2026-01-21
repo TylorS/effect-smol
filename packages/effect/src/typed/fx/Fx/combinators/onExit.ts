@@ -10,10 +10,10 @@ import type { Fx } from "../Fx.ts"
 const toFinalizer = <A, E, XE, XR>(
   f: (exit: Exit.Exit<A, E>) => void | Effect.Effect<void, XE, XR>
 ) =>
-  (exit: Exit.Exit<A, E>): Effect.Effect<void, XE, XR> => {
-    const x = f(exit)
-    return Effect.isEffect(x) ? x : Effect.void
-  }
+(exit: Exit.Exit<A, E>): Effect.Effect<void, XE, XR> => {
+  const x = f(exit)
+  return Effect.isEffect(x) ? x : Effect.void
+}
 
 /**
  * Adds an `Effect.onExit`-style finalizer to an `Fx`.
@@ -57,8 +57,7 @@ export const onExit: {
         )
 
       return yield* self.run(makeSink(
-        (cause) =>
-          Effect.flatMap(recordExit(Exit.failCause(cause)), () => sink.onFailure(cause)),
+        (cause) => Effect.flatMap(recordExit(Exit.failCause(cause)), () => sink.onFailure(cause)),
         sink.onSuccess
       )).pipe(
         Effect.onExit((runExit) =>
@@ -75,4 +74,3 @@ export const onExit: {
       )
     })
   ))
-
