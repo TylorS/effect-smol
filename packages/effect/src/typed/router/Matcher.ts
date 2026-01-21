@@ -15,8 +15,8 @@ import * as Scope from "../../Scope.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
 import * as Stream from "../../Stream.ts"
 import type { ExcludeTag, ExtractTag, Tags } from "../../Types.ts"
+import { exit } from "../fx/Fx.ts"
 import { mapEffect } from "../fx/Fx/combinators/mapEffect.ts"
-import { map } from "../fx/Fx/combinators/map.ts"
 import { provideServices } from "../fx/Fx/combinators/provide.ts"
 import { skipRepeats } from "../fx/Fx/combinators/skipRepeats.ts"
 import { switchMap } from "../fx/Fx/combinators/switchMap.ts"
@@ -140,7 +140,7 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     handler: (params: RefSubject.RefSubject<Route.Type<Rt>>) => MatchHandlerReturnValue<B, E2, R2>
   ): Matcher<A | B, E | E2, R | R2 | Scope.Scope>
 
-  // Overload 2: match(route, fxLike) - Fx/Effect/Stream handler
+  // Overload 2: match(route, effectLike) - Fx/Effect/Stream handler
   match<Rt extends Route.Any, B, E2 = never, R2 = never>(
     route: Rt,
     handler: Fx.Fx<B, E2, R2> | Effect.Effect<B, E2, R2> | Stream.Stream<B, E2, R2>
@@ -189,7 +189,7 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     handler: (params: RefSubject.RefSubject<GuardOutput<G>>) => MatchHandlerReturnValue<B, E2, R2>
   ): Matcher<A | B, E | E2 | GuardError<G>, R | R2 | GuardServices<G> | Scope.Scope>
 
-  // Overload 6: match(route, guard, fxLike) - guard with Fx/Effect/Stream handler
+  // Overload 6: match(route, guard, effectLike) - guard with Fx/Effect/Stream handler
   match<
     Rt extends Route.Any,
     G extends GuardInput<Route.Type<Rt>, any, any, any>,
@@ -1042,11 +1042,13 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
             provideServices(ServiceMap.merge(services, ServiceMap.make(Scope.Scope, scope)))
           )
           const fx = content.pipe(
-            map(mapEffect(Effect.fn(function* (e) {
+            switchMap(identity),
+            exit,
+            mapEffect(Effect.fn(function* (e) {
               if (isSuccess(e)) return succeed(e.value)
               yield* RefSubject.set(causes, e.cause)
               return fallback
-            }))),
+            })),
             skipRepeats,
             switchMap(identity)
           )
