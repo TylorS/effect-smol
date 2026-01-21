@@ -15,8 +15,8 @@ import * as Scope from "../../Scope.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
 import * as Stream from "../../Stream.ts"
 import type { ExcludeTag, ExtractTag, Tags } from "../../Types.ts"
-import { exit } from "../fx/Fx.ts"
 import { mapEffect } from "../fx/Fx/combinators/mapEffect.ts"
+import { map } from "../fx/Fx/combinators/map.ts"
 import { provideServices } from "../fx/Fx/combinators/provide.ts"
 import { skipRepeats } from "../fx/Fx/combinators/skipRepeats.ts"
 import { switchMap } from "../fx/Fx/combinators/switchMap.ts"
@@ -1042,13 +1042,11 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
             provideServices(ServiceMap.merge(services, ServiceMap.make(Scope.Scope, scope)))
           )
           const fx = content.pipe(
-            switchMap(identity),
-            exit,
-            mapEffect(Effect.fn(function* (e) {
+            map(mapEffect(Effect.fn(function* (e) {
               if (isSuccess(e)) return succeed(e.value)
               yield* RefSubject.set(causes, e.cause)
               return fallback
-            })),
+            }))),
             skipRepeats,
             switchMap(identity)
           )
