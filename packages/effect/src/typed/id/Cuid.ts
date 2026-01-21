@@ -14,7 +14,7 @@ const INITIAL_COUNT_MAX = 476782367
 // Schema
 export const Cuid = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[a-z][0-9a-z]+$/)),
-  Schema.brand<"@typed/id/CUID">()
+  Schema.brand("@typed/id/CUID")
 )
 export type Cuid = Schema.Schema.Type<typeof Cuid>
 
@@ -32,15 +32,15 @@ export class CuidState extends ServiceMap.Service<CuidState>()("@typed/id/CuidSt
   make: (
     envData: string
   ) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const { now } = yield* DateTimes
       const getRandomValues = yield* RandomValues
       const initialBytes = yield* getRandomValues(4)
       const initialValue = Math.abs(
         (initialBytes[0] << 24) |
-          (initialBytes[1] << 16) |
-          (initialBytes[2] << 8) |
-          initialBytes[3]
+        (initialBytes[1] << 16) |
+        (initialBytes[2] << 8) |
+        initialBytes[3]
       ) % INITIAL_COUNT_MAX
 
       // Create fingerprint from environment data
@@ -48,7 +48,7 @@ export class CuidState extends ServiceMap.Service<CuidState>()("@typed/id/CuidSt
 
       let counter = initialValue
 
-      return Effect.gen(function*() {
+      return Effect.gen(function* () {
         const timestamp = yield* now
         const random = yield* getRandomValues(32)
         return {
@@ -99,7 +99,7 @@ function hash(input: string): Effect.Effect<string> {
 }
 
 function cuidFromSeed({ counter, fingerprint, random, timestamp }: CuidSeed): Effect.Effect<Cuid> {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     // First letter is always a random lowercase letter from the seed
     const firstLetter = ALPHABET[random[0] % ALPHABET.length]
 

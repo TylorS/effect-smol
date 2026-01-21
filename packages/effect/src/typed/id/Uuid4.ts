@@ -3,7 +3,7 @@ import * as Schema from "../../Schema.ts"
 import { uuidStringify } from "./_uuid-stringify.ts"
 import { RandomValues } from "./RandomValues.ts"
 
-export const Uuid4 = Schema.String.pipe(Schema.check(Schema.isUUID(4)), Schema.brand<"@typed/id/UUID4">())
+export const Uuid4 = Schema.String.pipe(Schema.check(Schema.isUUID(4)), Schema.brand("@typed/id/UUID4"))
 export type Uuid4 = typeof Uuid4.Type
 
 export const isUuid4: (value: string) => value is Uuid4 = Schema.is(Uuid4)

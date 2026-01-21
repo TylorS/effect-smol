@@ -1,4 +1,4 @@
-import { type Cause, Data, Effect, Layer, Option, type Scope, Stream } from "effect"
+import { type Cause, Data, Effect, Layer, Option, type Scope, ServiceMap, Stream } from "effect"
 import { hole } from "effect/Function"
 import { map } from "effect/typed/fx/Fx/combinators/map"
 import { succeed } from "effect/typed/fx/Fx/constructors/succeed"
@@ -384,6 +384,79 @@ describe("Matcher", () => {
       const provided = base.provide(layer1, layer2)
       expect(provided).type.toBe<
         Matcher.Matcher<string, TestError | OtherError, never>
+      >()
+    })
+  })
+
+  describe("match with full options object (Overload 9)", () => {
+    // Note: Full options object inference requires explicit return type annotation
+    // for full type safety. Tests document current behavior.
+    it("accepts full options object", () => {
+      const matcher = Matcher.empty.match({
+        route: userIdRoute,
+        handler: "value"
+      })
+      // Returns Matcher<any, any, any> due to inference limitations
+      expect(matcher).type.toBe<Matcher.Matcher<any, any, any>>()
+    })
+  })
+
+  describe("match with dependencies option", () => {
+    it("adds layer errors to error channel", () => {
+      const failingLayer = Layer.effectServices(
+        Effect.fail(new TestError({ message: "fail" }))
+      )
+      const matcher = Matcher.empty.match(usersRoute, {
+        handler: "ok",
+        dependencies: [failingLayer]
+      })
+      expect(matcher).type.toBe<
+        Matcher.Matcher<string, TestError, Scope.Scope>
+      >()
+    })
+
+    it("merges multiple dependency errors", () => {
+      const layer1 = Layer.effectServices(
+        Effect.fail(new TestError({ message: "" }))
+      )
+      const layer2 = Layer.effectServices(
+        Effect.fail(new OtherError({ code: 1 }))
+      )
+      const matcher = Matcher.empty.match(usersRoute, {
+        handler: "ok",
+        dependencies: [layer1, layer2]
+      })
+      expect(matcher).type.toBe<
+        Matcher.Matcher<string, TestError | OtherError, Scope.Scope>
+      >()
+    })
+  })
+
+  // Note: layout option in match options has type inference issues due to overload
+  // resolution. Use .layout() method instead for proper type inference.
+
+  describe("provideService and provideServices", () => {
+    it("provideService removes requirement from R", () => {
+      class MyService extends ServiceMap.Service<MyService, { readonly value: number }>()("MyService") {}
+
+      const base = Matcher.empty.match(usersRoute, "ok")
+      const provided = base.provideService(MyService, { value: 42 })
+      expect(provided).type.toBe<
+        Matcher.Matcher<string, never, Exclude<Scope.Scope, MyService>>
+      >()
+    })
+
+    it("provideServices removes multiple requirements from R", () => {
+      class ServiceA extends ServiceMap.Service<ServiceA, { readonly a: string }>()("ServiceA") {}
+      class ServiceB extends ServiceMap.Service<ServiceB, { readonly b: number }>()("ServiceB") {}
+
+      const base = Matcher.empty.match(usersRoute, "ok")
+      const services = ServiceMap.make(ServiceA, { a: "hello" }).pipe(
+        ServiceMap.add(ServiceB, { b: 42 })
+      )
+      const provided = base.provideServices(services)
+      expect(provided).type.toBe<
+        Matcher.Matcher<string, never, Exclude<Scope.Scope, ServiceA | ServiceB>>
       >()
     })
   })

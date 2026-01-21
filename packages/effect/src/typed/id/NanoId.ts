@@ -4,7 +4,7 @@ import { RandomValues } from "./RandomValues.ts"
 
 export const NanoId = Schema.String.pipe(
   Schema.check(Schema.isPattern(/[0-9a-zA-Z_-]/)),
-  Schema.brand<"@typed/id/NanoId">()
+  Schema.brand("@typed/id/NanoId")
 )
 export type NanoId = typeof NanoId.Type
 

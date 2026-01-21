@@ -4,7 +4,7 @@ import * as Schema from "../../Schema.ts"
 import { sha1 } from "./_sha.ts"
 import { uuidStringify } from "./_uuid-stringify.ts"
 
-export const Uuid5 = Schema.String.pipe(Schema.check(Schema.isUUID(5)), Schema.brand<"@typed/id/UUID5">())
+export const Uuid5 = Schema.String.pipe(Schema.check(Schema.isUUID(5)), Schema.brand("@typed/id/UUID5"))
 export type Uuid5 = typeof Uuid5.Type
 
 export const isUuid5: (value: string) => value is Uuid5 = Schema.is(Uuid5)
@@ -104,7 +104,7 @@ export const uuid5: {
   name: string,
   namespace: Uuid5Namespace
 ): Effect.Effect<Uuid5> {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     // Convert name to UTF-8 bytes
     const nameBytes = textEncoder.encode(name)
 

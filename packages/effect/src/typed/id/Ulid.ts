@@ -3,7 +3,7 @@ import * as Schema from "../../Schema.ts"
 import { DateTimes } from "./DateTimes.ts"
 import { RandomValues } from "./RandomValues.ts"
 
-export const Ulid = Schema.String.pipe(Schema.check(Schema.isULID()), Schema.brand<"@typed/id/ULID">())
+export const Ulid = Schema.String.pipe(Schema.check(Schema.isULID()), Schema.brand("@typed/id/ULID"))
 export type Ulid = typeof Ulid.Type
 
 export const isUlid: (value: string) => value is Ulid = Schema.is(Ulid)

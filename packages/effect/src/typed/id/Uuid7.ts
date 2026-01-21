@@ -6,7 +6,7 @@ import { uuidStringify } from "./_uuid-stringify.ts"
 import { DateTimes } from "./DateTimes.ts"
 import { RandomValues } from "./RandomValues.ts"
 
-export const Uuid7 = Schema.String.pipe(Schema.check(Schema.isUUID(7)), Schema.brand<"@typed/id/UUID7">())
+export const Uuid7 = Schema.String.pipe(Schema.check(Schema.isUUID(7)), Schema.brand("@typed/id/UUID7"))
 export type Uuid7 = typeof Uuid7.Type
 
 export const isUuid7: (value: string) => value is Uuid7 = Schema.is(Uuid7)
@@ -18,7 +18,7 @@ export type Uuid7Seed = {
 }
 
 export class Uuid7State extends ServiceMap.Service<Uuid7State>()("@typed/id/Uuid7State", {
-  make: Effect.gen(function*() {
+  make: Effect.gen(function* () {
     const { now } = yield* DateTimes
     const getRandomValues = yield* RandomValues
     const state = {
@@ -44,7 +44,7 @@ export class Uuid7State extends ServiceMap.Service<Uuid7State>()("@typed/id/Uuid
       }
     }
 
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const randomBytes = yield* getRandomValues<Uuid7Seed["randomBytes"]>(16)
       updateV7State(yield* now, randomBytes)
       return { timestamp: state.msecs, seq: state.seq, randomBytes }
