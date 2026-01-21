@@ -89,19 +89,13 @@ type GuardServices<G> = G extends GuardType<any, any, any, infer R> ? R
   : G extends AsGuard<any, any, any, infer R> ? R
   : never
 
-type WidenUnknown<T> = unknown extends T ? any : T
-
-type MatchParams<Rt extends Route.Any, G> = [G] extends [
-  GuardInput<Route.Type<Rt>, any, any, any>
-] ? WidenUnknown<GuardOutput<G>>
-  : Route.Type<Rt>
-
-type MatchOptions<Rt extends Route.Any, G, H, D, L, C> = {
+type MatchOptions<Rt extends Route.Any, B, E2, R2, D, LB, LE2, LR2, C> = {
   readonly route: Rt
-  readonly handler: H
-  readonly guard?: G
+  readonly handler:
+  | MatchHandlerReturnValue<B, E2, R2>
+  | ((params: RefSubject.RefSubject<Route.Type<Rt>>) => MatchHandlerReturnValue<B, E2, R2>)
   readonly dependencies?: D
-  readonly layout?: L
+  readonly layout?: Layout<Route.Type<Rt>, B, E2, R2, LB, LE2, LR2>
   readonly catch?: C
 }
 
@@ -111,52 +105,29 @@ type MatchHandlerReturnValue<A, E, R> =
   | Effect.Effect<A, E, R>
   | A
 
-type MatchHandlerOptions<Params, B, E2, R2, D, L, C> = {
+type MatchHandlerOptions<Params, B, E2, R2, D, LB, LE2, LR2, C> = {
   readonly handler:
-    | MatchHandlerReturnValue<B, E2, R2>
-    | ((params: RefSubject.RefSubject<Params>) => MatchHandlerReturnValue<B, E2, R2>)
+  | MatchHandlerReturnValue<B, E2, R2>
+  | ((params: RefSubject.RefSubject<Params>) => MatchHandlerReturnValue<B, E2, R2>)
   readonly dependencies?: D
-  readonly layout?: L
+  readonly layout?: Layout<Params, B, E2, R2, LB, LE2, LR2>
   readonly catch?: C
 }
 
 type ApplyDependencies<E, R, D> = D extends ReadonlyArray<infer Dep> ? {
-    readonly e: E | DependencyError<Dep>
-    readonly r: Exclude<R, DependencyProvided<Dep>> | DependencyRequirements<Dep>
-  }
+  readonly e: E | DependencyError<Dep>
+  readonly r: Exclude<R, DependencyProvided<Dep>> | DependencyRequirements<Dep>
+}
   : { readonly e: E; readonly r: R }
-
-type ApplyLayout<A, E, R, Params, L> = L extends
-  Layout<Params, infer _LA, infer LE, infer LR, infer LB, infer LE2, infer LR2>
-  ? { readonly a: LB; readonly e: E | LE | LE2; readonly r: R | LR | LR2 }
-  : { readonly a: A; readonly e: E; readonly r: R }
 
 type ApplyCatch<A, E, R, C> = C extends CatchHandler<any, infer CA, infer CE, infer CR>
   ? { readonly a: A | CA; readonly e: CE; readonly r: R | CR }
   : { readonly a: A; readonly e: E; readonly r: R }
 
-type ComputeMatchResult<Params, B, E2, R2, D, L, C, GE, GR> = ApplyCatch<
-  ApplyLayout<
-    B,
-    ApplyDependencies<E2 | GE, R2 | GR, D>["e"],
-    ApplyDependencies<E2 | GE, R2 | GR, D>["r"],
-    Params,
-    L
-  >["a"],
-  ApplyLayout<
-    B,
-    ApplyDependencies<E2 | GE, R2 | GR, D>["e"],
-    ApplyDependencies<E2 | GE, R2 | GR, D>["r"],
-    Params,
-    L
-  >["e"],
-  ApplyLayout<
-    B,
-    ApplyDependencies<E2 | GE, R2 | GR, D>["e"],
-    ApplyDependencies<E2 | GE, R2 | GR, D>["r"],
-    Params,
-    L
-  >["r"],
+type ComputeMatchResult<Params, B, E2, R2, D, LB, LE2, LR2, C, GE, GR> = ApplyCatch<
+  LB,
+  ApplyDependencies<E2 | GE | LE2, R2 | GR | LR2, D>["e"],
+  ApplyDependencies<E2 | GE | LE2, R2 | GR | LR2, D>["r"],
   C
 >
 
@@ -164,13 +135,13 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
   readonly cases: ReadonlyArray<MatchAst>
 
   // Overload 1: match(route, handler) - function handler (must be first for inference)
-  match<Rt extends Route.Any, B, E2, R2>(
+  match<Rt extends Route.Any, B, E2 = never, R2 = never>(
     route: Rt,
     handler: (params: RefSubject.RefSubject<Route.Type<Rt>>) => MatchHandlerReturnValue<B, E2, R2>
   ): Matcher<A | B, E | E2, R | R2 | Scope.Scope>
 
   // Overload 2: match(route, effectLike) - Fx/Effect/Stream handler
-  match<Rt extends Route.Any, B, E2, R2>(
+  match<Rt extends Route.Any, B, E2 = never, R2 = never>(
     route: Rt,
     handler: Fx.Fx<B, E2, R2> | Effect.Effect<B, E2, R2> | Stream.Stream<B, E2, R2>
   ): Matcher<A | B, E | E2, R | R2 | Scope.Scope>
@@ -182,18 +153,20 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     E2 = never,
     R2 = never,
     D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    L extends Layout<Route.Type<Rt>, any, any, any, any, any, any> | undefined = undefined,
+    LB = never,
+    LE2 = never,
+    LR2 = never,
     C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
     route: Rt,
-    options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, L, C>
+    options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C>
   ): Matcher<
     | A
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["a"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["a"],
     | E
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["e"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["e"],
     | R
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["r"]
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["r"]
     | Scope.Scope
   >
 
@@ -208,8 +181,8 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     Rt extends Route.Any,
     G extends GuardInput<Route.Type<Rt>, any, any, any>,
     B,
-    E2,
-    R2
+    E2 = never,
+    R2 = never
   >(
     route: Rt,
     guard: G,
@@ -221,8 +194,8 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     Rt extends Route.Any,
     G extends GuardInput<Route.Type<Rt>, any, any, any>,
     B,
-    E2,
-    R2
+    E2 = never,
+    R2 = never
   >(
     route: Rt,
     guard: G,
@@ -237,19 +210,21 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     E2 = never,
     R2 = never,
     D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    L extends Layout<GuardOutput<G>, any, any, any, any, any, any> | undefined = undefined,
+    LB = B,
+    LE2 = never,
+    LR2 = never,
     C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
     route: Rt,
     guard: G,
-    options: MatchHandlerOptions<GuardOutput<G>, B, E2, R2, D, L, C>
+    options: MatchHandlerOptions<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C>
   ): Matcher<
     | A
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["a"],
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["a"],
     | E
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["e"],
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["e"],
     | R
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["r"]
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["r"]
     | Scope.Scope
   >
 
@@ -267,61 +242,23 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
   // Overload 9: match(fullOptions) - full options object including route
   match<
     Rt extends Route.Any,
-    G extends GuardInput<Route.Type<Rt>, any, any, any> | undefined,
     B,
-    E2,
-    R2,
-    D extends ReadonlyArray<AnyDependency> | undefined,
-    L,
-    C extends CatchHandler<any, any, any, any> | undefined
+    E2 = never,
+    R2 = never,
+    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
+    LB = B,
+    LE2 = never,
+    LR2 = never,
+    C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
-    options:
-      | MatchOptions<
-        Rt,
-        G,
-        (params: RefSubject.RefSubject<MatchParams<Rt, G>>) => MatchHandlerReturnValue<B, E2, R2>,
-        D,
-        L,
-        C
-      >
-      | MatchOptions<Rt, G, MatchHandlerReturnValue<B, E2, R2>, D, L, C>
+    options: MatchOptions<Rt, B, E2, R2, D, LB, LE2, LR2, C>
   ): Matcher<
     | A
-    | ComputeMatchResult<
-      MatchParams<Rt, G>,
-      B,
-      E2,
-      R2,
-      D,
-      L,
-      C,
-      G extends GuardInput<any, any, infer GE, any> ? GE : never,
-      G extends GuardInput<any, any, any, infer GR> ? GR : never
-    >["a"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["a"],
     | E
-    | ComputeMatchResult<
-      MatchParams<Rt, G>,
-      B,
-      E2,
-      R2,
-      D,
-      L,
-      C,
-      G extends GuardInput<any, any, infer GE, any> ? GE : never,
-      G extends GuardInput<any, any, any, infer GR> ? GR : never
-    >["e"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["e"],
     | R
-    | ComputeMatchResult<
-      MatchParams<Rt, G>,
-      B,
-      E2,
-      R2,
-      D,
-      L,
-      C,
-      G extends GuardInput<any, any, infer GE, any> ? GE : never,
-      G extends GuardInput<any, any, any, infer GR> ? GR : never
-    >["r"]
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["r"]
     | Scope.Scope
   >
 
@@ -405,18 +342,20 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
     E2 = never,
     R2 = never,
     D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    L extends Layout<Route.Type<Rt>, any, any, any, any, any, any> | undefined = undefined,
+    LB = B,
+    LE2 = never,
+    LR2 = never,
     C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
     route: Rt,
-    options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, L, C>
+    options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C>
   ): Matcher<
     | A
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["a"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["a"],
     | E
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["e"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["e"],
     | R
-    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["r"]
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["r"]
     | Scope.Scope
   >
   match<Rt extends Route.Any, B>(
@@ -449,22 +388,24 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
     Rt extends Route.Any,
     G extends GuardInput<Route.Type<Rt>, any, any, any>,
     B,
-    E2,
-    R2,
-    D extends ReadonlyArray<AnyDependency> | undefined,
-    L extends Layout<GuardOutput<G>, any, any, any, any, any, any> | undefined,
-    C extends CatchHandler<any, any, any, any> | undefined
+    E2 = never,
+    R2 = never,
+    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
+    LB = B,
+    LE2 = never,
+    LR2 = never,
+    C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
     route: Rt,
     guard: G,
-    options: MatchHandlerOptions<GuardOutput<G>, B, E2, R2, D, L, C>
+    options: MatchHandlerOptions<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C>
   ): Matcher<
     | A
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["a"],
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["a"],
     | E
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["e"],
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["e"],
     | R
-    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["r"]
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, LB, LE2, LR2, C, GuardError<G>, GuardServices<G>>["r"]
     | Scope.Scope
   >
   match<
@@ -478,116 +419,93 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
   ): Matcher<A | B, E | GuardError<G>, R | GuardServices<G> | Scope.Scope>
   match<
     Rt extends Route.Any,
-    G extends GuardInput<Route.Type<Rt>, any, any, any> | undefined,
     B,
-    E2,
-    R2,
-    D extends ReadonlyArray<AnyDependency> | undefined,
-    L,
-    C extends CatchHandler<any, any, any, any> | undefined
+    E2 = never,
+    R2 = never,
+    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
+    LB = B,
+    LE2 = never,
+    LR2 = never,
+    C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
-    options:
-      | MatchOptions<
-        Rt,
-        G,
-        (params: RefSubject.RefSubject<MatchParams<Rt, G>>) => MatchHandlerReturnValue<B, E2, R2>,
-        D,
-        L,
-        C
-      >
-      | MatchOptions<Rt, G, MatchHandlerReturnValue<B, E2, R2>, D, L, C>
+    options: MatchOptions<Rt, B, E2, R2, D, LB, LE2, LR2, C>
   ): Matcher<
     | A
-    | ComputeMatchResult<
-      MatchParams<Rt, G>,
-      B,
-      E2,
-      R2,
-      D,
-      L,
-      C,
-      G extends GuardInput<any, any, infer GE, any> ? GE : never,
-      G extends GuardInput<any, any, any, infer GR> ? GR : never
-    >["a"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["a"],
     | E
-    | ComputeMatchResult<
-      MatchParams<Rt, G>,
-      B,
-      E2,
-      R2,
-      D,
-      L,
-      C,
-      G extends GuardInput<any, any, infer GE, any> ? GE : never,
-      G extends GuardInput<any, any, any, infer GR> ? GR : never
-    >["e"],
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["e"],
     | R
-    | ComputeMatchResult<
-      MatchParams<Rt, G>,
-      B,
-      E2,
-      R2,
-      D,
-      L,
-      C,
-      G extends GuardInput<any, any, infer GE, any> ? GE : never,
-      G extends GuardInput<any, any, any, infer GR> ? GR : never
-    >["r"]
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, LB, LE2, LR2, C, never, never>["r"]
     | Scope.Scope
   >
   match(
-    routeOrOptions: Route.Any | MatchOptions<Route.Any, any, any, any, any, any>,
+    routeOrOptions: Route.Any | MatchOptions<Route.Any, any, any, any, any, any, any, any, any>,
     guardOrHandlerOrOptions?: unknown,
     handlerOrOptions?: unknown
   ): Matcher<any, any, any> {
-    let matchOptions: MatchOptions<Route.Any, any, any, any, any, any>
+    let route: Route.Any
+    let handler: unknown
+    let guard: AnyGuard | undefined
+    let layout: AnyLayout | undefined
+    let catchFn: AnyCatch | undefined
+    let dependencies: ReadonlyArray<AnyDependency> | undefined
+
     if (guardOrHandlerOrOptions === undefined) {
-      matchOptions = routeOrOptions as MatchOptions<Route.Any, any, any, any, any, any>
+      // Overload 9: match(fullOptions)
+      const opts = routeOrOptions as MatchOptions<Route.Any, any, any, any, any, any, any, any, any>
+      route = opts.route
+      handler = opts.handler
+      layout = opts.layout as AnyLayout | undefined
+      catchFn = opts.catch as AnyCatch | undefined
+      dependencies = opts.dependencies as ReadonlyArray<AnyDependency> | undefined
     } else if (handlerOrOptions === undefined) {
       if (isHandlerOptions(guardOrHandlerOrOptions)) {
-        matchOptions = {
-          ...guardOrHandlerOrOptions,
-          route: routeOrOptions as Route.Any
-        }
+        // Overload 3: match(route, options)
+        const opts = guardOrHandlerOrOptions as MatchHandlerOptions<any, any, any, any, any, any, any, any, any>
+        route = routeOrOptions as Route.Any
+        handler = opts.handler
+        layout = opts.layout as AnyLayout | undefined
+        catchFn = opts.catch as AnyCatch | undefined
+        dependencies = opts.dependencies as ReadonlyArray<AnyDependency> | undefined
       } else {
-        matchOptions = {
-          route: routeOrOptions as Route.Any,
-          handler: guardOrHandlerOrOptions
-        }
+        // Overloads 1, 2, 4: match(route, handler)
+        route = routeOrOptions as Route.Any
+        handler = guardOrHandlerOrOptions
       }
     } else if (isHandlerOptions(handlerOrOptions)) {
-      matchOptions = {
-        ...handlerOrOptions,
-        route: routeOrOptions as Route.Any,
-        guard: guardOrHandlerOrOptions
-      }
+      // Overload 7: match(route, guard, options)
+      const opts = handlerOrOptions as MatchHandlerOptions<any, any, any, any, any, any, any, any, any>
+      route = routeOrOptions as Route.Any
+      guard = guardOrHandlerOrOptions as AnyGuard
+      handler = opts.handler
+      layout = opts.layout as AnyLayout | undefined
+      catchFn = opts.catch as AnyCatch | undefined
+      dependencies = opts.dependencies as ReadonlyArray<AnyDependency> | undefined
     } else {
-      matchOptions = {
-        route: routeOrOptions as Route.Any,
-        guard: guardOrHandlerOrOptions,
-        handler: handlerOrOptions
-      }
+      // Overloads 5, 6, 8: match(route, guard, handler)
+      route = routeOrOptions as Route.Any
+      guard = guardOrHandlerOrOptions as AnyGuard
+      handler = handlerOrOptions
     }
 
-    const handler = matchOptions.handler
-    const guards = normalizeGuards<Route.Any>(matchOptions.guard)
-    const routeAsts = guards.map((guard) =>
+    const normalizedGuards = normalizeGuards<Route.Any>(guard)
+    const routeAsts = normalizedGuards.map((g) =>
       AST.route(
-        matchOptions.route.ast,
+        route.ast,
         handler as MatchHandler<Route.Type<Route.Any>, any, any, any>,
-        guard
+        g
       )
     )
 
     let matches: ReadonlyArray<MatchAst> = routeAsts
-    if (matchOptions.layout !== undefined) {
-      matches = wrapLayout(matches, matchOptions.layout as AnyLayout)
+    if (layout !== undefined) {
+      matches = wrapLayout(matches, layout)
     }
-    if (matchOptions.catch !== undefined) {
-      matches = [AST.catchCause(matches, matchOptions.catch as AnyCatch)]
+    if (catchFn !== undefined) {
+      matches = [AST.catchCause(matches, catchFn)]
     }
-    if (matchOptions.dependencies !== undefined && matchOptions.dependencies.length > 0) {
-      matches = [AST.layer(matches, normalizeDependencies(matchOptions.dependencies as ReadonlyArray<AnyDependency>))]
+    if (dependencies !== undefined && dependencies.length > 0) {
+      matches = [AST.layer(matches, normalizeDependencies(dependencies))]
     }
 
     return new MatcherImpl(appendMatches(this.cases, matches))
@@ -630,7 +548,7 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
 
   catch<B, E2, R2>(f: (e: E) => Fx.Fx<B, E2, R2>): Matcher<A | B, E2, R | R2> {
     return this.catchCause((causeRef) =>
-      unwrap(Effect.gen(function*() {
+      unwrap(Effect.gen(function* () {
         const cause = yield* causeRef
         const filtered = Cause.filterFail(cause)
         if (isFail(filtered)) {
@@ -658,7 +576,7 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
       R | R2
     >([
       AST.catchCause(this.cases, (causeRef) =>
-        unwrap(Effect.gen(function*() {
+        unwrap(Effect.gen(function* () {
           const cause = yield* causeRef
           const filtered = Cause.filterFail(cause)
           if (isFail(filtered)) {
@@ -710,18 +628,18 @@ export class RouteGuardError extends Schema.ErrorClass<RouteGuardError>("@typed/
   _tag: Schema.tag("RouteGuardError"),
   path: Schema.String,
   causes: Schema.Array(Schema.Unknown)
-}) {}
+}) { }
 
 export class RouteNotFound extends Schema.ErrorClass<RouteNotFound>("@typed/router/RouteNotFound")({
   _tag: Schema.tag("RouteNotFound"),
   path: Schema.String
-}) {}
+}) { }
 
 export class RouteDecodeError extends Schema.ErrorClass<RouteDecodeError>("@typed/router/RouteDecodeError")({
   _tag: Schema.tag("RouteDecodeError"),
   path: Schema.String,
   cause: Schema.String
-}) {}
+}) { }
 
 type CompiledEntry = {
   readonly route: Route.Any
@@ -735,7 +653,7 @@ type CompiledEntry = {
 export function run<A, E, R>(
   matcher: Matcher<A, E, R>
 ): Fx.Fx<A, E | RouteNotFound | RouteDecodeError | RouteGuardError, R | CurrentPath | CurrentRoute | Scope.Scope> {
-  return unwrap(Effect.gen(function*() {
+  return unwrap(Effect.gen(function* () {
     const fiberId = yield* Effect.fiberId
     const rootScope = yield* Effect.scope
     const current = yield* CurrentRoute
@@ -768,7 +686,7 @@ export function run<A, E, R>(
     } | null = null
 
     return CurrentPath.pipe(
-      mapEffect(Effect.fn(function*(path) {
+      mapEffect(Effect.fn(function* (path) {
         const result = router.find("GET", path)
         if (result === undefined) return yield* Effect.fail(new RouteNotFound({ path }))
 
@@ -857,7 +775,7 @@ export function catchCause<A, E, R, B, E2, R2>(
     cause: RefSubject.RefSubject<Cause.Cause<E | RouteNotFound | RouteDecodeError | RouteGuardError>>
   ) => Fx.Fx<B, E2, R2>
 ): Fx.Fx<A | B, E2, R | R2 | CurrentPath | CurrentRoute | Scope.Scope> {
-  return unwrap(Effect.gen(function*() {
+  return unwrap(Effect.gen(function* () {
     const fiberId = yield* Effect.fiberId
     const rootScope = yield* Effect.scope
     const fx = isFx(input) ? input : run(input)
@@ -999,7 +917,7 @@ function makeLayerManager(
   let order: ReadonlyArray<AnyLayer> = []
 
   const prepare = (desired: ReadonlyArray<AnyLayer>) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const desiredSet = new Set(desired)
       const removed = order.filter((layer) => !desiredSet.has(layer))
       const added: Array<AnyLayer> = []
@@ -1037,7 +955,7 @@ function makeLayerManager(
         added.push(layer)
       }
 
-      const commit = Effect.gen(function*() {
+      const commit = Effect.gen(function* () {
         for (let i = removed.length - 1; i >= 0; i--) {
           const layer = removed[i]
           const state = states.get(layer)
@@ -1049,7 +967,7 @@ function makeLayerManager(
         order = desired
       })
 
-      const rollback = Effect.gen(function*() {
+      const rollback = Effect.gen(function* () {
         for (let i = added.length - 1; i >= 0; i--) {
           const layer = added[i]
           const state = states.get(layer)
@@ -1085,7 +1003,7 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
   }
 
   const removeUnused = (layouts: ReadonlyArray<AnyLayout>) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const next = new Set(layouts.map(getKey))
       const removed = active.filter((layout) => !next.has(layout))
       for (let i = removed.length - 1; i >= 0; i--) {
@@ -1105,7 +1023,7 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
     inner: Fx.Fx<any, any, any>,
     services: ServiceMap.ServiceMap<any>
   ) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       let current = inner
       for (let i = layouts.length - 1; i >= 0; i--) {
         const layout = layouts[i]
@@ -1135,7 +1053,7 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
     })
 
   const updateParams = (layouts: ReadonlyArray<AnyLayout>, paramsValue: any) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       for (const layout of layouts) {
         const state = states.get(getKey(layout))
         if (state) {
@@ -1157,7 +1075,7 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
   let active: ReadonlyArray<AnyCatch> = []
 
   const removeUnused = (catches: ReadonlyArray<AnyCatch>) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const next = new Set(catches)
       const removed = active.filter((c) => !next.has(c))
       for (let i = removed.length - 1; i >= 0; i--) {
@@ -1176,7 +1094,7 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
     inner: Fx.Fx<any, any, any>,
     services: ServiceMap.ServiceMap<any>
   ) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       let current = inner
       for (let i = catches.length - 1; i >= 0; i--) {
         const catcher = catches[i]
@@ -1193,7 +1111,7 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
           const fx = content.pipe(
             switchMap(identity),
             exit,
-            mapEffect(Effect.fn(function*(exit) {
+            mapEffect(Effect.fn(function* (exit) {
               if (isSuccess(exit)) {
                 return succeed(exit.value)
               }
