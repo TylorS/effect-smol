@@ -19,7 +19,6 @@ import { exit } from "../fx/Fx.ts"
 import { mapEffect } from "../fx/Fx/combinators/mapEffect.ts"
 import { provideServices } from "../fx/Fx/combinators/provide.ts"
 import { skipRepeats } from "../fx/Fx/combinators/skipRepeats.ts"
-import { skipRepeatsWith } from "../fx/Fx/combinators/skipRepeatsWith.ts"
 import { switchMap } from "../fx/Fx/combinators/switchMap.ts"
 import { unwrap } from "../fx/Fx/combinators/unwrap.ts"
 import { fromEffect } from "../fx/Fx/constructors/fromEffect.ts"
@@ -127,33 +126,39 @@ type ApplyDependencies<E, R, D> = D extends ReadonlyArray<infer Dep> ? {
 }
   : { readonly e: E; readonly r: R }
 
-type ApplyLayout<A, E, R, Params, L> = L extends Layout<Params, infer LA, infer LE, infer LR, infer LB, infer LE2, infer LR2>
+type ApplyLayout<A, E, R, Params, L> = L extends
+  Layout<Params, infer _LA, infer LE, infer LR, infer LB, infer LE2, infer LR2>
   ? { readonly a: LB; readonly e: E | LE | LE2; readonly r: R | LR | LR2 }
-  : L extends ReadonlyArray<infer LL>
-  ? ApplyLayoutArray<A, E, R, Params, ReadonlyArray<LL>>
-  : { readonly a: A; readonly e: E; readonly r: R }
-
-type ApplyLayoutArray<A, E, R, Params, Ls extends ReadonlyArray<any>> = Ls extends readonly [infer Head, ...infer Tail]
-  ? ApplyLayoutArray<
-    ApplyLayout<A, E, R, Params, Head>["a"],
-    ApplyLayout<A, E, R, Params, Head>["e"],
-    ApplyLayout<A, E, R, Params, Head>["r"],
-    Params,
-    Tail
-  >
   : { readonly a: A; readonly e: E; readonly r: R }
 
 type ApplyCatch<A, E, R, C> = C extends CatchHandler<any, infer CA, infer CE, infer CR>
   ? { readonly a: A | CA; readonly e: CE; readonly r: R | CR }
   : { readonly a: A; readonly e: E; readonly r: R }
 
-type ComputeMatchResult<Params, B, E2, R2, D, L, C, GE, GR> =
-  ApplyCatch<
-    ApplyLayout<B, ApplyDependencies<E2 | GE, R2 | GR, D>["e"], ApplyDependencies<E2 | GE, R2 | GR, D>["r"], Params, L>["a"],
-    ApplyLayout<B, ApplyDependencies<E2 | GE, R2 | GR, D>["e"], ApplyDependencies<E2 | GE, R2 | GR, D>["r"], Params, L>["e"],
-    ApplyLayout<B, ApplyDependencies<E2 | GE, R2 | GR, D>["e"], ApplyDependencies<E2 | GE, R2 | GR, D>["r"], Params, L>["r"],
-    C
-  >
+type ComputeMatchResult<Params, B, E2, R2, D, L, C, GE, GR> = ApplyCatch<
+  ApplyLayout<
+    B,
+    ApplyDependencies<E2 | GE, R2 | GR, D>["e"],
+    ApplyDependencies<E2 | GE, R2 | GR, D>["r"],
+    Params,
+    L
+  >["a"],
+  ApplyLayout<
+    B,
+    ApplyDependencies<E2 | GE, R2 | GR, D>["e"],
+    ApplyDependencies<E2 | GE, R2 | GR, D>["r"],
+    Params,
+    L
+  >["e"],
+  ApplyLayout<
+    B,
+    ApplyDependencies<E2 | GE, R2 | GR, D>["e"],
+    ApplyDependencies<E2 | GE, R2 | GR, D>["r"],
+    Params,
+    L
+  >["r"],
+  C
+>
 
 export interface Matcher<A, E = never, R = never> extends Pipeable {
   readonly cases: ReadonlyArray<MatchAst>
@@ -174,11 +179,11 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
   match<
     Rt extends Route.Any,
     B,
-    E2,
-    R2,
-    D extends ReadonlyArray<AnyDependency> | undefined,
-    L extends Layout<Route.Type<Rt>, any, any, any, any, any, any> | ReadonlyArray<Layout<Route.Type<Rt>, any, any, any, any, any, any>> | undefined,
-    C extends CatchHandler<any, any, any, any> | undefined
+    E2 = never,
+    R2 = never,
+    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
+    L extends Layout<Route.Type<Rt>, any, any, any, any, any, any> | undefined = undefined,
+    C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
     route: Rt,
     options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, L, C>
@@ -229,11 +234,11 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     Rt extends Route.Any,
     G extends GuardInput<Route.Type<Rt>, any, any, any>,
     B,
-    E2,
-    R2,
-    D extends ReadonlyArray<AnyDependency> | undefined,
-    L extends Layout<GuardOutput<G>, any, any, any, any, any, any> | ReadonlyArray<Layout<GuardOutput<G>, any, any, any, any, any, any>> | undefined,
-    C extends CatchHandler<any, any, any, any> | undefined
+    E2 = never,
+    R2 = never,
+    D extends ReadonlyArray<AnyDependency> | undefined = undefined,
+    L extends Layout<GuardOutput<G>, any, any, any, any, any, any> | undefined = undefined,
+    C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
     route: Rt,
     guard: G,
@@ -270,15 +275,53 @@ export interface Matcher<A, E = never, R = never> extends Pipeable {
     L,
     C extends CatchHandler<any, any, any, any> | undefined
   >(
-    options: MatchOptions<Rt, G, (params: RefSubject.RefSubject<MatchParams<Rt, G>>) => MatchHandlerReturnValue<B, E2, R2>, D, L, C>
+    options:
+      | MatchOptions<
+        Rt,
+        G,
+        (params: RefSubject.RefSubject<MatchParams<Rt, G>>) => MatchHandlerReturnValue<B, E2, R2>,
+        D,
+        L,
+        C
+      >
       | MatchOptions<Rt, G, MatchHandlerReturnValue<B, E2, R2>, D, L, C>
   ): Matcher<
     | A
-    | ComputeMatchResult<MatchParams<Rt, G>, B, E2, R2, D, L, C, G extends GuardInput<any, any, infer GE, any> ? GE : never, G extends GuardInput<any, any, any, infer GR> ? GR : never>["a"],
+    | ComputeMatchResult<
+      MatchParams<Rt, G>,
+      B,
+      E2,
+      R2,
+      D,
+      L,
+      C,
+      G extends GuardInput<any, any, infer GE, any> ? GE : never,
+      G extends GuardInput<any, any, any, infer GR> ? GR : never
+    >["a"],
     | E
-    | ComputeMatchResult<MatchParams<Rt, G>, B, E2, R2, D, L, C, G extends GuardInput<any, any, infer GE, any> ? GE : never, G extends GuardInput<any, any, any, infer GR> ? GR : never>["e"],
+    | ComputeMatchResult<
+      MatchParams<Rt, G>,
+      B,
+      E2,
+      R2,
+      D,
+      L,
+      C,
+      G extends GuardInput<any, any, infer GE, any> ? GE : never,
+      G extends GuardInput<any, any, any, infer GR> ? GR : never
+    >["e"],
     | R
-    | ComputeMatchResult<MatchParams<Rt, G>, B, E2, R2, D, L, C, G extends GuardInput<any, any, infer GE, any> ? GE : never, G extends GuardInput<any, any, any, infer GR> ? GR : never>["r"]
+    | ComputeMatchResult<
+      MatchParams<Rt, G>,
+      B,
+      E2,
+      R2,
+      D,
+      L,
+      C,
+      G extends GuardInput<any, any, infer GE, any> ? GE : never,
+      G extends GuardInput<any, any, any, infer GR> ? GR : never
+    >["r"]
     | Scope.Scope
   >
 
@@ -362,12 +405,20 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
     E2 = never,
     R2 = never,
     D extends ReadonlyArray<AnyDependency> | undefined = undefined,
-    L extends Layout<Route.Type<Rt>, any, any, any, any, any, any> | ReadonlyArray<Layout<Route.Type<Rt>, any, any, any, any, any, any>> | undefined = undefined,
+    L extends Layout<Route.Type<Rt>, any, any, any, any, any, any> | undefined = undefined,
     C extends CatchHandler<any, any, any, any> | undefined = undefined
   >(
     route: Rt,
     options: MatchHandlerOptions<Route.Type<Rt>, B, E2, R2, D, L, C>
-  ): Matcher<any, any, any>
+  ): Matcher<
+    | A
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["a"],
+    | E
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["e"],
+    | R
+    | ComputeMatchResult<Route.Type<Rt>, B, E2, R2, D, L, C, never, never>["r"]
+    | Scope.Scope
+  >
   match<Rt extends Route.Any, B>(
     route: Rt,
     handler: B
@@ -401,13 +452,21 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
     E2,
     R2,
     D extends ReadonlyArray<AnyDependency> | undefined,
-    L extends Layout<GuardOutput<G>, any, any, any, any, any, any> | ReadonlyArray<Layout<GuardOutput<G>, any, any, any, any, any, any>> | undefined,
+    L extends Layout<GuardOutput<G>, any, any, any, any, any, any> | undefined,
     C extends CatchHandler<any, any, any, any> | undefined
   >(
     route: Rt,
     guard: G,
     options: MatchHandlerOptions<GuardOutput<G>, B, E2, R2, D, L, C>
-  ): Matcher<any, any, any>
+  ): Matcher<
+    | A
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["a"],
+    | E
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["e"],
+    | R
+    | ComputeMatchResult<GuardOutput<G>, B, E2, R2, D, L, C, GuardError<G>, GuardServices<G>>["r"]
+    | Scope.Scope
+  >
   match<
     Rt extends Route.Any,
     G extends GuardInput<Route.Type<Rt>, any, any, any>,
@@ -427,9 +486,55 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
     L,
     C extends CatchHandler<any, any, any, any> | undefined
   >(
-    options: MatchOptions<Rt, G, (params: RefSubject.RefSubject<MatchParams<Rt, G>>) => MatchHandlerReturnValue<B, E2, R2>, D, L, C>
+    options:
+      | MatchOptions<
+        Rt,
+        G,
+        (params: RefSubject.RefSubject<MatchParams<Rt, G>>) => MatchHandlerReturnValue<B, E2, R2>,
+        D,
+        L,
+        C
+      >
       | MatchOptions<Rt, G, MatchHandlerReturnValue<B, E2, R2>, D, L, C>
-  ): Matcher<any, any, any>
+  ): Matcher<
+    | A
+    | ComputeMatchResult<
+      MatchParams<Rt, G>,
+      B,
+      E2,
+      R2,
+      D,
+      L,
+      C,
+      G extends GuardInput<any, any, infer GE, any> ? GE : never,
+      G extends GuardInput<any, any, any, infer GR> ? GR : never
+    >["a"],
+    | E
+    | ComputeMatchResult<
+      MatchParams<Rt, G>,
+      B,
+      E2,
+      R2,
+      D,
+      L,
+      C,
+      G extends GuardInput<any, any, infer GE, any> ? GE : never,
+      G extends GuardInput<any, any, any, infer GR> ? GR : never
+    >["e"],
+    | R
+    | ComputeMatchResult<
+      MatchParams<Rt, G>,
+      B,
+      E2,
+      R2,
+      D,
+      L,
+      C,
+      G extends GuardInput<any, any, infer GE, any> ? GE : never,
+      G extends GuardInput<any, any, any, infer GR> ? GR : never
+    >["r"]
+    | Scope.Scope
+  >
   match(
     routeOrOptions: Route.Any | MatchOptions<Route.Any, any, any, any, any, any>,
     guardOrHandlerOrOptions?: unknown,
@@ -476,7 +581,7 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
 
     let matches: ReadonlyArray<MatchAst> = routeAsts
     if (matchOptions.layout !== undefined) {
-      matches = wrapLayouts(matches, matchOptions.layout)
+      matches = wrapLayout(matches, matchOptions.layout as AnyLayout)
     }
     if (matchOptions.catch !== undefined) {
       matches = [AST.catchCause(matches, matchOptions.catch as AnyCatch)]
@@ -740,7 +845,7 @@ export function run<A, E, R>(
 
         return yield* Effect.fail(new RouteGuardError({ path, causes: guardCauses }))
       })),
-      skipRepeatsWith((left, right) => left === right),
+      skipRepeats,
       switchMap(identity)
     )
   }))
@@ -773,15 +878,8 @@ const matchesTag = <E, K extends string>(
   return tag.some((t) => t === error._tag)
 }
 
-function wrapLayouts<L>(matches: ReadonlyArray<MatchAst>, layout: L): ReadonlyArray<MatchAst> {
-  if (Array.isArray(layout)) {
-    let current = matches
-    for (let i = layout.length - 1; i >= 0; i--) {
-      current = [AST.layout(current, layout[i] as AnyLayout)]
-    }
-    return current
-  }
-  return [AST.layout(matches, layout as AnyLayout)]
+function wrapLayout(matches: ReadonlyArray<MatchAst>, layout: AnyLayout): ReadonlyArray<MatchAst> {
+  return [AST.layout(matches, layout)]
 }
 
 function appendMatches(current: ReadonlyArray<MatchAst>, next: ReadonlyArray<MatchAst>): ReadonlyArray<MatchAst> {

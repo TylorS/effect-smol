@@ -9,9 +9,9 @@ import * as Route from "effect/typed/router/Route"
 import { describe, expect, it } from "tstyche"
 
 // Test fixtures
-class TestError extends Data.TaggedError("TestError")<{ readonly message: string }> { }
-class OtherError extends Data.TaggedError("OtherError")<{ readonly code: number }> { }
-class GuardError extends Data.TaggedError("GuardError")<{ readonly reason: string }> { }
+class TestError extends Data.TaggedError("TestError")<{ readonly message: string }> {}
+class OtherError extends Data.TaggedError("OtherError")<{ readonly code: number }> {}
+class GuardError extends Data.TaggedError("GuardError")<{ readonly reason: string }> {}
 
 // Routes
 const usersRoute = Route.Parse("users")
@@ -178,7 +178,7 @@ describe("Matcher", () => {
       )
       const caught = base.catchCause(() => succeed("recovered"))
       expect(caught).type.toBe<
-        Matcher.Matcher<never | string, never, Scope.Scope>
+        Matcher.Matcher<string, never, Scope.Scope>
       >()
     })
 
@@ -191,7 +191,7 @@ describe("Matcher", () => {
         () => succeed("recovered") as Fx.Fx<string, OtherError, never>
       )
       expect(caught).type.toBe<
-        Matcher.Matcher<never | string, OtherError, Scope.Scope>
+        Matcher.Matcher<string, OtherError, Scope.Scope>
       >()
     })
   })
@@ -204,7 +204,7 @@ describe("Matcher", () => {
       )
       const caught = base.catch(() => succeed("recovered"))
       expect(caught).type.toBe<
-        Matcher.Matcher<never | string, never, Scope.Scope>
+        Matcher.Matcher<string, never, Scope.Scope>
       >()
     })
   })
@@ -220,7 +220,7 @@ describe("Matcher", () => {
       )
       const caught = base.catchTag("TestError", () => succeed("recovered"))
       expect(caught).type.toBe<
-        Matcher.Matcher<never | string, OtherError, Scope.Scope>
+        Matcher.Matcher<string, OtherError, Scope.Scope>
       >()
     })
 
@@ -234,7 +234,7 @@ describe("Matcher", () => {
       )
       const caught = base.catchTag(["TestError", "OtherError"], () => succeed("recovered"))
       expect(caught).type.toBe<
-        Matcher.Matcher<never | string, GuardError, Scope.Scope>
+        Matcher.Matcher<string, GuardError, Scope.Scope>
       >()
     })
   })
@@ -319,6 +319,44 @@ describe("Matcher", () => {
           cause: RefSubject<Cause.Cause<TestError>>
         ) => Fx.Fx<string, OtherError, never>
       >()
+    })
+  })
+
+  describe("match with options object", () => {
+    it("infers guard output via match(route, guard, options)", () => {
+      const matcher = Matcher.empty.match(
+        userIdRoute,
+        (input) => Effect.succeed(Option.some({ ...input, ok: true as const })),
+        { handler: (params) => map(params, (p) => p.ok) }
+      )
+      // handler returns p.ok which is `true` literal
+      expect(matcher).type.toBe<Matcher.Matcher<true, never, Scope.Scope>>()
+    })
+
+    it("accepts function handler in options", () => {
+      const matcher = Matcher.empty.match(userIdRoute, {
+        handler: (params) => map(params, ({ id }) => id)
+      })
+      expect(matcher).type.toBe<Matcher.Matcher<string, never, Scope.Scope>>()
+    })
+
+    it("accepts value handler in options", () => {
+      const matcher = Matcher.empty.match(usersRoute, { handler: "users" })
+      expect(matcher).type.toBe<Matcher.Matcher<string, never, Scope.Scope>>()
+    })
+
+    it("accepts Effect handler in options", () => {
+      const matcher = Matcher.empty.match(usersRoute, { handler: Effect.succeed(42) })
+      expect(matcher).type.toBe<Matcher.Matcher<number, never, Scope.Scope>>()
+    })
+
+    it("accepts handler with catch in options", () => {
+      const matcher = Matcher.empty.match(usersRoute, {
+        handler: Effect.fail(new TestError({ message: "" })),
+        catch: () => succeed("recovered")
+      })
+      // Error is caught and replaced with string recovery
+      expect(matcher).type.toBe<Matcher.Matcher<string, never, Scope.Scope>>()
     })
   })
 
