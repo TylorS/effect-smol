@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect"
-import { html, HtmlRenderTemplate, renderToHtmlString } from "effect/typed/template/index"
+import { html, HtmlRenderTemplate, renderToHtmlString } from "effect/typed/template"
 
 const start = performance.now()
 const output = html`<div>Hello, world!</div>`.pipe(

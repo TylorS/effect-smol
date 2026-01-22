@@ -1,7 +1,9 @@
+/** @effect-diagnostics missingEffectError:skip-file */
+/** @effect-diagnostics missingEffectContext:skip-file */
+
 /**
  * Push is a type of Fx that can be used to push values to a sink.
  */
-
 import type * as Cause from "../../../Cause.ts"
 import * as Effect from "../../../Effect.ts"
 import { dual, identity } from "../../../Function.ts"
@@ -51,7 +53,7 @@ import * as Sink from "../Sink.ts"
  * @since 1.0.0
  * @category models
  */
-export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sink<A, E, R>, Fx.Fx<B, E2, R2> {}
+export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sink<A, E, R>, Fx.Fx<B, E2, R2> { }
 
 export namespace Push {
   export type Any = Push<any, any, any, any, any, any>
@@ -108,12 +110,7 @@ export namespace Push {
 export const make: {
   <B, E2, R2>(fx: Fx.Fx<B, E2, R2>): <A, E, R>(sink: Sink.Sink<A, E, R>) => Push<A, E, R, B, E2, R2>
   <A, E, R, B, E2, R2>(sink: Sink.Sink<A, E, R>, fx: Fx.Fx<B, E2, R2>): Push<A, E, R, B, E2, R2>
-} = dual(2, function make<A, E, R, B, E2, R2>(
-  sink: Sink.Sink<A, E, R>,
-  fx: Fx.Fx<B, E2, R2>
-): Push<A, E, R, B, E2, R2> {
-  return new PushImpl(sink, fx)
-})
+} = dual(2, (sink: any, fx: any) => new PushImpl<any, any, any, any, any, any>(sink, fx))
 
 const VARIANCE = {
   _A: identity,
@@ -664,21 +661,21 @@ export function Service<Self, A, E = never, B = never, E2 = never>() {
         )
 
       static readonly [FxTypeId] = VARIANCE
-      static readonly pipe = function(this: any) {
+      static readonly pipe = function (this: any) {
         return pipeArguments(this, arguments)
       }
 
       // Fx methods
-      static readonly run = <R3>(sink: Sink.Sink<B, E2, R3>) =>
+      static readonly run = <R3>(sink: Sink.Sink<B, E2, R3>): Effect.Effect<unknown, never, R3 | Self> =>
         Effect.flatMap(service.asEffect(), (push) => push.run(sink))
 
       // Sink methods
-      static readonly onSuccess = (value: A) => Effect.flatMap(service.asEffect(), (push) => push.onSuccess(value))
-      static readonly onFailure = (cause: Cause.Cause<E>) =>
+      static readonly onSuccess = (value: A): Effect.Effect<unknown, never, Self> => Effect.flatMap(service.asEffect(), (push) => push.onSuccess(value))
+      static readonly onFailure = (cause: Cause.Cause<E>): Effect.Effect<unknown, never, Self> =>
         Effect.flatMap(service.asEffect(), (push) => push.onFailure(cause))
 
       constructor() {
-        return PushService
+        return PushService as unknown as Push.Class<Self, Id, A, E, B, E2>
       }
     } as unknown as Push.Class<Self, Id, A, E, B, E2>
   }

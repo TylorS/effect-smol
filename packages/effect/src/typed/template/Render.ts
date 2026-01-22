@@ -2,7 +2,7 @@ import * as Cause from "../../Cause.ts"
 import * as Effect from "../../Effect.ts"
 import { constVoid, dual, flow, identity } from "../../Function.ts"
 import * as Layer from "../../Layer.ts"
-import { getOrUndefined, isNone, isOption } from "../../Option.ts"
+import { getOrUndefined, isNone, isOption, type Some } from "../../Option.ts"
 import { isFunction, isNullish, isObject } from "../../Predicate.ts"
 import { map as mapRecord } from "../../Record.ts"
 import * as Scope from "../../Scope.ts"
@@ -149,7 +149,7 @@ export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRender
 export const DomRenderTemplate = Object.assign(
   Layer.effect(
     RenderTemplate,
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const document = yield* CurrentRenderDocument
       const templateCache = new WeakMap<TemplateStringsArray, Template.Template>()
       const getTemplate = (templateStrings: TemplateStringsArray) => {
@@ -188,13 +188,13 @@ export const DomRenderTemplate = Object.assign(
             Renderable.Services<Values[number]> | Scope.Scope | RSink
           > {
             return Effect.gen(
-              function*() {
+              function* () {
                 const entry = getEntry(templateStrings)
                 const template = entry.template
                 const fragment = document.importNode(entry.fragment, true)
                 const ctx = yield* makeTemplateContext<Values, RSink>(document, values, sink.onFailure)
 
-                return yield* Effect.gen(function*() {
+                return yield* Effect.gen(function* () {
                   const hydration = attemptHydration(ctx, template.hash)
 
                   let effects: Array<Effect.Effect<void, any, any>>
@@ -660,7 +660,7 @@ export type TemplateContext<R = never> = {
   readonly eventSource: EventSource
   readonly refCounter: IndexRefCounter
   readonly scope: Scope.Closeable
-  readonly values: ArrayLike<Renderable<any, any, any>>
+  readonly values: ArrayLike<Renderable<unknown, any, any>>
   readonly services: ServiceMap.ServiceMap<R | Scope.Scope>
   readonly onCause: (cause: Cause.Cause<any>) => Effect.Effect<unknown>
 
@@ -712,7 +712,7 @@ const makeTemplateContext = Effect.fn(
 )
 
 function liftRenderableToFx<E = never, R = never>(
-  renderable: Renderable<any, E, R>
+  renderable: Renderable<unknown, E, R>
 ): Fx.Fx<any, E, R> {
   switch (typeof renderable) {
     case "undefined":
@@ -723,7 +723,7 @@ function liftRenderableToFx<E = never, R = never>(
       } else if (Array.isArray(renderable)) {
         return Fx.tuple(...renderable.map(liftRenderableToFx<E, R>))
       } else if (isOption(renderable)) {
-        return isNone(renderable) ? Fx.null : liftRenderableToFx(renderable.value)
+        return isNone(renderable) ? Fx.null : liftRenderableToFx((renderable as Some<any>).value)
       } else if (Effect.isEffect(renderable)) {
         return Fx.unwrap(
           Effect.map(renderable, liftRenderableToFx<E, R>)
@@ -776,7 +776,7 @@ function setupEventHandler(element: Element, ctx: TemplateContext, index: number
   ctx.eventSource.addEventListener(
     element,
     name,
-    EventHandler.fromEffectOrEventHandler(value).pipe(
+    EventHandler.fromEffectOrEventHandler(value as Effect.Effect<unknown, never, never> | EventHandler.EventHandler<Event, never, never>).pipe(
       EventHandler.provide(ctx.services),
       EventHandler.catchCause(ctx.onCause)
     )
@@ -835,14 +835,14 @@ function setupRef<R>(element: HTMLElement | SVGElement, ctx: TemplateContext<R>,
   const renderable = ctx.values[index]
   if (isNullish(renderable)) return
   if (isFunction(renderable)) {
-    return matchRenderable(renderable(element), { Primitive: constVoid, Effect: identity, Fx: Fx.drain })
+    return matchRenderable((renderable as Function)(element), { Primitive: constVoid, Effect: identity, Fx: Fx.drain })
   }
   throw new Error("Invalid value provided to ref part")
 }
 
 function setupPropertSetter(element: Element, name: string) {
   return (value: unknown) => {
-    ;(element as any)[name] = value
+    ; (element as any)[name] = value
   }
 }
 

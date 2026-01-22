@@ -155,7 +155,7 @@ type HtmlEntry = ReadonlyArray<HtmlChunk>
  */
 export const HtmlRenderTemplate = Layer.effect(
   RenderTemplate,
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     const isStatic = yield* StaticRendering
     const entries = new WeakMap<TemplateStringsArray, HtmlEntry>()
     const getChunks = (templateStrings: TemplateStringsArray) => {
@@ -322,7 +322,7 @@ function renderSparsePart<E, R>(
 }
 
 function liftRenderableToFx<E, R>(
-  renderable: Renderable<any, E, R>,
+  renderable: Renderable<unknown, E, R>,
   isStatic: boolean
 ): Fx.Fx<any, E, R> {
   switch (typeof renderable) {
