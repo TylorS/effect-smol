@@ -138,7 +138,7 @@ const program = Effect.gen(function*() {
   const evens = Fx.filter(doubled, (n) => n % 2 === 0)
 
   // Effectful transformation
-  const logged = Fx.tapEffect(evens, (n) => Effect.log(`Saw even number: ${n}`))
+  const logged = Fx.tap(evens, (n) => Effect.log(`Saw even number: ${n}`))
 })
 ```
 
@@ -151,18 +151,17 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
 const triggers = Fx.fromIterable([1, 2, 3])
-
-// flatMap: Concatenates streams (runs one after another)
-// Not common in Fx/Push streams unless inner streams are finite
-const sequenced = Fx.flatMap(triggers, (n) => Fx.succeed(n))
+// flatMap: Runs all inner streams concurrently without limit
+// All inner streams start immediately and run in parallel
+const merged = Fx.flatMap(triggers, (n) => Fx.fromEffect(longRunningTask(n)))
 
 // switchMap: Switches to the latest stream, cancelling the previous one
 // Perfect for "latest state" or "autocomplete"
 const switched = Fx.switchMap(triggers, (query) => Fx.fromEffect(searchApi(query)))
 
-// mergeMap (flatMapConcurrently): Runs inner streams concurrently
-// Good for handling multiple independent events
-const merged = Fx.flatMapConcurrently(triggers, (n) => Fx.fromEffect(longRunningTask(n)))
+// flatMapConcurrently: Controls concurrency with a semaphore
+// Limits how many inner streams can run at once
+const mergedConcurrently = Fx.flatMapConcurrently(triggers, (n) => Fx.fromEffect(longRunningTask(n)), { concurrency: 5 })
 ```
 
 ## Resource Management
@@ -305,15 +304,6 @@ const program = Effect.gen(function*() {
   yield* Fx.observe(stream, (users) => Effect.sync(() => console.log(users)))
 })
 ```
-
-## Best Practices
-
-1. **Use `Fx.observe` for side effects**: When you need to perform side effects for each value
-2. **Use `Fx.collectAll` for small streams**: When you need all values at once
-3. **Use `Fx.first` for single values**: When you only need the first emitted value
-4. **Prefer `Fx.switchMap` over `Fx.flatMap`**: When you want to cancel previous streams
-5. **Handle errors explicitly**: Use `Fx.catchAll` or `Fx.catchSome` for error recovery
-6. **Manage resources**: Use `Fx.genScoped` for streams that need resource cleanup
 
 ## Next Steps
 
