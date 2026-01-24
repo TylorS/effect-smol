@@ -534,25 +534,35 @@ function parseTextAndParts<T>(
   createPartFromIndex: (index: number) => T,
   onTextNodeInserted?: () => void
 ): Array<Template.TextNode | T> {
-  let skipWhitespace = true
   const out: Array<Template.TextNode | T> = []
-  const parts = s.split(PART_REGEX)
-  // Each part takes 2 indices, so we need to subtract 2 to get the last part
-  const last = parts.length - 2
+  let pos = 0
+  let foundAny = false
 
-  for (let i = 0; i < parts.length; i++) {
-    const part = parts[i]
+  while (true) {
+    const start = s.indexOf("{{", pos)
+    if (start === -1) break
 
-    if (part[0] === "{" && part[1] === "{" && part[part.length - 1] === "}" && part[part.length - 2] === "}") {
-      out.push(createPartFromIndex(parseInt(parts[++i], 10)))
-      // If we encounter a part, we should not skip whitespace, unless we are at the last part
-      skipWhitespace = i === last
-    } else if (part === "" || (skipWhitespace && !/\S/.test(part))) {
-      continue
-    } else {
-      out.push(new Template.TextNode(part))
+    const end = s.indexOf("}}", start + 2)
+    if (end === -1) break
+
+    const before = s.slice(pos, start)
+    pos = end + 2
+
+    // Before first part: skip whitespace-only. Between parts: only skip empty.
+    if (before !== "" && (foundAny || /\S/.test(before))) {
+      out.push(new Template.TextNode(before))
       onTextNodeInserted?.()
     }
+
+    foundAny = true
+    out.push(createPartFromIndex(+s.slice(start + 2, end)))
+  }
+
+  const after = s.slice(pos)
+  // After last part (or entire string if no parts): skip whitespace-only
+  if (after !== "" && /\S/.test(after)) {
+    out.push(new Template.TextNode(after))
+    onTextNodeInserted?.()
   }
 
   return out
