@@ -184,7 +184,7 @@ export function any<const GS extends Readonly<Record<string, GuardInput<any, any
 ): Guard<AnyInput<GS>, AnyOutput<GS>, Guard.Error<GS[keyof GS]>, Guard.Services<GS[keyof GS]>> {
   const entries = Object.entries(guards).map(([k, v]) => [k, getGuard(v)] as const)
   return (i: AnyInput<GS>) =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       for (const [_tag, guard] of entries) {
         const match = yield* guard(i)
         if (Option.isSome(match)) {

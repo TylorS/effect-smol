@@ -85,14 +85,26 @@ import { Fx } from "effect/typed/fx"
 // Single value
 const single = Fx.succeed(42)
 
-// Empty stream
+// Empty stream (completes immediately)
 const empty = Fx.empty
+
+// Null value (useful for conditional branches)
+const nothing = Fx.null
 
 // Failed stream
 const failed = Fx.fail("Something went wrong")
 
-// From an array
+// Failed with a Cause
+const failedCause = Fx.failCause(Cause.die("defect"))
+
+// Defect (unexpected error)
+const defect = Fx.die(new Error("unexpected"))
+
+// From an array or iterable
 const fromArray = Fx.fromIterable([1, 2, 3])
+
+// Never completes (runs forever)
+const forever = Fx.never
 ```
 
 ### From Effects
@@ -102,15 +114,16 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
 // Convert an Effect to an Fx (emits once)
-const fromEffect = Fx.fromEffect(
-  Effect.succeed("Hello")
-)
+const fromEffect = Fx.fromEffect(Effect.succeed("Hello"))
+
+// From any Yieldable (Effect, Promise, etc.)
+const fromYieldable = Fx.fromYieldable(someEffect)
 ```
 
 ### From Time & Scheduling
 
 ```ts
-import { Duration } from "effect"
+import { Schedule } from "effect"
 import { Fx } from "effect/typed/fx"
 
 // Emit void every second
@@ -118,6 +131,55 @@ const periodic = Fx.periodic("1 seconds")
 
 // Emit a value after a delay
 const delayed = Fx.at("5 seconds", "Hello")
+
+// From a Schedule (emits each schedule output)
+const fromSchedule = Fx.fromSchedule(Schedule.spaced("1 second"))
+```
+
+### From Callbacks & DOM Events
+
+Use `Fx.callback` to integrate with callback-based APIs like DOM events:
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+
+// Listen to hash changes
+const hashChanges = Fx.callback<string>((emit) => {
+  const handler = () => emit.succeed(location.hash)
+  handler() // Emit initial value
+  window.addEventListener("hashchange", handler)
+  // Return cleanup effect
+  return Effect.sync(() => window.removeEventListener("hashchange", handler))
+})
+
+// Listen to clicks
+const clicks = Fx.callback<MouseEvent>((emit) => {
+  const handler = (e: MouseEvent) => emit.succeed(e)
+  document.addEventListener("click", handler)
+  return Effect.sync(() => document.removeEventListener("click", handler))
+})
+```
+
+### Advanced Constructors
+
+```ts
+import { Fx } from "effect/typed/fx"
+
+// Low-level: create from a Sink function
+const custom = Fx.make((sink) =>
+  Effect.gen(function*() {
+    yield* sink.onSuccess(1)
+    yield* sink.onSuccess(2)
+    yield* sink.onSuccess(3)
+  })
+)
+
+// Lazy construction (deferred until run)
+const lazy = Fx.suspend(() => Fx.succeed(Date.now()))
+
+// Interrupted stream
+const interrupted = Fx.interrupt(FiberId.none)
 ```
 
 ## Transforming Streams
@@ -125,21 +187,69 @@ const delayed = Fx.at("5 seconds", "Hello")
 ### Mapping & Filtering
 
 ```ts
-import { Effect } from "effect"
+import { Effect, Option } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Effect.gen(function*() {
-  const numbers = Fx.fromIterable([1, 2, 3, 4, 5])
+const numbers = Fx.fromIterable([1, 2, 3, 4, 5])
 
-  // Transform values
-  const doubled = Fx.map(numbers, (n) => n * 2)
+// Transform values
+const doubled = Fx.map(numbers, (n) => n * 2)
 
-  // Filter values
-  const evens = Fx.filter(doubled, (n) => n % 2 === 0)
+// Filter values
+const evens = Fx.filter(numbers, (n) => n % 2 === 0)
 
-  // Effectful transformation
-  const logged = Fx.tap(evens, (n) => Effect.log(`Saw even number: ${n}`))
-})
+// Filter with Effect
+const validatedEvens = Fx.filterEffect(numbers, (n) => Effect.succeed(n % 2 === 0))
+
+// Filter and map together
+const evenDoubled = Fx.filterMap(numbers, (n) => n % 2 === 0 ? Option.some(n * 2) : Option.none())
+
+// Effectful side effects without changing values
+const logged = Fx.tap(numbers, (n) => Effect.log(`Saw: ${n}`))
+
+// Effectful transformation
+const fetched = Fx.mapEffect(numbers, (n) => fetchData(n))
+
+// Unwrap Option values (skip None)
+const options = Fx.fromIterable([Option.some(1), Option.none(), Option.some(3)])
+const compacted = Fx.compact(options) // Fx<1, 3>
+```
+
+### Limiting & Slicing
+
+```ts
+import { Fx } from "effect/typed/fx"
+
+const numbers = Fx.fromIterable([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+// Take first N values
+const firstThree = Fx.take(numbers, 3) // 1, 2, 3
+
+// Skip first N values
+const skipThree = Fx.skip(numbers, 3) // 4, 5, 6, 7, 8, 9, 10
+
+// Slice a range
+const middle = Fx.slice(numbers, 2, 5) // 3, 4, 5, 6, 7
+
+// Take until condition is met (exclusive)
+const untilFive = Fx.takeUntil(numbers, (n) => n >= 5) // 1, 2, 3, 4
+
+// Take until condition is met (inclusive)
+const untilFive = Fx.dropAfter(numbers, (n) => n >= 5) // 1, 2, 3, 4, 5
+```
+
+### Deduplication
+
+```ts
+import { Fx } from "effect/typed/fx"
+
+const values = Fx.fromIterable([1, 1, 2, 2, 2, 3, 1])
+
+// Skip consecutive repeats
+const unique = Fx.skipRepeats(values) // 1, 2, 3, 1
+
+// Skip repeats with custom equality
+const customUnique = Fx.skipRepeatsWith(values, (a, b) => a === b)
 ```
 
 ### Flattening & Composition
@@ -151,136 +261,422 @@ import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
 const triggers = Fx.fromIterable([1, 2, 3])
+
 // flatMap: Runs all inner streams concurrently without limit
-// All inner streams start immediately and run in parallel
 const merged = Fx.flatMap(triggers, (n) => Fx.fromEffect(longRunningTask(n)))
 
-// switchMap: Switches to the latest stream, cancelling the previous one
-// Perfect for "latest state" or "autocomplete"
-const switched = Fx.switchMap(triggers, (query) => Fx.fromEffect(searchApi(query)))
+// switchMap: Switches to the latest stream, cancelling the previous
+// Perfect for "latest state" or autocomplete
+const switched = Fx.switchMap(triggers, (query) => Fx.fromEffect(search(query)))
 
-// flatMapConcurrently: Controls concurrency with a semaphore
-// Limits how many inner streams can run at once
-const mergedConcurrently = Fx.flatMapConcurrently(triggers, (n) => Fx.fromEffect(longRunningTask(n)), { concurrency: 5 })
+// flatMapConcurrently: Controls concurrency with a limit
+const limited = Fx.flatMapConcurrently(
+  triggers,
+  (n) => Fx.fromEffect(longRunningTask(n)),
+  { concurrency: 5 }
+)
+
+// exhaustMap: Ignores new values while processing current
+// Perfect for preventing double-submits
+const exhausted = Fx.exhaustMap(triggers, (n) => Fx.fromEffect(submitForm(n)))
+
+// exhaustLatestMap: Like exhaustMap but queues the latest value
+const exhaustLatest = Fx.exhaustLatestMap(triggers, (n) => Fx.fromEffect(submitForm(n)))
 ```
 
-## Resource Management
+### Merging Multiple Streams
 
-Fx leverages Effect's `Scope` to safely manage resources. When a stream starts, it can acquire resources (like event listeners or sockets), and when it ends (completes, fails, or is interrupted), those resources are automatically released.
+```ts
+import { Fx } from "effect/typed/fx"
+
+const stream1 = Fx.fromIterable([1, 2, 3])
+const stream2 = Fx.fromIterable([4, 5, 6])
+const stream3 = Fx.fromIterable([7, 8, 9])
+
+// Merge all streams concurrently
+const merged = Fx.mergeAll([stream1, stream2, stream3])
+
+// Merge in order (complete one before starting next, but runs concurrently)
+const ordered = Fx.mergeOrdered([stream1, stream2, stream3])
+
+// Combine into tuple (emits when all have emitted at least once)
+const tupled = Fx.tuple([stream1, stream2, stream3])
+
+// Continue with another stream after completion
+const continued = Fx.continueWith(stream1, () => stream2)
+```
+
+## Conditional Streams
+
+### Fx.if - Conditional Stream Selection
+
+Switch between streams based on a boolean condition:
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+import * as RefSubject from "effect/typed/fx/RefSubject"
+
+const program = Effect.gen(function*() {
+  const isLoggedIn = yield* RefSubject.make(false)
+
+  // Switch between different streams based on condition
+  const view = Fx.if(isLoggedIn, {
+    onTrue: Fx.succeed("Welcome back!"),
+    onFalse: Fx.succeed("Please log in")
+  })
+
+  // Use Fx.null for empty branches
+  const maybeNotification = Fx.if(hasNotifications, {
+    onTrue: notificationStream,
+    onFalse: Fx.null
+  })
+})
+```
+
+### Fx.when - Conditional Values
+
+Emit different values based on a boolean stream:
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+import * as RefSubject from "effect/typed/fx/RefSubject"
+
+const program = Effect.gen(function*() {
+  const isActive = yield* RefSubject.make(false)
+
+  // Emit different values based on condition
+  const className = Fx.when(isActive, {
+    onTrue: "active",
+    onFalse: "inactive"
+  })
+
+  const buttonText = Fx.when(isLoading, {
+    onTrue: "Loading...",
+    onFalse: "Submit"
+  })
+})
+```
+
+## List Rendering with keyed
+
+`Fx.keyed` efficiently renders lists with automatic diffing and updates:
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+import * as RefSubject from "effect/typed/fx/RefSubject"
+
+interface Todo {
+  readonly id: string
+  readonly text: string
+  readonly completed: boolean
+}
+
+const program = Effect.gen(function*() {
+  const todos = yield* RefSubject.make<Todo[]>([
+    { id: "1", text: "Learn Effect", completed: false },
+    { id: "2", text: "Build app", completed: false }
+  ])
+
+  // Render list with keyed diffing
+  const todoList = Fx.keyed(
+    todos,
+    (todo) => todo.id, // Key function for identity
+    (ref, key) => {
+      const { text, completed } = RefSubject.proxy(ref)
+      // Each item receives its own RefSubject
+      // Only re-renders when that specific item changes
+      const text = RefSubject.map(todoRef, (t) => t.text)
+      const completed = RefSubject.map(todoRef, (t) => t.completed)
+      return { key, text, completed }
+    }
+  )
+})
+```
+
+Benefits of `Fx.keyed`:
+
+- **Efficient updates**: Only changed items re-render
+- **Stable identity**: Items maintain state across reorders
+- **Fine-grained reactivity**: Each item gets its own `RefSubject`
+
+## Running Fx Streams
+
+### Observing Values
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-// A stream that manages a WebSocket connection
-const socketStream = Fx.make((sink) =>
-  Effect.gen(function*() {
-    // Acquire the socket
-    const socket = yield* Effect.acquireRelease(
-      Effect.sync(() => new WebSocket("ws://api.example.com")),
-      (ws) => Effect.sync(() => ws.close())
-    )
+const stream = Fx.fromIterable([1, 2, 3])
 
-    // Listen for messages
-    yield* Effect.async<never, never, never>((resume) => {
-      socket.onmessage = (event) => {
-        // Emit to sink
-        Effect.runFork(sink.onSuccess(event.data))
-      }
-      socket.onerror = (error) => {
-        // Fail stream
-        Effect.runFork(sink.onFailure(Cause.fail(error)))
-      }
-    })
-  })
+// Observe each value with an Effect
+yield* Fx.observe(stream, (value) => Effect.log(`Got: ${value}`))
+
+// Observe with void callback
+yield* Fx.observe(stream, (value) => console.log(value))
+```
+
+### Draining Streams
+
+```ts
+import { Effect, Layer } from "effect"
+import { Fx } from "effect/typed/fx"
+
+const stream = Fx.fromIterable([1, 2, 3])
+
+// Drain: run to completion, ignore values
+yield* Fx.drain(stream)
+
+// DrainLayer: run as a Layer (great for app startup)
+const app = Fx.drainLayer(myAppStream).pipe(
+  Layer.provide(dependencies),
+  Layer.launch
 )
+```
 
-// When this stream is run, the socket opens.
-// When the consumer stops listening (unsubscribes), the socket closes.
+### Collecting Values
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+
+const stream = Fx.fromIterable([1, 2, 3])
+
+// Collect all values into an array
+const all = yield* Fx.collectAll(stream) // [1, 2, 3]
+
+// Collect up to N values
+const firstTwo = yield* Fx.collectUpTo(stream, 2) // [1, 2]
+
+// Get just the first value
+const first = yield* Fx.first(stream) // Option.some(1)
+```
+
+### Forking to Background
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+
+const stream = Fx.periodic("1 second")
+
+// Fork to background fiber
+const fiber = yield* Fx.fork(stream)
+
+// Later: interrupt the fiber
+yield* Fiber.interrupt(fiber)
+
+// Fork and collect in background
+const collectFiber = yield* Fx.collectAllFork(stream)
+```
+
+### Running as Promise
+
+```ts
+import { Fx } from "effect/typed/fx"
+
+const stream = Fx.fromIterable([1, 2, 3])
+
+// Run and get Promise
+await Fx.runPromise(stream)
+
+// Run and get Promise<Exit>
+const exit = await Fx.runPromiseExit(stream)
+```
+
+### Running with Layers
+
+```ts
+import { Effect, Layer } from "effect"
+import { Fx } from "effect/typed/fx"
+
+// Observe as a Layer
+const observeLayer = Fx.observeLayer(stream, (value) => Effect.log(`Value: ${value}`))
+
+// Drain as a Layer
+const drainLayer = Fx.drainLayer(stream)
+
+// Use in application
+const app = drainLayer.pipe(
+  Layer.provide(dependencies),
+  Layer.launch,
+  Effect.runPromise
+)
 ```
 
 ## Error Handling
 
-Fx provides robust error handling capabilities matching Effect's model.
+Fx provides robust error handling matching Effect's model.
+
+### Catching Errors
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
 const stream = Fx.fromIterable([1, 2, 3]).pipe(
-  Fx.mapEffect((n) => n === 2 ? Effect.fail("Error at 2") : Effect.succeed(n)),
-  // Recover from specific errors
-  Fx.catchTag("MyError", (e) => Fx.succeed(0)),
-  // Recover from all errors
-  Fx.catchAll((e) => Fx.succeed(`Recovered: ${e}`)),
-  // Retry on failure
-  Fx.retry({ times: 3, schedule: Schedule.exponential("100 millis") })
+  Fx.mapEffect((n) => (n === 2 ? Effect.fail("Error at 2") : Effect.succeed(n)))
 )
+
+// Catch all errors
+const recovered = Fx.catchAll(stream, (error) => Fx.succeed(`Recovered from: ${error}`))
+
+// Catch specific tagged errors
+const catchTagged = Fx.catchTag(stream, "NetworkError", (e) => Fx.succeed("Network failed, using cached data"))
+
+// Catch any cause (including defects and interrupts)
+const catchAnyCause = Fx.catchCause(stream, (cause) => Fx.succeed("Something went wrong"))
 ```
 
-## Concurrency & Scheduling
-
-Since Fx is push-based, controlling the _rate_ of events is often necessary.
-
-```ts
-import { Fx } from "effect/typed/fx"
-
-const events = Fx.fromIterable([1, 2, 3])
-
-// Debounce: Wait for silence before emitting
-// Good for search inputs
-const debounced = Fx.debounce(events, "500 millis")
-
-// Throttle: Emit at most once per window
-// Good for scroll events
-const throttled = Fx.throttle(events, "100 millis")
-```
-
-## Interoperability
-
-### Fx to Stream
-
-You can convert an `Fx` to a `Stream`. Note that this buffers events if the `Stream` consumer is slower than the `Fx` producer.
-
-```ts
-import { Stream } from "effect/stream"
-import { Fx } from "effect/typed/fx"
-
-const fx = Fx.periodic("1 seconds")
-const stream = Fx.toStream(fx) // Stream<void>
-```
-
-### Stream to Fx
-
-You can convert a `Stream` to an `Fx`.
-
-```ts
-import { Stream } from "effect/stream"
-import { Fx } from "effect/typed/fx"
-
-const stream = Stream.make(1, 2, 3)
-const fx = Fx.fromStream(stream) // Fx<number>
-```
-
-## Generator Syntax
-
-`Fx.gen` provides a convenient way to work with Fx using generator syntax, similar to `Effect.gen`.
+### Lifecycle Hooks
 
 ```ts
 import { Effect } from "effect"
 import { Fx } from "effect/typed/fx"
 
-const program = Fx.gen(function*() {
-  const a = yield* someFx
-  const b = yield* anotherFx
+const stream = Fx.fromIterable([1, 2, 3])
 
-  // If 'a' emits multiple times, this block re-runs?
-  // NO: Fx.gen is for *creating* a stream, not consuming it like async/await.
-  // It's primarily used for *composition* of Effects into an Fx.
+// Run effect on error
+const withErrorLog = Fx.onError(stream, (cause) => Effect.log(`Stream failed: ${cause}`))
 
-  const user = yield* Effect.succeed({ name: "Alice" })
-  return Fx.succeed(user)
+// Run effect on interrupt
+const withInterruptLog = Fx.onInterrupt(stream, (fiberId) => Effect.log(`Stream interrupted by: ${fiberId}`))
+
+// Run effect on any exit
+const withExitLog = Fx.onExit(stream, (exit) => Effect.log(`Stream exited: ${exit}`))
+
+// Ensure cleanup runs
+const withCleanup = Fx.ensuring(stream, Effect.log("Cleanup complete"))
+```
+
+### Converting to Exit
+
+```ts
+import { Fx } from "effect/typed/fx"
+
+const stream = Fx.fromIterable([1, 2, 3])
+
+// Convert each value to Exit (never fails)
+const exits = Fx.exit(stream) // Fx<Exit<number, E>>
+```
+
+## Resource Management
+
+Fx leverages Effect's `Scope` to safely manage resources. When a stream starts, it can acquire resources, and when it ends, those resources are automatically released.
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+
+// Using Fx.callback for resource management
+const socketStream = Fx.callback<string>((emit) => {
+  const socket = new WebSocket("ws://api.example.com")
+
+  socket.onmessage = (event) => emit.succeed(event.data)
+  socket.onerror = () => emit.fail(new Error("Socket error"))
+  socket.onclose = () => emit.done()
+
+  // Cleanup when stream ends
+  return Effect.sync(() => socket.close())
 })
+
+// Using Fx.make with acquireRelease
+const managedSocket = Fx.make((sink) =>
+  Effect.gen(function*() {
+    const socket = yield* Effect.acquireRelease(
+      Effect.sync(() => new WebSocket("ws://api.example.com")),
+      (ws) => Effect.sync(() => ws.close())
+    )
+
+    yield* Effect.async<never, never, never>((resume) => {
+      socket.onmessage = (event) => {
+        Effect.runFork(sink.onSuccess(event.data))
+      }
+      socket.onerror = (error) => {
+        Effect.runFork(sink.onFailure(Cause.fail(error)))
+      }
+    })
+  })
+)
+```
+
+## Generator Syntax
+
+`Fx.gen` creates an Fx from a generator that can yield Effects. The generator runs once to set up the stream.
+
+```ts
+import { Effect } from "effect"
+import { Fx } from "effect/typed/fx"
+import * as RefSubject from "effect/typed/fx/RefSubject"
+
+// Create a stream with local state
+const Counter = Fx.gen(function*() {
+  // Yield Effects to set up state
+  const count = yield* RefSubject.make(0)
+  const name = yield* Effect.succeed("Counter")
+
+  // Return an Fx as the result
+  return RefSubject.map(count, (n) => `${name}: ${n}`)
+})
+
+// Fx.genScoped for streams that need scoped resources
+const WithResource = Fx.genScoped(function*() {
+  // Acquire a scoped resource
+  const connection = yield* acquireConnection
+
+  // Return stream using the resource
+  return Fx.fromEffect(connection.query("SELECT *"))
+})
+```
+
+Key points about `Fx.gen`:
+
+- The generator runs **once** during setup
+- You can `yield*` any Effect to get its value
+- The return value must be an `Fx`
+- Use `Fx.genScoped` when you need scoped resources
+
+## Fx.Service Pattern
+
+Define Fx streams as injectable services for dependency injection:
+
+```ts
+import { Effect, Layer } from "effect"
+import { Fx } from "effect/typed/fx"
+
+// Define a service that provides an Fx stream
+class Ticker extends Fx.Service<Ticker, number, never>()("Ticker") {}
+
+// Create implementation layer
+const TickerLive = Ticker.make(
+  Fx.periodic("1 second").pipe(
+    Fx.map((_, index) => index)
+  )
+)
+
+// Use the service
+const program = Effect.gen(function*() {
+  yield* Fx.observe(Ticker, (tick) => Effect.log(`Tick: ${tick}`))
+})
+
+// Provide the layer
+const main = program.pipe(Effect.provide(TickerLive))
+```
+
+Services can also be created from Effects:
+
+```ts
+class UserStream extends Fx.Service<UserStream, User, ApiError>()("UserStream") {}
+
+const UserStreamLive = UserStream.make(
+  Effect.gen(function*() {
+    const api = yield* ApiClient
+    return Fx.fromEffect(api.subscribeToUsers())
+  })
+)
 ```
 
 ## Context and Dependencies
@@ -288,21 +684,50 @@ const program = Fx.gen(function*() {
 Fx streams can require services, just like Effect:
 
 ```ts
-import { Effect, ServiceMap } from "effect"
+import { Effect, Layer } from "effect"
 import { Fx } from "effect/typed/fx"
 
-class Database
-  extends ServiceMap.Service<Database, { readonly query: (sql: string) => Effect.Effect<string[]> }>()("Database")
-{}
+class Database extends Effect.Service<Database>()("Database", {
+  effect: Effect.succeed({
+    query: (sql: string) => Effect.succeed(["row1", "row2"])
+  })
+}) {}
 
-const program = Effect.gen(function*() {
-  const stream = Fx.fromEffect(
-    Effect.flatMap(Database, (db) => db.query("SELECT * FROM users"))
-  )
+const userStream = Fx.fromEffect(
+  Effect.gen(function*() {
+    const db = yield* Database
+    return yield* db.query("SELECT * FROM users")
+  })
+)
 
-  // Stream requires Database service
-  yield* Fx.observe(stream, (users) => Effect.sync(() => console.log(users)))
-})
+// Provide layer
+const provided = Fx.provide(userStream, Database.Default)
+```
+
+## Interoperability
+
+### Fx to Stream
+
+Convert an `Fx` to a `Stream`. Events are buffered if the consumer is slower than the producer.
+
+```ts
+import { Stream } from "effect"
+import { Fx } from "effect/typed/fx"
+
+const fx = Fx.periodic("1 second")
+const stream = Fx.toStream(fx) // Stream<void>
+```
+
+### Stream to Fx
+
+Convert a `Stream` to an `Fx`.
+
+```ts
+import { Stream } from "effect"
+import { Fx } from "effect/typed/fx"
+
+const stream = Stream.make(1, 2, 3)
+const fx = Fx.fromStream(stream) // Fx<number>
 ```
 
 ## Next Steps

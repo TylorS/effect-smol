@@ -1,5 +1,5 @@
 import { DateTime, Effect, Layer, ServiceMap } from "effect"
-import { Option } from "effect/data"
+import * as Option from "effect/Option"
 import { Fx } from "effect/typed/fx"
 import * as KeyValueStore from "effect/unstable/persistence/KeyValueStore"
 import * as App from "./application"

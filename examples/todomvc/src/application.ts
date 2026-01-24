@@ -1,5 +1,5 @@
-import * as Option from "effect/data/Option"
 import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
 import * as ServiceMap from "effect/ServiceMap"
 import { RefArray, RefSubject } from "effect/typed/fx"
 import * as Domain from "./domain"
