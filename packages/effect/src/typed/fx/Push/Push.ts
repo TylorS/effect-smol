@@ -53,7 +53,7 @@ import * as Sink from "../Sink.ts"
  * @since 1.0.0
  * @category models
  */
-export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sink<A, E, R>, Fx.Fx<B, E2, R2> { }
+export interface Push<in A, in E, out R, out B, out E2, out R2> extends Sink.Sink<A, E, R>, Fx.Fx<B, E2, R2> {}
 
 export namespace Push {
   export type Any = Push<any, any, any, any, any, any>
@@ -661,7 +661,7 @@ export function Service<Self, A, E = never, B = never, E2 = never>() {
         )
 
       static readonly [FxTypeId] = VARIANCE
-      static readonly pipe = function (this: any) {
+      static readonly pipe = function(this: any) {
         return pipeArguments(this, arguments)
       }
 
@@ -670,7 +670,8 @@ export function Service<Self, A, E = never, B = never, E2 = never>() {
         Effect.flatMap(service.asEffect(), (push) => push.run(sink))
 
       // Sink methods
-      static readonly onSuccess = (value: A): Effect.Effect<unknown, never, Self> => Effect.flatMap(service.asEffect(), (push) => push.onSuccess(value))
+      static readonly onSuccess = (value: A): Effect.Effect<unknown, never, Self> =>
+        Effect.flatMap(service.asEffect(), (push) => push.onSuccess(value))
       static readonly onFailure = (cause: Cause.Cause<E>): Effect.Effect<unknown, never, Self> =>
         Effect.flatMap(service.asEffect(), (push) => push.onFailure(cause))
 

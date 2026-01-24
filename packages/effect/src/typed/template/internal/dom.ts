@@ -92,12 +92,14 @@ export function diffStrings(
       unchanged: []
     }
   } else {
-    const added = current.filter((c) => !previous.includes(c))
+    const previousSet = new Set(previous)
+    const currentSet = new Set(current)
+    const added = current.filter((c) => !previousSet.has(c))
     const removed: Array<string> = []
     const unchanged: Array<string> = []
 
     for (let i = 0; i < previous.length; ++i) {
-      if (current.includes(previous[i])) {
+      if (currentSet.has(previous[i])) {
         unchanged.push(previous[i])
       } else {
         removed.push(previous[i])

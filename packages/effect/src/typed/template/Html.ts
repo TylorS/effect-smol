@@ -155,7 +155,7 @@ type HtmlEntry = ReadonlyArray<HtmlChunk>
  */
 export const HtmlRenderTemplate = Layer.effect(
   RenderTemplate,
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     const isStatic = yield* StaticRendering
     const entries = new WeakMap<TemplateStringsArray, HtmlEntry>()
     const getChunks = (templateStrings: TemplateStringsArray) => {

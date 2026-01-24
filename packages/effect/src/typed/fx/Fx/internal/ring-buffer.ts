@@ -12,18 +12,25 @@ export class RingBuffer<A> {
 
   private _buffer: Array<A>
   private _size = 0
+  private _head = 0
 
   get size() {
     return this._size
   }
 
   push(a: A) {
+    this._buffer[this._head] = a
+    this._head = (this._head + 1) % this.capacity
     if (this._size < this.capacity) {
-      this._buffer[this._size++] = a
-    } else {
-      this._buffer.shift()
-      this._buffer.push(a)
+      this._size++
     }
+  }
+
+  private at(index: number): A {
+    if (this._size < this.capacity) {
+      return this._buffer[index]
+    }
+    return this._buffer[(this._head + index) % this.capacity]
   }
 
   forEach<B, E2, R2>(
@@ -33,17 +40,17 @@ export class RingBuffer<A> {
       case 0:
         return void_
       case 1:
-        return f(this._buffer[0], 0)
+        return f(this.at(0), 0)
       case 2:
-        return flatMap(f(this._buffer[0], 0), () => f(this._buffer[1], 1))
+        return flatMap(f(this.at(0), 0), () => f(this.at(1), 1))
       case 3:
         return flatMap(
-          f(this._buffer[0], 0),
-          () => flatMap(f(this._buffer[1], 1), () => f(this._buffer[2], 2))
+          f(this.at(0), 0),
+          () => flatMap(f(this.at(1), 1), () => f(this.at(2), 2))
         )
       default:
         return forEach(
-          Array.from({ length: this._size }, (_, i) => this._buffer[i]),
+          Array.from({ length: this._size }, (_, i) => this.at(i)),
           f,
           {
             discard: true
@@ -55,5 +62,6 @@ export class RingBuffer<A> {
   clear() {
     this._buffer = Array(this.capacity)
     this._size = 0
+    this._head = 0
   }
 }

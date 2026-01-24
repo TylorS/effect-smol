@@ -149,7 +149,7 @@ export const CurrentRenderPriority = ServiceMap.Reference<number>("CurrentRender
 export const DomRenderTemplate = Object.assign(
   Layer.effect(
     RenderTemplate,
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const document = yield* CurrentRenderDocument
       const templateCache = new WeakMap<TemplateStringsArray, Template.Template>()
       const getTemplate = (templateStrings: TemplateStringsArray) => {
@@ -188,13 +188,13 @@ export const DomRenderTemplate = Object.assign(
             Renderable.Services<Values[number]> | Scope.Scope | RSink
           > {
             return Effect.gen(
-              function* () {
+              function*() {
                 const entry = getEntry(templateStrings)
                 const template = entry.template
                 const fragment = document.importNode(entry.fragment, true)
                 const ctx = yield* makeTemplateContext<Values, RSink>(document, values, sink.onFailure)
 
-                return yield* Effect.gen(function* () {
+                return yield* Effect.gen(function*() {
                   const hydration = attemptHydration(ctx, template.hash)
 
                   let effects: Array<Effect.Effect<void, any, any>>
@@ -774,7 +774,9 @@ function setupEventHandler(element: Element, ctx: TemplateContext, index: number
   ctx.eventSource.addEventListener(
     element,
     name,
-    EventHandler.fromEffectOrEventHandler(value as Effect.Effect<unknown, never, never> | EventHandler.EventHandler<Event, never, never>).pipe(
+    EventHandler.fromEffectOrEventHandler(
+      value as Effect.Effect<unknown, never, never> | EventHandler.EventHandler<Event, never, never>
+    ).pipe(
       EventHandler.provide(ctx.services),
       EventHandler.catchCause(ctx.onCause)
     )
@@ -840,7 +842,7 @@ function setupRef<R>(element: HTMLElement | SVGElement, ctx: TemplateContext<R>,
 
 function setupPropertSetter(element: Element, name: string) {
   return (value: unknown) => {
-    ; (element as any)[name] = value
+    ;(element as any)[name] = value
   }
 }
 
