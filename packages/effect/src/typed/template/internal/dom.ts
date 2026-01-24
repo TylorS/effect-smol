@@ -257,13 +257,32 @@ export function diffChildren(
   )
 }
 
-export function findNodePartEndComment(parent: Element, index: number) {
+const commentCache = new WeakMap<Element, Map<number, Comment>>()
+
+function getCommentCacheKey(index: number, isEnd: boolean): number {
+  return isEnd ? -index - 1 : index
+}
+
+function findCommentInElement(parent: Element, index: number, isEnd: boolean): Comment {
+  let cache = commentCache.get(parent)
+  if (cache === undefined) {
+    cache = new Map()
+    commentCache.set(parent, cache)
+  }
+
+  const cacheKey = getCommentCacheKey(index, isEnd)
+  const cached = cache.get(cacheKey)
+  if (cached !== undefined) {
+    return cached
+  }
+
   const childNodes = parent.childNodes
+  const searchValue = isEnd ? `/n_${index}` : `n_${index}`
 
   for (let i = 0; i < childNodes.length; ++i) {
     const node = childNodes[i]
-
-    if (isCommentWithValue(node, `/n_${index}`)) {
+    if (isCommentWithValue(node, searchValue)) {
+      cache.set(cacheKey, node)
       return node
     }
   }
@@ -271,17 +290,12 @@ export function findNodePartEndComment(parent: Element, index: number) {
   throw new CouldNotFindCommentError(index)
 }
 
+export function findNodePartEndComment(parent: Element, index: number) {
+  return findCommentInElement(parent, index, true)
+}
+
 export function findNodePartStartComment(parent: Element, index: number) {
-  const childNodes = parent.childNodes
-
-  for (let i = 0; i < childNodes.length; ++i) {
-    const node = childNodes[i]
-    if (isCommentWithValue(node, `n_${index}`)) {
-      return node
-    }
-  }
-
-  throw new CouldNotFindCommentError(index)
+  return findCommentInElement(parent, index, false)
 }
 
 function isCommentWithValue(node: Node, value: string): node is Comment {

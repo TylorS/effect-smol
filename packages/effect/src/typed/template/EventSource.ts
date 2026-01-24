@@ -197,9 +197,12 @@ function proxyCurrentTarget<E extends Event>(event: E, currentTarget: Element): 
 }
 
 function getDerivedAddEventListenerOptions(entries: Set<Entry>): AddEventListenerOptions {
-  const hs = Array.from(entries)
-  return {
-    once: hs.every((h) => h[1].options?.once === true),
-    passive: hs.every((h) => h[1].options?.passive === true)
+  let once = true
+  let passive = true
+  for (const h of entries) {
+    if (h[1].options?.once !== true) once = false
+    if (h[1].options?.passive !== true) passive = false
+    if (!once && !passive) break
   }
+  return { once, passive }
 }

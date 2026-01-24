@@ -270,16 +270,19 @@ export function findHydrationTemplate(
   nodes: Array<HydrationNode>,
   templateHash: string
 ): HydrationTemplate | null {
+  let index = 0
   const toProcess: Array<HydrationNode> = [...nodes]
 
-  while (toProcess.length > 0) {
-    const node = toProcess.shift()!
+  while (index < toProcess.length) {
+    const node = toProcess[index++]
 
     if (node._tag === "template" && node.hash === templateHash) {
       return node
     } else if (node._tag === "element") {
-      // eslint-disable-next-line no-restricted-syntax
-      toProcess.push(...node.childNodes)
+      const childNodes = node.childNodes
+      for (let i = 0; i < childNodes.length; i++) {
+        toProcess.push(childNodes[i])
+      }
     }
   }
 
@@ -366,11 +369,22 @@ export const findHydratePath = (
     return getNodesExcludingStartComment(node)[0]
   }
 
-  const [first, ...rest] = path
+  // Get initial node without creating full array if possible
+  let current: Node
+  const firstIndex = path[0]
+  if (node._tag === "element") {
+    current = node.parentNode
+  } else if (node._tag === "literal") {
+    current = node.node
+  } else {
+    // For holes, templates, many - need to get nodes array
+    const nodes = getNodesExcludingStartComment(node)
+    current = nodes[firstIndex]
+  }
 
-  // Hydration adds an extra starting comment node which should not be included in the path
-  let current: Node = getNodesExcludingStartComment(node)[first]
-  for (const index of rest) {
+  // Traverse remaining path indices
+  for (let i = 1; i < path.length; i++) {
+    const index = path[i]
     // Use secondary index to skip start comments without creating intermediate arrays
     let targetIndex = 0
 
