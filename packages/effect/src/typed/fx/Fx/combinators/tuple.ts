@@ -22,7 +22,7 @@ export function tuple<FX extends ReadonlyArray<Fx<any, any, any>>>(
   if (fxs.length === 1) return fxs[0]
 
   type Result = { readonly [K in keyof FX]: Fx.Success<FX[K]> }
-  return make(Effect.fn(function* (sink) {
+  return make(Effect.fn(function*(sink) {
     const len = fxs.length
     const result: Array<Fx.Success<FX[number]>> = new Array(len)
     const filled = new Set<number>()
@@ -30,7 +30,7 @@ export function tuple<FX extends ReadonlyArray<Fx<any, any, any>>>(
     return yield* Effect.forEach(fxs, (fx, i) =>
       fx.run(makeSink(
         sink.onFailure,
-        Effect.fn(function* (value) {
+        Effect.fn(function*(value) {
           result[i] = value
           filled.add(i)
           if (filled.size === len) {
