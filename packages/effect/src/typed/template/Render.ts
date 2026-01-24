@@ -201,21 +201,20 @@ export const DomRenderTemplate = Object.assign(
                   let rendered: Rendered | undefined
 
                   if (hydration) {
-                    const { hydrateCtx, where } = hydration
                     effects = setupHydrationParts(template.parts, {
                       ...ctx,
-                      hydrateContext: hydrateCtx,
-                      where,
+                      ...hydration,
                       makeHydrateContext: (where: HydrationNode): HydrateContext => ({
                         where,
                         hydrate: true
                       })
                     })
 
-                    rendered = getRendered(where)
+                    rendered = getRendered(hydration.where)
                   } else {
                     effects = setupRenderParts(
-                      template.parts.map(([part, path]) => [part, findPath(fragment, path)]),
+                      template.parts,
+                      fragment,
                       ctx
                     )
                   }
@@ -382,14 +381,13 @@ function getNodesFromRendered(rendered: Rendered): Array<globalThis.Node> {
 }
 
 function setupRenderParts(
-  parts: ReadonlyArray<
-    readonly [part: Template.PartNode | Template.SparsePartNode, node: Node]
-  >,
+  parts: Template.Template["parts"],
+  fragment: DocumentFragment,
   ctx: TemplateContext
 ): Array<Effect.Effect<unknown>> {
   const effects: Array<Effect.Effect<unknown>> = []
-  for (const [part, node] of parts) {
-    const effect = setupRenderPart(part, node, ctx)
+  for (const [part, path] of parts) {
+    const effect = setupRenderPart(part, findPath(fragment, path), ctx)
     if (effect !== undefined) {
       effects.push(effect)
     }
@@ -579,7 +577,7 @@ function renderValue<E, R, X>(
     Primitive: f,
     Effect: (effect) => {
       ctx.expected++
-      return effect.pipe(Effect.tap((value) => withCurrentRenderPriority(f, index, ctx, () => f(value))))
+      return effect.pipe(Effect.flatMap((value) => withCurrentRenderPriority(f, index, ctx, () => f(value))))
     },
     Fx: (fx) => {
       ctx.expected++
