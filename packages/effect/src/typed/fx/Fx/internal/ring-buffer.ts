@@ -1,4 +1,4 @@
-import { type Effect, flatMap, forEach, void as void_ } from "../../../../Effect.ts"
+import { type Effect, flatMap, void as void_ } from "../../../../Effect.ts"
 
 export class RingBuffer<A> {
   readonly capacity: number
@@ -48,14 +48,14 @@ export class RingBuffer<A> {
           f(this.at(0), 0),
           () => flatMap(f(this.at(1), 1), () => f(this.at(2), 2))
         )
-      default:
-        return forEach(
-          Array.from({ length: this._size }, (_, i) => this.at(i)),
-          f,
-          {
-            discard: true
-          }
-        )
+      default: {
+        let eff: Effect<unknown, E2, R2> = f(this.at(0), 0)
+        for (let i = 1; i < this._size; i++) {
+          const idx = i
+          eff = flatMap(eff, () => f(this.at(idx), idx))
+        }
+        return eff
+      }
     }
   }
 
