@@ -108,7 +108,7 @@ export function diff<A, B extends PropertyKey>(
     }
   }
 
-  return diff.sort(sortDiff)
+  return diff
 }
 
 export function diffIterator<A extends PropertyKey>(
@@ -155,12 +155,6 @@ export function* diffIterator<A, B extends PropertyKey>(
       }
     }
   }
-}
-
-function sortDiff<A, B>(a: Diff<A, B>, b: Diff<A, B>): number {
-  if (a._tag === "Remove" && b._tag !== "Remove") return -1
-  if (b._tag === "Remove") return 1
-  return a.index - b.index
 }
 
 const keysMaps = new WeakMap<any, Map<PropertyKey, number>>()
