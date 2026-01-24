@@ -171,7 +171,7 @@ export namespace Rendered {
    */
   export type Elements<T extends Rendered> = ReadonlyArray<
     [Node] extends [Exclude<T, DocumentFragment | Wire | ReadonlyArray<Rendered>>] ? HTMLElement | SVGElement
-    : Exclude<T, DocumentFragment | Wire | ReadonlyArray<Rendered>>
+      : Exclude<T, DocumentFragment | Wire | ReadonlyArray<Rendered>>
   >
 }
 

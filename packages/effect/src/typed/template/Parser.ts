@@ -543,11 +543,11 @@ function parseTextAndParts<T>(
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
 
-    if (isPlaceholder(part)) {
+    if (part[0] === "{" && part[1] === "{" && part[part.length - 1] === "}" && part[part.length - 2] === "}") {
       out.push(createPartFromIndex(parseInt(parts[++i], 10)))
       // If we encounter a part, we should not skip whitespace, unless we are at the last part
       skipWhitespace = i === last
-    } else if ((skipWhitespace ? part.trimStart() : part) === "") {
+    } else if (part === "" || (skipWhitespace && !/\S/.test(part))) {
       continue
     } else {
       out.push(new Template.TextNode(part))
@@ -556,13 +556,6 @@ function parseTextAndParts<T>(
   }
 
   return out
-}
-
-function isPlaceholder(part: string): boolean {
-  return part[0] === "{" &&
-    part[1] === "{" &&
-    part[part.length - 1] === "}" &&
-    part[part.length - 2] === "}"
 }
 
 // Only to be utilized when parsing positions which MUST be a single part.
