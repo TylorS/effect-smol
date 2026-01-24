@@ -120,7 +120,8 @@ export const map: {
   guard: GuardInput<I, O, E, R>,
   f: (o: O) => B
 ): Guard<I, B, E, R> {
-  return mapEffect(guard, (o) => Effect.sync(() => f(o)))
+  const g = getGuard(guard)
+  return (i) => Effect.mapEager(g(i), Option.map(f))
 })
 
 /**
@@ -183,7 +184,7 @@ export function any<const GS extends Readonly<Record<string, GuardInput<any, any
 ): Guard<AnyInput<GS>, AnyOutput<GS>, Guard.Error<GS[keyof GS]>, Guard.Services<GS[keyof GS]>> {
   const entries = Object.entries(guards).map(([k, v]) => [k, getGuard(v)] as const)
   return (i: AnyInput<GS>) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       for (const [_tag, guard] of entries) {
         const match = yield* guard(i)
         if (Option.isSome(match)) {
@@ -218,7 +219,7 @@ export type AnyOutput<GS extends Readonly<Record<string, GuardInput<any, any, an
 export function liftPredicate<A, B extends A>(predicate: Predicate.Refinement<A, B>): Guard<A, B>
 export function liftPredicate<A>(predicate: Predicate.Predicate<A>): Guard<A, A>
 export function liftPredicate<A>(predicate: Predicate.Predicate<A>): Guard<A, A> {
-  return (a) => Effect.sync(() => (predicate(a) ? Option.some(a) : Option.none()))
+  return (a) => Effect.succeed(predicate(a) ? Option.some(a) : Option.none())
 }
 
 /**
