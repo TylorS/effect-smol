@@ -3,7 +3,7 @@
 import type { IToken } from "html5parser"
 import { tokenize } from "html5parser"
 import { keyToPartType } from "./internal/keyToPartType.ts"
-import { PART_REGEX, PART_STRING } from "./internal/meta.ts"
+import { PART_STRING } from "./internal/meta.ts"
 import { PathStack } from "./internal/PathStack.ts"
 import { templateHash } from "./internal/templateHash.ts"
 import * as Template from "./Template.ts"
