@@ -5,7 +5,7 @@ import { Fx, RefSubject } from "effect/typed/fx"
 
 describe("RefSubject", () => {
   it.effect("tracks an initial value", () => {
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const ref = yield* RefSubject.make(0)
       expect(yield* ref).toEqual(0)
 
@@ -20,7 +20,7 @@ describe("RefSubject", () => {
   })
 
   it.effect("tracks an initial effect", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const ref = yield* RefSubject.make(Effect.callback<number>((resume) => {
         const id = setTimeout(() => resume(Effect.succeed(1)), 100)
         return Effect.sync(() => clearTimeout(id))
@@ -30,7 +30,7 @@ describe("RefSubject", () => {
     }))
 
   it.effect("tracks updates to an fx", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const fx = Fx.mergeAll(
         Fx.succeed(1),
         Fx.at(2, 100),
@@ -46,7 +46,7 @@ describe("RefSubject", () => {
     }))
 
   it.effect("transform invariantly maps RefSubject", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const count = yield* RefSubject.make(5)
       const countStr = RefSubject.transform(
         count,

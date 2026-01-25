@@ -10,7 +10,7 @@ import { getUrl, makeNavigationCore, type NavigationState } from "./_core.ts"
 import { type BeforeNavigationEvent, type Destination, NavigationError } from "./model.ts"
 import { Navigation } from "./Navigation.ts"
 
-export const fromWindow = (window: Window) =>
+export const fromWindow = (window: Window = globalThis.window) =>
   Layer.effect(Navigation)(
     Effect.gen(function*() {
       const origin = window.location.origin

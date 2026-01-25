@@ -46,7 +46,6 @@ export class Navigation extends ServiceMap.Service<Navigation, {
     handler: NavigationHandler<R, R2>
   ) => Effect.Effect<void, never, R | R2 | Scope.Scope>
 }>()("@typed/navigation/Navigation") {
-
   static readonly origin = Navigation.useSync((n) => n.origin)
   static readonly base = Navigation.useSync((n) => n.base)
 
@@ -93,6 +92,8 @@ export type NavigationHandler<R, R2> = (
   R
 >
 
-export const CurrentPath = RefSubject.computedFromService(Navigation.useSync((n) => n.currentEntry.pipe(
-  RefSubject.map((entry) => entry.url.pathname + entry.url.search)
-)))
+export const CurrentPath = RefSubject.computedFromService(Navigation.useSync((n) =>
+  n.currentEntry.pipe(
+    RefSubject.map((entry) => entry.url.pathname + entry.url.search)
+  )
+))
