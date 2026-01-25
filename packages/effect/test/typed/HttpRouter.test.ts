@@ -1,12 +1,12 @@
 import { NodeHttpServer } from "@effect/platform-node"
 import { assert, describe, it } from "@effect/vitest"
 import { Effect, Layer } from "effect"
-import { HttpClient, HttpRouter } from "effect/unstable/http"
-import { html, StaticHtmlRenderTemplate } from "effect/typed/template"
 import { map } from "effect/typed/fx/Fx/combinators/map"
 import * as Matcher from "effect/typed/router/Matcher"
 import * as Route from "effect/typed/router/Route"
-import { mountForHttp } from "effect/typed/ui/HttpRouter"
+import { html, StaticHtmlRenderTemplate } from "effect/typed/template"
+import { handleHttpServerError, mountForHttp } from "effect/typed/ui/HttpRouter"
+import { HttpClient, HttpRouter } from "effect/unstable/http"
 
 describe("typed/ui/HttpRouter", () => {
   it.effect("renders simple html template", () => {
@@ -20,7 +20,7 @@ describe("typed/ui/HttpRouter", () => {
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/home").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -40,7 +40,7 @@ describe("typed/ui/HttpRouter", () => {
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/users/123").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -60,7 +60,7 @@ describe("typed/ui/HttpRouter", () => {
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/search?q=test").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -80,7 +80,7 @@ describe("typed/ui/HttpRouter", () => {
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const homeResponse = yield* HttpClient.get("/home").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -98,17 +98,17 @@ describe("typed/ui/HttpRouter", () => {
       html`<div>Home</div>`
     )
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(Effect.fn(function*(r) {
+        yield* mountForHttp(r, matcher)
+        yield* handleHttpServerError(r)
+      })).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
-      const response = yield* HttpClient.get("/notfound").pipe(
-        Effect.flatMap((r) => r.text),
-        Effect.catchTag("HttpClientError", () => Effect.succeed("404"))
-      )
-      assert.strictEqual(response, "404")
+    return Effect.gen(function*() {
+      const response = yield* HttpClient.get("/notfound")
+      assert.strictEqual(response.status, 404)
     }).pipe(Effect.provide(Live))
   })
 
@@ -123,7 +123,7 @@ describe("typed/ui/HttpRouter", () => {
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/dynamic").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -142,7 +142,7 @@ describe("typed/ui/HttpRouter", () => {
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/home")
       const contentType = response.headers["content-type"]
       assert.strictEqual(contentType, "text/html; charset=utf-8")
@@ -161,7 +161,7 @@ describe("typed/ui/HttpRouter", () => {
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const listResponse = yield* HttpClient.get("/api/users").pipe(
         Effect.flatMap((r) => r.text)
       )
