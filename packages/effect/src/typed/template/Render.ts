@@ -7,6 +7,7 @@ import { isFunction, isNullish, isObject } from "../../Predicate.ts"
 import { map as mapRecord } from "../../Record.ts"
 import * as Scope from "../../Scope.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
+import { isStream } from "../../Stream.ts"
 import * as Fx from "../fx/Fx.ts"
 import * as Sink from "../fx/Sink/Sink.ts"
 import { CouldNotFindCommentError, isHydrationError } from "./errors.ts"
@@ -597,6 +598,8 @@ function matchRenderable<X, A, B, C>(
   if (isNullish(renderable)) return
   else if (Fx.isFx(renderable)) {
     return matches.Fx(renderable as any)
+  } else if (isStream(renderable)) {
+    return matches.Fx(Fx.fromStream(renderable))
   } else if (Effect.isEffect(renderable)) {
     return matches.Effect(renderable as any)
   } else if (Array.isArray(renderable)) {

@@ -15,8 +15,8 @@ type EventHandlerProperty = `on${string}`
 
 type AnchorEventHandlers = {
   readonly [K in keyof HTMLAnchorElement as K extends EventHandlerProperty ? K : never]?:
-  | Effect.Effect<unknown, any, any>
-  | EventHandler.EventHandler<Event, any, any>
+    | Effect.Effect<unknown, any, any>
+    | EventHandler.EventHandler<Event, any, any>
 }
 
 type AnchorRef = {
@@ -44,7 +44,7 @@ function makeLinkClickHandler(replace$: RefSubject.RefSubject<boolean>): EventHa
   Navigation
 > {
   return EventHandler.make((ev: MouseEvent) =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const anchor = ev.currentTarget as HTMLAnchorElement
       const href = anchor.href
       if (ev.ctrlKey || ev.metaKey || ev.shiftKey) return
@@ -74,7 +74,7 @@ export function Link<const Opts extends LinkOptions>(options: Opts) {
     Renderable.ErrorFromObject<Opts> | Renderable.Error<Values[number]>,
     Renderable.ServicesFromObject<Opts> | Renderable.Services<Values[number]> | Scope | RenderTemplate
   > =>
-    gen(function* () {
+    gen(function*() {
       const { replace = false, onclick, ...rest } = options
       const replace$ = yield* RefSubject.make(replace)
       const navigationHandler = makeLinkClickHandler(replace$)
@@ -82,7 +82,7 @@ export function Link<const Opts extends LinkOptions>(options: Opts) {
       // Merge navigation handler with user-provided onclick if present
       const clickHandler: EventHandler.EventHandler<MouseEvent, any, any> = onclick
         ? EventHandler.make((ev: MouseEvent) =>
-          Effect.gen(function* () {
+          Effect.gen(function*() {
             const userHandler = EventHandler.fromEffectOrEventHandler(
               onclick as Effect.Effect<unknown, any, any> | EventHandler.EventHandler<MouseEvent, any, any>
             )

@@ -620,7 +620,10 @@ export class RouteDecodeError extends Schema.ErrorClass<RouteDecodeError>("@type
   cause: Schema.String
 }) { }
 
-type CompiledEntry = {
+/**
+ * @internal
+ */
+export type CompiledEntry = {
   readonly route: Route.Any
   readonly guard: AnyGuard
   readonly handler: AnyMatchHandler
@@ -898,7 +901,10 @@ function mergeLayers(layers: ReadonlyArray<AnyLayer>): AnyLayer {
   return current
 }
 
-function compile(cases: ReadonlyArray<MatchAst>): ReadonlyArray<CompiledEntry> {
+/**
+ * @internal
+ */
+export function compile(cases: ReadonlyArray<MatchAst>): ReadonlyArray<CompiledEntry> {
   const entries: Array<CompiledEntry> = []
 
   const visit = (
@@ -980,7 +986,10 @@ const closeScopes = (
     { concurrency: "unbounded", discard: true }
   )
 
-function makeLayerManager(
+/**
+ * @internal
+ */
+export function makeLayerManager(
   memoMap: Layer.MemoMap,
   rootScope: Scope.Scope,
   fiberId: number
@@ -1060,7 +1069,10 @@ function makeLayerManager(
   return { prepare }
 }
 
-function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
+/**
+ * @internal
+ */
+export function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
   const states = new Map<AnyLayout, {
     params: RefSubject.RefSubject<any>
     content: RefSubject.RefSubject<Fx.Fx<any, any, any>>
@@ -1128,7 +1140,10 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
   return { apply, updateParams }
 }
 
-function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
+/**
+ * @internal
+ */
+export function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
   const states = new Map<AnyCatch, {
     causes: RefSubject.RefSubject<Cause.Cause<any>>
     content: RefSubject.RefSubject<Fx.Fx<any, any, any>>
@@ -1194,3 +1209,4 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
 
   return { apply }
 }
+

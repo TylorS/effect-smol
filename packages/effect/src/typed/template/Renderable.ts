@@ -45,7 +45,7 @@ import type { RenderEvent } from "./RenderEvent.ts"
  */
 export type Renderable<A, E = never, R = never> =
   | A
-  | { readonly [key: string]: unknown } // TODO: How to better handle .data and ...spread attributes???
+  | { readonly [key: string]: Renderable<unknown, E, R> } // TODO: How to better handle .data and ...spread attributes???
   | ReadonlyArray<Renderable<A, E, R>>
   | Effect.Effect<A, E, R>
   | Stream.Stream<A, E, R>
@@ -97,4 +97,26 @@ export declare namespace Renderable {
     | Fx.Success<T>
     | (T extends Stream.Stream<any, any, any> ? Stream.Success<T> : never)
     | Effect.Success<T>
+
+  // Helpers for arbitrary objects
+
+  /**
+   * Traverse all keys in an object and extract the services from each value. If
+   * the value is a function, extract the services from the return type of the function.
+   */
+  export type ServicesFromObject<T> = [
+    {
+      [K in keyof T]: T[K] extends (...args: Array<any>) => any ? Services<ReturnType<T[K]>> : Services<T[K]>
+    }[keyof T]
+  ] extends [infer U] ? U : never
+
+  /**
+   * Traverse all keys in an object and extract the error from each value. If
+   * the value is a function, extract the error from the return type of the function.
+   */
+  export type ErrorFromObject<T> = [
+    {
+      [K in keyof T]: T[K] extends (...args: Array<any>) => any ? Error<ReturnType<T[K]>> : Error<T[K]>
+    }[keyof T]
+  ] extends [infer U] ? U : never
 }

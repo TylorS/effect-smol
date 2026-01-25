@@ -14,12 +14,13 @@ export class CurrentRoute extends ServiceMap.Service<CurrentRoute, CurrentRouteT
 }) {
   static readonly Default = Layer.effect(CurrentRoute, CurrentRoute.make)
 
-  static readonly extend = (route: Route.Any) => Layer.unwrap(Effect.gen(function* () {
-    const services = yield* Effect.services<never>()
-    const parent = ServiceMap.getOrUndefined(services, CurrentRoute)
-    return Layer.succeed(CurrentRoute, {
-      route,
-      parent
-    })
-  }))
+  static readonly extend = (route: Route.Any) =>
+    Layer.unwrap(Effect.gen(function*() {
+      const services = yield* Effect.services<never>()
+      const parent = ServiceMap.getOrUndefined(services, CurrentRoute)
+      return Layer.succeed(CurrentRoute, {
+        route,
+        parent
+      })
+    }))
 }
