@@ -1,27 +1,25 @@
 import * as Effect from "../../Effect.ts"
 import * as Layer from "../../Layer.ts"
 import * as ServiceMap from "../../ServiceMap.ts"
+import { Navigation } from "../navigation/Navigation.ts"
 import { Parse, type Route } from "./Route.ts"
 
-export interface CurrentRouteService {
+export interface CurrentRouteTree {
   readonly route: Route.Any
-  readonly parent: CurrentRouteService | undefined
+  readonly parent?: CurrentRouteTree | undefined
 }
 
-export class CurrentRoute
-  extends ServiceMap.Service<CurrentRoute, CurrentRouteService>()("@typed/router/CurrentRoute")
-{
-  static layer = <R extends Route.Any, P extends CurrentRouteService | null = null>(
-    route: R
-  ): Layer.Layer<CurrentRoute> =>
-    Layer.unwrap(Effect.gen(function*() {
-      const services = yield* Effect.services<never>()
-      const parent = ServiceMap.getOrUndefined(services, CurrentRoute)
-      return Layer.succeed(CurrentRoute, {
-        route,
-        parent
-      })
-    }))
+export class CurrentRoute extends ServiceMap.Service<CurrentRoute, CurrentRouteTree>()("@typed/router/CurrentRoute", {
+  make: Effect.map(Navigation.base, (base) => ({ route: Parse(base) }))
+}) {
+  static readonly Default = Layer.effect(CurrentRoute, CurrentRoute.make)
 
-  static Default = (path: string = "") => CurrentRoute.layer(Parse(path))
+  static readonly extend = (route: Route.Any) => Layer.unwrap(Effect.gen(function* () {
+    const services = yield* Effect.services<never>()
+    const parent = ServiceMap.getOrUndefined(services, CurrentRoute)
+    return Layer.succeed(CurrentRoute, {
+      route,
+      parent
+    })
+  }))
 }
