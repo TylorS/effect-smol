@@ -27,7 +27,7 @@ import { slice as fxSlice } from "../Fx/combinators/slice.ts"
 import { unwrap } from "../Fx/combinators/unwrap.ts"
 import { fromEffect as fxFromEffect } from "../Fx/constructors/fromEffect.ts"
 import { fromYieldable } from "../Fx/constructors/fromYieldable.ts"
-import type { Fx, Error as FxError } from "../Fx/Fx.ts"
+import type { Error as FxError, Fx } from "../Fx/Fx.ts"
 import * as DeferredRef from "../Fx/internal/DeferredRef.ts"
 import { getExitEquivalence } from "../Fx/internal/equivalence.ts"
 import type { UnionToTuple } from "../Fx/internal/UnionToTuple.ts"
@@ -81,7 +81,8 @@ export type FilteredTypeId = typeof FilteredTypeId
  * @category models
  */
 export interface Computed<out A, out E = never, out R = never>
-  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E, R> {
+  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E, R>
+{
   readonly [ComputedTypeId]: ComputedTypeId
 }
 
@@ -127,7 +128,8 @@ export declare namespace Computed {
  * @category models
  */
 export interface Filtered<out A, out E = never, out R = never>
-  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R> {
+  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R>
+{
   readonly [FilteredTypeId]: FilteredTypeId
 
   /**
@@ -469,7 +471,8 @@ function getSetDelete<A, E, R, R2>(ref: RefSubjectCore<A, E, R, R2>): GetSetDele
   }
 }
 class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Scope.Scope, A, E, Exclude<R, R2>>
-  implements RefSubject<A, E, Exclude<R, R2>> {
+  implements RefSubject<A, E, Exclude<R, R2>>
+{
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
@@ -633,7 +636,7 @@ export function fromFx<A, E, R>(
   fx: Fx<A, E, R>,
   options?: RefSubjectOptions<A>
 ): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const core = yield* makeDeferredCore<A, E, R>(options)
     const ref = new RefSubjectImpl(core)
     yield* Effect.forkIn(
@@ -652,7 +655,7 @@ export function fromStream<A, E, R>(
   stream: Stream.Stream<A, E, R>,
   options?: RefSubjectOptions<A>
 ): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const core = yield* makeDeferredCore<A, E, R>(options)
     const ref = new RefSubjectImpl(core)
     yield* Effect.forkIn(
@@ -668,11 +671,13 @@ export function fromStream<A, E, R>(
 }
 
 function redirectCause<A, E, R>(
-  core: RefSubjectCore<A, E, R, R | Scope.Scope>,
+  core: RefSubjectCore<A, E, R, R | Scope.Scope>
 ) {
-  return Stream.catchCause((cause: Cause.Cause<E>) => Stream.unwrap(
-    Effect.as(onFailureCore(core, cause), Stream.empty)
-  ))
+  return Stream.catchCause((cause: Cause.Cause<E>) =>
+    Stream.unwrap(
+      Effect.as(onFailureCore(core, cause), Stream.empty)
+    )
+  )
 }
 
 function makeCore<A, E, R>(
@@ -680,7 +685,7 @@ function makeCore<A, E, R>(
   options?: RefSubjectOptions<A>,
   deferredRef?: DeferredRef.DeferredRef<E, A>
 ) {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const services = yield* Effect.services<R | Scope.Scope>()
     const scope = yield* Scope.fork(ServiceMap.get(services, Scope.Scope))
     const id = yield* Effect.withFiber((fiber) => Effect.succeed(fiber.id))
@@ -701,7 +706,7 @@ function makeCore<A, E, R>(
 function makeDeferredCore<A, E = never, R = never>(
   options?: RefSubjectOptions<A>
 ) {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const deferredRef = yield* DeferredRef.make<E, A>(getExitEquivalence(options?.eq ?? equals))
     return yield* makeCore<A, E, R>(deferredRef.asEffect(), options, deferredRef)
   })
@@ -1295,7 +1300,7 @@ export function Service<Self, A, E = never>() {
 
       // Yieldable
       static readonly asEffect = () => Effect.flatMap(service.asEffect(), Effect.fromYieldable)
-      static readonly [Symbol.iterator] = function* () {
+      static readonly [Symbol.iterator] = function*() {
         const ref = yield* service
         return yield* ref
       }
@@ -1369,14 +1374,14 @@ export const proxy: {
 >(
   source: Computed<A, E, R> | Filtered<A, E, R>
 ): any => {
-    const target: any = {}
-    return new Proxy(target, {
-      get(self, prop) {
-        if (prop in self) return self[prop]
-        return self[prop] = map(source, (a) => a[prop as keyof A])
-      }
-    })
-  }
+  const target: any = {}
+  return new Proxy(target, {
+    get(self, prop) {
+      if (prop in self) return self[prop]
+      return self[prop] = map(source, (a) => a[prop as keyof A])
+    }
+  })
+}
 
 export type Services<T> = T extends RefSubject<infer _A, infer _E, infer R> ? R :
   T extends Computed<infer _A, infer _E, infer R> ? R :
@@ -1432,7 +1437,7 @@ export const mapEffect: {
   ): (
     ref: T
   ) => T extends Filtered.Any ? Filtered<B, Error<T> | E2, Services<T> | R2>
-      : Computed<B, Error<T> | E2, Services<T> | R2>
+    : Computed<B, Error<T> | E2, Services<T> | R2>
 
   <A, E, R, B, E2, R2>(
     ref: RefSubject<A, E, R> | Computed<A, E, R>,
@@ -1453,7 +1458,8 @@ export const mapEffect: {
   f: (a: A) => Effect.Effect<C, E3, R3>
 ):
   | Computed<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
-  | Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3> {
+  | Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
+{
   return FilteredTypeId in versioned
     ? new FilteredImpl(versioned, (a) => Effect.asSome(f(a)))
     : new ComputedImpl(versioned, f)
@@ -1508,7 +1514,8 @@ export const map: {
   f: (a: A) => B
 ):
   | Computed<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
-  | Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2> {
+  | Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
+{
   return mapEffect(versioned, (a) => Effect.succeed(f(a)))
 })
 
@@ -1652,11 +1659,12 @@ export const compact: {
 } = function compact<R0, E0, A, E, R, E2, R2>(
   versioned: Versioned.Versioned<R0, E0, Option.Option<A>, E, R, Option.Option<A>, E2, R2>
 ): any {
-    return new FilteredImpl(versioned, Effect.succeed)
-  }
+  return new FilteredImpl(versioned, Effect.succeed)
+}
 
 class RefSubjectSimpleTransform<A, E, R, R2, R3> extends YieldableFx<A, E, R | R2 | Scope.Scope, A, E, R | R3>
-  implements RefSubject<A, E, R | R2 | R3> {
+  implements RefSubject<A, E, R | R2 | R3>
+{
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
@@ -2105,7 +2113,8 @@ class RefSubjectStruct<
     },
     Error<Refs[keyof Refs]>,
     Services<Refs[keyof Refs]>
-  > {
+  >
+{
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
