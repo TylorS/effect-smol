@@ -14,12 +14,12 @@ import { fail } from "effect/typed/fx/Fx/constructors/fail"
 import { succeed } from "effect/typed/fx/Fx/constructors/succeed"
 import { collectAll } from "effect/typed/fx/Fx/run/collect"
 import { observe } from "effect/typed/fx/Fx/run/observe"
-import { CurrentPath } from "effect/typed/router/CurrentPath"
-import { CurrentRoute } from "effect/typed/router/CurrentRoute"
+import { Navigation } from "effect/typed/navigation/Navigation"
 import * as Matcher from "effect/typed/router/Matcher"
 import * as Route from "effect/typed/router/Route"
+import { ServerRouter } from "effect/typed/router/Router"
 
-class TestError extends Data.TaggedError("TestError")<{ readonly message: string }> {}
+class TestError extends Data.TaggedError("TestError")<{ readonly message: string }> { }
 
 describe("typed/router/Matcher", () => {
   it("type check for match options inference", () => {
@@ -34,7 +34,7 @@ describe("typed/router/Matcher", () => {
     void matcher
   })
   it.live("matches routes and emits values as the path changes", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const users = Route.join(Route.Parse("users"), Route.Param("id"))
       const about = Route.Parse("about")
 
@@ -60,19 +60,16 @@ describe("typed/router/Matcher", () => {
       yield* Effect.yieldNow
 
       yield* first.await
-      yield* CurrentPath.onSuccess("/about")
+      yield* Navigation.navigate("http://localhost/about")
 
       yield* done.await
       yield* Fiber.interrupt(fiber)
 
       assert.deepStrictEqual(values, ["users:1", "about"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
   it.effect("fails with RouteNotFound when no route matches", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const route = Route.Parse("about")
       const fx = Matcher.run(Matcher.empty.match(route, "about"))
 
@@ -82,13 +79,10 @@ describe("typed/router/Matcher", () => {
       )
 
       assert.strictEqual(result, "/nope")
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/nope")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/nope" }))))
 
   it.live("updates params without re-running the handler for the same route", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const mounts = yield* Ref.make(0)
       const users = Route.join(Route.Parse("users"), Route.Param("id"))
 
@@ -120,20 +114,17 @@ describe("typed/router/Matcher", () => {
       yield* Effect.yieldNow
 
       yield* first.await
-      yield* CurrentPath.onSuccess("/users/2")
+      yield* Navigation.navigate("http://localhost/users/2")
 
       yield* done.await
       yield* Fiber.interrupt(fiber)
 
       assert.deepStrictEqual(values, ["1", "2"])
       assert.strictEqual(yield* Ref.get(mounts), 1)
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
-  it.effect("runs guards in order and uses the guard output", () =>
-    Effect.gen(function*() {
+  it.live("runs guards in order and uses the guard output", () =>
+    Effect.gen(function* () {
       const users = Route.join(Route.Parse("users"), Route.Param("id"))
       const calls = yield* Ref.make<ReadonlyArray<string>>([])
 
@@ -160,13 +151,10 @@ describe("typed/router/Matcher", () => {
       const values = yield* collectAll(take(fx, 1))
       assert.deepStrictEqual(values, [true])
       assert.deepStrictEqual(yield* Ref.get(calls), ["g1", "g2"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
-  it.effect("accumulates guard failures when no guard matches", () =>
-    Effect.gen(function*() {
+  it.live("accumulates guard failures when no guard matches", () =>
+    Effect.gen(function* () {
       const users = Route.join(Route.Parse("users"), Route.Param("id"))
       const fx = Matcher.run(
         Matcher.empty
@@ -180,13 +168,10 @@ describe("typed/router/Matcher", () => {
       )
 
       assert.strictEqual(result, 2)
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
   it.live("reuses shared layers and layouts across route changes", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const mounts = yield* Ref.make(0)
       const layouts = yield* Ref.make(0)
 
@@ -223,7 +208,7 @@ describe("typed/router/Matcher", () => {
       yield* Effect.yieldNow
 
       yield* first.await
-      yield* CurrentPath.onSuccess("/about")
+      yield* Navigation.navigate("http://localhost/about")
 
       yield* done.await
       yield* Fiber.interrupt(fiber)
@@ -231,40 +216,31 @@ describe("typed/router/Matcher", () => {
       assert.deepStrictEqual(values, ["users:1", "about"])
       assert.strictEqual(yield* Ref.get(mounts), 1)
       assert.strictEqual(yield* Ref.get(layouts), 1)
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
   // RouteDecodeError requires Route.ParamWithSchema which has a bug (uses schema.Type instead of schema)
   // TODO: Add RouteDecodeError test once Route.ParamWithSchema is fixed
 
-  it.effect("ignores trailing slashes", () =>
-    Effect.gen(function*() {
+  it.live("ignores trailing slashes", () =>
+    Effect.gen(function* () {
       const about = Route.Parse("about")
       const fx = Matcher.run(Matcher.empty.match(about, "about"))
 
       const values = yield* collectAll(take(fx, 1))
       assert.deepStrictEqual(values, ["about"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/about/")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/about/" }))))
 
-  it.effect("is case insensitive", () =>
-    Effect.gen(function*() {
+  it.live("is case insensitive", () =>
+    Effect.gen(function* () {
       const about = Route.Parse("about")
       const fx = Matcher.run(Matcher.empty.match(about, "about"))
 
       const values = yield* collectAll(take(fx, 1))
       assert.deepStrictEqual(values, ["about"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/ABOUT")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/ABOUT" }))))
 
-  it.effect("succeeds when first guard fails but later guard succeeds", () =>
-    Effect.gen(function*() {
+  it.live("succeeds when first guard fails but later guard succeeds", () =>
+    Effect.gen(function* () {
       const users = Route.join(Route.Parse("users"), Route.Param("id"))
 
       const fx = Matcher.run(
@@ -275,13 +251,10 @@ describe("typed/router/Matcher", () => {
 
       const values = yield* collectAll(take(fx, 1))
       assert.deepStrictEqual(values, ["matched"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
-  it.effect("fails with RouteGuardError with empty causes when all guards return Option.none", () =>
-    Effect.gen(function*() {
+  it.live("fails with RouteGuardError with empty causes when all guards return Option.none", () =>
+    Effect.gen(function* () {
       const users = Route.join(Route.Parse("users"), Route.Param("id"))
 
       const fx = Matcher.run(
@@ -296,13 +269,10 @@ describe("typed/router/Matcher", () => {
       )
 
       assert.strictEqual(result, 0)
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
   it.live("Matcher.catch recovers from typed failures", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const about = Route.Parse("about")
 
       const matcher = Matcher.empty
@@ -313,13 +283,10 @@ describe("typed/router/Matcher", () => {
       const values = yield* collectAll(take(fx, 1))
 
       assert.deepStrictEqual(values, ["recovered"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/about")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/about" }))))
 
   it.live("Matcher.catchTag only recovers for matching tag", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const about = Route.Parse("about")
 
       const matcher = Matcher.empty
@@ -330,22 +297,19 @@ describe("typed/router/Matcher", () => {
       const values = yield* collectAll(take(fx, 1))
 
       assert.deepStrictEqual(values, ["recovered"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/about")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/about" }))))
 
   // Note: catchTag only allows tags that exist in the error union.
   // The type system prevents catching non-existent tags at compile time.
 
   it.live("Matcher.catchCause recovers from any cause", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const about = Route.Parse("about")
 
       const matcher = Matcher.empty
         .match(about, fail(new TestError({ message: "fail" })))
         .catchCause((causeRef) =>
-          unwrap(Effect.gen(function*() {
+          unwrap(Effect.gen(function* () {
             const cause = yield* causeRef
             const msg = Cause.hasFail(cause) ? "recovered" : "other"
             return succeed(msg)
@@ -356,16 +320,13 @@ describe("typed/router/Matcher", () => {
       const values = yield* collectAll(take(fx, 1))
 
       assert.deepStrictEqual(values, ["recovered"])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/about")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/about" }))))
 
   // TODO: Matcher.catchCause function test times out - may need investigation
   // The Matcher.catchCause() method tests pass, so basic catch functionality is verified
 
   it.live("layout receives updated params when staying on same route", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const layoutMounts = yield* Ref.make(0)
       const users = Route.join(Route.Parse("users"), Route.Param("id"))
 
@@ -391,28 +352,25 @@ describe("typed/router/Matcher", () => {
       yield* Effect.yieldNow
 
       yield* first.await
-      yield* CurrentPath.onSuccess("/users/2")
+      yield* Navigation.navigate("http://localhost/users/2")
 
       yield* done.await
       yield* Fiber.interrupt(fiber)
 
       assert.deepStrictEqual(values, ["1", "2"])
       assert.strictEqual(yield* Ref.get(layoutMounts), 1)
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/users/1")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/users/1" }))))
 
-  it.effect("per-route dependencies option provides services to handler", () =>
-    Effect.gen(function*() {
-      class Counter extends ServiceMap.Service<Counter, { readonly value: number }>()("Counter") {}
+  it.live("per-route dependencies option provides services to handler", () =>
+    Effect.gen(function* () {
+      class Counter extends ServiceMap.Service<Counter, { readonly value: number }>()("Counter") { }
 
       const counterLayer = Layer.succeed(Counter, { value: 42 })
       const about = Route.Parse("about")
 
       const matcher = Matcher.empty.match(about, {
         handler: unwrap(
-          Effect.gen(function*() {
+          Effect.gen(function* () {
             const counter = yield* Counter
             return succeed(counter.value)
           })
@@ -424,13 +382,10 @@ describe("typed/router/Matcher", () => {
       const values = yield* collectAll(take(fx, 1))
 
       assert.deepStrictEqual(values, [42])
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/about")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/about" }))))
 
-  it.effect("layer finalizer runs when guard fails after layer build", () =>
-    Effect.gen(function*() {
+  it.live("layer finalizer runs when guard fails after layer build", () =>
+    Effect.gen(function* () {
       const finalized = yield* Ref.make(false)
       const about = Route.Parse("about")
       const other = Route.Parse("other")
@@ -454,8 +409,5 @@ describe("typed/router/Matcher", () => {
 
       assert.deepStrictEqual(values, ["other"])
       assert.isFalse(yield* Ref.get(finalized))
-    }).pipe(Effect.provide(Layer.mergeAll(
-      CurrentRoute.Default(),
-      CurrentPath.make("/other")
-    ))))
+    }).pipe(Effect.provide(ServerRouter({ url: "http://localhost/other" }))))
 })

@@ -29,7 +29,7 @@ import { isFx } from "../fx/Fx/TypeId.ts"
 import { RefSubject } from "../fx/RefSubject.ts"
 import * as AST from "./AST.ts"
 import type { MatchAst, RouteAst } from "./AST.ts"
-import { CurrentPath } from "./CurrentPath.ts"
+import { CurrentPath } from "../navigation/Navigation.ts"
 import { CurrentRoute } from "./CurrentRoute.ts"
 import { join, make as makeRoute, type Route } from "./Route.ts"
 
@@ -92,8 +92,8 @@ type GuardServices<G> = G extends GuardType<any, any, any, infer R> ? R
 type MatchOptions<Rt extends Route.Any, B, E2, R2, D, LB, LE2, LR2, C> = {
   readonly route: Rt
   readonly handler:
-    | MatchHandlerReturnValue<B, E2, R2>
-    | ((params: RefSubject.RefSubject<Route.Type<Rt>>) => MatchHandlerReturnValue<B, E2, R2>)
+  | MatchHandlerReturnValue<B, E2, R2>
+  | ((params: RefSubject.RefSubject<Route.Type<Rt>>) => MatchHandlerReturnValue<B, E2, R2>)
   readonly dependencies?: D
   readonly layout?: Layout<Route.Type<Rt>, B, E2, R2, LB, LE2, LR2>
   readonly catch?: C
@@ -107,17 +107,17 @@ type MatchHandlerReturnValue<A, E, R> =
 
 type MatchHandlerOptions<Params, B, E2, R2, D, LB, LE2, LR2, C> = {
   readonly handler:
-    | MatchHandlerReturnValue<B, E2, R2>
-    | ((params: RefSubject.RefSubject<Params>) => MatchHandlerReturnValue<B, E2, R2>)
+  | MatchHandlerReturnValue<B, E2, R2>
+  | ((params: RefSubject.RefSubject<Params>) => MatchHandlerReturnValue<B, E2, R2>)
   readonly dependencies?: D
   readonly layout?: Layout<Params, B, E2, R2, LB, LE2, LR2>
   readonly catch?: C
 }
 
 type ApplyDependencies<E, R, D> = D extends ReadonlyArray<infer Dep> ? {
-    readonly e: E | DependencyError<Dep>
-    readonly r: Exclude<R, DependencyProvided<Dep>> | DependencyRequirements<Dep>
-  }
+  readonly e: E | DependencyError<Dep>
+  readonly r: Exclude<R, DependencyProvided<Dep>> | DependencyRequirements<Dep>
+}
   : { readonly e: E; readonly r: R }
 
 type ApplyCatch<A, E, R, C> = C extends CatchHandler<any, infer CA, infer CE, infer CR>
@@ -527,7 +527,7 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
 
   catch<B, E2, R2>(f: (e: E) => Fx.Fx<B, E2, R2>): Matcher<A | B, E2, R | R2> {
     return this.catchCause((causeRef) =>
-      unwrap(Effect.gen(function*() {
+      unwrap(Effect.gen(function* () {
         const cause = yield* causeRef
         const filtered = Cause.filterFail(cause)
         if (isFail(filtered)) {
@@ -555,7 +555,7 @@ class MatcherImpl<A, E, R> implements Matcher<A, E, R> {
       R | R2
     >([
       AST.catchCause(this.cases, (causeRef) =>
-        unwrap(Effect.gen(function*() {
+        unwrap(Effect.gen(function* () {
           const cause = yield* causeRef
           const filtered = Cause.filterFail(cause)
           if (isFail(filtered)) {
@@ -607,18 +607,18 @@ export class RouteGuardError extends Schema.ErrorClass<RouteGuardError>("@typed/
   _tag: Schema.tag("RouteGuardError"),
   path: Schema.String,
   causes: Schema.Array(Schema.Unknown)
-}) {}
+}) { }
 
 export class RouteNotFound extends Schema.ErrorClass<RouteNotFound>("@typed/router/RouteNotFound")({
   _tag: Schema.tag("RouteNotFound"),
   path: Schema.String
-}) {}
+}) { }
 
 export class RouteDecodeError extends Schema.ErrorClass<RouteDecodeError>("@typed/router/RouteDecodeError")({
   _tag: Schema.tag("RouteDecodeError"),
   path: Schema.String,
   cause: Schema.String
-}) {}
+}) { }
 
 type CompiledEntry = {
   readonly route: Route.Any
@@ -632,8 +632,8 @@ type CompiledEntry = {
 
 export function run<A, E, R>(
   matcher: Matcher<A, E, R>
-): Fx.Fx<A, E | RouteNotFound | RouteDecodeError | RouteGuardError, R | CurrentPath | CurrentRoute | Scope.Scope> {
-  return unwrap(Effect.gen(function*() {
+): Fx.Fx<A, E | RouteNotFound | RouteDecodeError | RouteGuardError, R | Navigation | CurrentRoute | Scope.Scope> {
+  return unwrap(Effect.gen(function* () {
     const fiberId = yield* Effect.fiberId
     const rootScope = yield* Effect.scope
     const current = yield* CurrentRoute
@@ -661,14 +661,14 @@ export function run<A, E, R>(
     let currentState: {
       entry: CompiledEntry
       params: RefSubject.RefSubject<any>
-      fx: Fx.Fx<A, E, R | Scope.Scope | CurrentPath | CurrentRoute>
+      fx: Fx.Fx<A, E, R | Scope.Scope | Navigation | CurrentRoute>
       scope: Scope.Closeable
     } | null = null
 
     return CurrentPath.pipe(
-      mapEffect(Effect.fn(function*(path) {
+      mapEffect(Effect.fn(function* (path) {
         const result = router.find("GET", path)
-        if (result === undefined) return yield* Effect.fail(new RouteNotFound({ path }))
+        if (result === undefined) return yield* new RouteNotFound({ path })
 
         const input = { ...result.params, ...result.searchParams }
         const entries = result.handler
@@ -709,7 +709,7 @@ export function run<A, E, R>(
         }
 
         if (matchedEntry === undefined || matchedPrepared === undefined) {
-          return yield* Effect.fail(new RouteGuardError({ path, causes: guardCauses }))
+          return yield* new RouteGuardError({ path, causes: guardCauses })
         }
 
         yield* matchedPrepared.commit
@@ -763,8 +763,8 @@ export function catchCause<A, E, R, B, E2, R2>(
   f: (
     cause: RefSubject.RefSubject<Cause.Cause<E | RouteNotFound | RouteDecodeError | RouteGuardError>>
   ) => Fx.Fx<B, E2, R2>
-): Fx.Fx<A | B, E2, R | R2 | CurrentPath | CurrentRoute | Scope.Scope> {
-  return unwrap(Effect.gen(function*() {
+): Fx.Fx<A | B, E2, R | R2 | Navigation | CurrentRoute | Scope.Scope> {
+  return unwrap(Effect.gen(function* () {
     const fiberId = yield* Effect.fiberId
     const rootScope = yield* Effect.scope
     const fx = isFx(input) ? input : run(input)
@@ -796,7 +796,7 @@ function getGuard<I, O, E, R>(guard: GuardInput<I, O, E, R>): GuardType<I, O, E,
 }
 
 function defaultGuard<A>(): GuardType<A, A> {
-  return (input) => Effect.succeed(Option.some(input))
+  return Effect.succeedSome
 }
 
 function mergeLayers(layers: ReadonlyArray<AnyLayer>): AnyLayer {
@@ -901,7 +901,7 @@ function makeLayerManager(
   let cachedOrder: ReadonlyArray<AnyLayer> | undefined = undefined
 
   const prepare = (desired: ReadonlyArray<AnyLayer>) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const desiredSet = cachedOrder === desired
         ? cachedDesiredSet!
         : (cachedDesiredSet = new Set(desired), cachedOrder = desired, cachedDesiredSet)
@@ -941,7 +941,7 @@ function makeLayerManager(
         added.push(layer)
       }
 
-      const commit = Effect.gen(function*() {
+      const commit = Effect.gen(function* () {
         for (let i = removed.length - 1; i >= 0; i--) {
           const layer = removed[i]
           const state = states.get(layer)
@@ -953,7 +953,7 @@ function makeLayerManager(
         order = desired
       })
 
-      const rollback = Effect.gen(function*() {
+      const rollback = Effect.gen(function* () {
         for (let i = added.length - 1; i >= 0; i--) {
           const layer = added[i]
           const state = states.get(layer)
@@ -980,7 +980,7 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
   let active: ReadonlyArray<AnyLayout> = []
 
   const removeUnused = (layouts: ReadonlyArray<AnyLayout>) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const next = new Set(layouts)
       const removed = active.filter((layout) => !next.has(layout))
       const scopes = removed.map((layout) => {
@@ -998,7 +998,7 @@ function makeLayoutManager(rootScope: Scope.Scope, fiberId: number) {
     inner: Fx.Fx<any, any, any>,
     services: ServiceMap.ServiceMap<any>
   ) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       let current = inner
       for (let i = layouts.length - 1; i >= 0; i--) {
         const layout = layouts[i]
@@ -1048,7 +1048,7 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
   let active: ReadonlyArray<AnyCatch> = []
 
   const removeUnused = (catches: ReadonlyArray<AnyCatch>) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const next = new Set(catches)
       const removed = active.filter((c) => !next.has(c))
       const scopes = removed.map((c) => {
@@ -1065,7 +1065,7 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
     inner: Fx.Fx<any, any, any>,
     services: ServiceMap.ServiceMap<any>
   ) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       let current = inner
       for (let i = catches.length - 1; i >= 0; i--) {
         const catcher = catches[i]
@@ -1082,7 +1082,7 @@ function makeCatchManager(rootScope: Scope.Scope, fiberId: number) {
           const fx = content.pipe(
             switchMap(identity),
             exit,
-            mapEffect(Effect.fn(function*(e) {
+            mapEffect(Effect.fn(function* (e) {
               if (isSuccess(e)) return succeed(e.value)
               yield* RefSubject.set(causes, e.cause)
               return fallback

@@ -58,7 +58,7 @@ describe("Hydration", () => {
     () =>
       Effect.gen(function*() {
         const values = ["A", "B", "C"]
-        const interval = 500
+        const interval = 100
         const fxExample = yield* hydrateHtmlElement`<div data-foo=${
           Fx.mergeAll(...values.map((value, index) => Fx.at(value, interval * index)))
         }></div>`

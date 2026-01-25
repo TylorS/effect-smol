@@ -81,8 +81,7 @@ export type FilteredTypeId = typeof FilteredTypeId
  * @category models
  */
 export interface Computed<out A, out E = never, out R = never>
-  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E, R>
-{
+  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E, R> {
   readonly [ComputedTypeId]: ComputedTypeId
 }
 
@@ -128,8 +127,7 @@ export declare namespace Computed {
  * @category models
  */
 export interface Filtered<out A, out E = never, out R = never>
-  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R>
-{
+  extends Versioned.Versioned<R, E, A, E, R | Scope.Scope, A, E | Cause.NoSuchElementError, R> {
   readonly [FilteredTypeId]: FilteredTypeId
 
   /**
@@ -169,7 +167,7 @@ export declare namespace Filtered {
  * @since 1.0.0
  * @category models
  */
-export interface GetSetDelete<A, E, R> {
+export interface GetSetDelete<A, E = never, R = never> {
   readonly get: Effect.Effect<A, E, R>
   readonly set: (a: A) => Effect.Effect<A, E, R>
   readonly delete: Effect.Effect<Option.Option<A>, E, R>
@@ -471,8 +469,7 @@ function getSetDelete<A, E, R, R2>(ref: RefSubjectCore<A, E, R, R2>): GetSetDele
   }
 }
 class RefSubjectImpl<A, E, R, R2> extends YieldableFx<A, E, Exclude<R, R2> | Scope.Scope, A, E, Exclude<R, R2>>
-  implements RefSubject<A, E, Exclude<R, R2>>
-{
+  implements RefSubject<A, E, Exclude<R, R2>> {
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
@@ -636,7 +633,7 @@ export function fromFx<A, E, R>(
   fx: Fx<A, E, R>,
   options?: RefSubjectOptions<A>
 ): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const core = yield* makeDeferredCore<A, E, R>(options)
     const ref = new RefSubjectImpl(core)
     yield* Effect.forkIn(
@@ -655,7 +652,7 @@ export function fromStream<A, E, R>(
   stream: Stream.Stream<A, E, R>,
   options?: RefSubjectOptions<A>
 ): Effect.Effect<RefSubject<A, E>, never, R | Scope.Scope> {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const core = yield* makeDeferredCore<A, E, R>(options)
     const ref = new RefSubjectImpl(core)
     yield* Effect.forkIn(
@@ -685,7 +682,7 @@ function makeCore<A, E, R>(
   options?: RefSubjectOptions<A>,
   deferredRef?: DeferredRef.DeferredRef<E, A>
 ) {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const services = yield* Effect.services<R | Scope.Scope>()
     const scope = yield* Scope.fork(ServiceMap.get(services, Scope.Scope))
     const id = yield* Effect.withFiber((fiber) => Effect.succeed(fiber.id))
@@ -706,7 +703,7 @@ function makeCore<A, E, R>(
 function makeDeferredCore<A, E = never, R = never>(
   options?: RefSubjectOptions<A>
 ) {
-  return Effect.gen(function*() {
+  return Effect.gen(function* () {
     const deferredRef = yield* DeferredRef.make<E, A>(getExitEquivalence(options?.eq ?? equals))
     return yield* makeCore<A, E, R>(deferredRef.asEffect(), options, deferredRef)
   })
@@ -1300,7 +1297,7 @@ export function Service<Self, A, E = never>() {
 
       // Yieldable
       static readonly asEffect = () => Effect.flatMap(service.asEffect(), Effect.fromYieldable)
-      static readonly [Symbol.iterator] = function*() {
+      static readonly [Symbol.iterator] = function* () {
         const ref = yield* service
         return yield* ref
       }
@@ -1374,14 +1371,14 @@ export const proxy: {
 >(
   source: Computed<A, E, R> | Filtered<A, E, R>
 ): any => {
-  const target: any = {}
-  return new Proxy(target, {
-    get(self, prop) {
-      if (prop in self) return self[prop]
-      return self[prop] = map(source, (a) => a[prop as keyof A])
-    }
-  })
-}
+    const target: any = {}
+    return new Proxy(target, {
+      get(self, prop) {
+        if (prop in self) return self[prop]
+        return self[prop] = map(source, (a) => a[prop as keyof A])
+      }
+    })
+  }
 
 export type Services<T> = T extends RefSubject<infer _A, infer _E, infer R> ? R :
   T extends Computed<infer _A, infer _E, infer R> ? R :
@@ -1437,7 +1434,7 @@ export const mapEffect: {
   ): (
     ref: T
   ) => T extends Filtered.Any ? Filtered<B, Error<T> | E2, Services<T> | R2>
-    : Computed<B, Error<T> | E2, Services<T> | R2>
+      : Computed<B, Error<T> | E2, Services<T> | R2>
 
   <A, E, R, B, E2, R2>(
     ref: RefSubject<A, E, R> | Computed<A, E, R>,
@@ -1458,8 +1455,7 @@ export const mapEffect: {
   f: (a: A) => Effect.Effect<C, E3, R3>
 ):
   | Computed<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
-  | Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3>
-{
+  | Filtered<C, E0 | E | E2 | E3, R0 | Exclude<R, Scope.Scope> | R2 | R3 | R2 | R3> {
   return FilteredTypeId in versioned
     ? new FilteredImpl(versioned, (a) => Effect.asSome(f(a)))
     : new ComputedImpl(versioned, f)
@@ -1514,8 +1510,7 @@ export const map: {
   f: (a: A) => B
 ):
   | Computed<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
-  | Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2>
-{
+  | Filtered<B, E0 | E | E2, R0 | Exclude<R, Scope.Scope> | R2> {
   return mapEffect(versioned, (a) => Effect.succeed(f(a)))
 })
 
@@ -1659,12 +1654,11 @@ export const compact: {
 } = function compact<R0, E0, A, E, R, E2, R2>(
   versioned: Versioned.Versioned<R0, E0, Option.Option<A>, E, R, Option.Option<A>, E2, R2>
 ): any {
-  return new FilteredImpl(versioned, Effect.succeed)
-}
+    return new FilteredImpl(versioned, Effect.succeed)
+  }
 
 class RefSubjectSimpleTransform<A, E, R, R2, R3> extends YieldableFx<A, E, R | R2 | Scope.Scope, A, E, R | R3>
-  implements RefSubject<A, E, R | R2 | R3>
-{
+  implements RefSubject<A, E, R | R2 | R3> {
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
@@ -1726,6 +1720,118 @@ export const slice: {
     return new RefSubjectSimpleTransform(ref, (_) => fxSlice(_, { skip, take }), identity)
   }
 )
+
+class RefSubjectTransform<A, B, E, R> extends YieldableFx<B, E, R | Scope.Scope, B, E, R>
+  implements RefSubject<B, E, R> {
+  readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
+  readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
+
+  readonly version: Effect.Effect<number, E, R>
+  readonly interrupt: Effect.Effect<void, never, R>
+  readonly subscriberCount: Effect.Effect<number, never, R>
+  private _fx: Fx<B, E, Scope.Scope | R>
+
+  readonly ref: RefSubject<A, E, R>
+  readonly toB: (a: A) => B
+  readonly toA: (b: B) => A
+
+  constructor(
+    ref: RefSubject<A, E, R>,
+    toB: (a: A) => B,
+    toA: (b: B) => A
+  ) {
+    super()
+
+    this.ref = ref
+    this.toB = toB
+    this.toA = toA
+    this.version = ref.version
+    this.interrupt = ref.interrupt
+    this.subscriberCount = ref.subscriberCount
+
+    this._fx = fxMapEffect(ref, (a) => Effect.succeed(toB(a)))
+  }
+
+  run<R2>(sink: Sink.Sink<B, E, R2>) {
+    return this._fx.run(sink)
+  }
+
+  toEffect(): Effect.Effect<B, E, R> {
+    return Effect.map(this.ref.asEffect(), this.toB)
+  }
+
+  updates<E2, R2, C>(
+    run: (ref: GetSetDelete<B, E, R>) => Effect.Effect<C, E2, R2>
+  ): Effect.Effect<C, E | E2, R | R2> {
+    return this.ref.updates((innerRef) => {
+      const getSetDelete: GetSetDelete<B, E, R> = {
+        get: Effect.map(innerRef.get, this.toB),
+        set: (b: B) => Effect.map(innerRef.set(this.toA(b)), this.toB),
+        delete: Effect.map(innerRef.delete, Option.map(this.toB))
+      }
+      return run(getSetDelete)
+    })
+  }
+
+  onFailure(cause: Cause.Cause<E>): Effect.Effect<unknown, never, R> {
+    return this.ref.onFailure(cause)
+  }
+
+  onSuccess(value: B): Effect.Effect<unknown, never, R> {
+    return this.ref.onSuccess(this.toA(value))
+  }
+}
+
+/**
+ * Transforms a `RefSubject` invariantly using bidirectional mapping functions.
+ *
+ * @example
+ * ```ts
+ * import { Effect } from "effect"
+ * import * as RefSubject from "@typed/fx/RefSubject"
+ *
+ * const program = Effect.gen(function* () {
+ *   const count = yield* RefSubject.make(5)
+ *
+ *   // Transform to string and back
+ *   const countStr = RefSubject.transform(
+ *     count,
+ *     (n) => n.toString(),
+ *     (s) => parseInt(s, 10)
+ *   )
+ *
+ *   const value = yield* countStr
+ *   console.log(value) // "5"
+ *
+ *   // Set using the transformed type
+ *   yield* RefSubject.set(countStr, "10")
+ *
+ *   // Original reflects the change
+ *   const original = yield* count
+ *   console.log(original) // 10
+ * })
+ * ```
+ *
+ * @since 1.0.0
+ * @category combinators
+ */
+export const transform: {
+  <A, B>(
+    toB: (a: A) => B,
+    toA: (b: B) => A
+  ): <E, R>(ref: RefSubject<A, E, R>) => RefSubject<B, E, R>
+  <A, E, R, B>(
+    ref: RefSubject<A, E, R>,
+    toB: (a: A) => B,
+    toA: (b: B) => A
+  ): RefSubject<B, E, R>
+} = dual(3, function transform<A, E, R, B>(
+  ref: RefSubject<A, E, R>,
+  toB: (a: A) => B,
+  toA: (b: B) => A
+): RefSubject<B, E, R> {
+  return new RefSubjectTransform(ref, toB, toA)
+})
 
 type RefKind = "r" | "c" | "f"
 
@@ -2113,8 +2219,7 @@ class RefSubjectStruct<
     },
     Error<Refs[keyof Refs]>,
     Services<Refs[keyof Refs]>
-  >
-{
+  > {
   readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
   readonly [RefSubjectTypeId]: RefSubjectTypeId = RefSubjectTypeId
 
@@ -2217,4 +2322,73 @@ function makeStructFiltered<
   const Refs extends Readonly<Record<string, Computed<any, any, any> | Filtered<any, any, any>>>
 >(refs: Refs): FilteredStructFrom<Refs> {
   return new FilteredImpl(Versioned.struct(refs) as any, Effect.succeedSome) as any
+}
+
+export function computedFromService<R, A, E, R2>(
+  effect: Effect.Effect<Computed<A, E, R2>, never, R>
+): Computed<A, E, R | R2> {
+  return new ComputedFromService(effect)
+}
+
+class ComputedFromService<R, A, E, R2> extends YieldableFx<A, E, R | R2 | Scope.Scope, A, E, R | R2>
+  implements Computed<A, E, R | R2> {
+  readonly [ComputedTypeId]: ComputedTypeId = ComputedTypeId
+
+  private readonly effect: Effect.Effect<Computed<A, E, R2>, never, R>
+  readonly version: Effect.Effect<number, E, R | R2>
+  readonly interrupt: Effect.Effect<void, never, R | R2>
+
+  constructor(
+    effect: Effect.Effect<Computed<A, E, R2>, never, R>
+  ) {
+    super()
+    this.effect = effect
+    this.version = Effect.flatMap(this.effect, (c) => c.version)
+    this.interrupt = Effect.flatMap(this.effect, (c) => c.interrupt)
+  }
+
+  run<RSink>(sink: Sink.Sink<A, E, RSink>): Effect.Effect<unknown, never, R | R2 | RSink | Scope.Scope> {
+    return Effect.flatMap(this.effect, (c) => c.run(sink))
+  }
+
+  toEffect(): Effect.Effect<A, E, R | R2> {
+    return Effect.flatMap(this.effect, (c) => c.asEffect())
+  }
+}
+
+export function filteredFromService<R, A, E, R2>(
+  effect: Effect.Effect<Filtered<A, E, R2>, never, R>
+): Filtered<A, E, R | R2> {
+  return new FilteredFromService(effect)
+}
+
+class FilteredFromService<R, A, E, R2>
+  extends YieldableFx<A, E, R | R2 | Scope.Scope, A, E | Cause.NoSuchElementError, R | R2>
+  implements Filtered<A, E, R | R2> {
+  readonly [FilteredTypeId]: FilteredTypeId = FilteredTypeId
+
+  private readonly effect: Effect.Effect<Filtered<A, E, R2>, never, R>
+  readonly version: Effect.Effect<number, E, R | R2>
+  readonly interrupt: Effect.Effect<void, never, R | R2>
+
+  constructor(
+    effect: Effect.Effect<Filtered<A, E, R2>, never, R>
+  ) {
+    super()
+    this.effect = effect
+    this.version = Effect.flatMap(this.effect, (c) => c.version)
+    this.interrupt = Effect.flatMap(this.effect, (c) => c.interrupt)
+  }
+
+  run<RSink>(sink: Sink.Sink<A, E, RSink>): Effect.Effect<unknown, never, R | R2 | RSink | Scope.Scope> {
+    return Effect.flatMap(this.effect, (c) => c.run(sink))
+  }
+
+  toEffect(): Effect.Effect<A, E | Cause.NoSuchElementError, R | R2> {
+    return Effect.flatMap(this.effect, (c) => c.asEffect())
+  }
+
+  asComputed(): Computed<Option.Option<A>, E, R | R2> {
+    return computedFromService<R, Option.Option<A>, E, R2>(Effect.map(this.effect, (c) => c.asComputed()))
+  }
 }

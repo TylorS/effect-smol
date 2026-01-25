@@ -5,7 +5,7 @@ import { Fx, RefSubject } from "effect/typed/fx"
 
 describe("RefSubject", () => {
   it.effect("tracks an initial value", () => {
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const ref = yield* RefSubject.make(0)
       expect(yield* ref).toEqual(0)
 
@@ -20,7 +20,7 @@ describe("RefSubject", () => {
   })
 
   it.effect("tracks an initial effect", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const ref = yield* RefSubject.make(Effect.callback<number>((resume) => {
         const id = setTimeout(() => resume(Effect.succeed(1)), 100)
         return Effect.sync(() => clearTimeout(id))
@@ -30,7 +30,7 @@ describe("RefSubject", () => {
     }))
 
   it.effect("tracks updates to an fx", () =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const fx = Fx.mergeAll(
         Fx.succeed(1),
         Fx.at(2, 100),
@@ -43,5 +43,26 @@ describe("RefSubject", () => {
       expect(yield* ref).toEqual(2)
       yield* TestClock.adjust(100)
       expect(yield* ref).toEqual(3)
+    }))
+
+  it.effect("transform invariantly maps RefSubject", () =>
+    Effect.gen(function* () {
+      const count = yield* RefSubject.make(5)
+      const countStr = RefSubject.transform(
+        count,
+        (n) => n.toString(),
+        (s) => parseInt(s, 10)
+      )
+
+      expect(yield* countStr).toEqual("5")
+      expect(yield* count).toEqual(5)
+
+      yield* RefSubject.set(countStr, "10")
+      expect(yield* countStr).toEqual("10")
+      expect(yield* count).toEqual(10)
+
+      yield* RefSubject.set(count, 20)
+      expect(yield* countStr).toEqual("20")
+      expect(yield* count).toEqual(20)
     }))
 })

@@ -44,7 +44,7 @@ export interface Versioned<out R1, out E1, out A2, out E2, out R2, out A3, out E
   extends Fx.Fx<A2, E2, R2>, Effect.Yieldable<Versioned<R1, E1, A2, E2, R2, A3, E3, R3>, A3, E3, R3>
 {
   readonly version: Effect.Effect<number, E1, R1>
-  readonly interrupt: Effect.Effect<void, never, R2>
+  readonly interrupt: Effect.Effect<void, never, R1>
 }
 
 export namespace Versioned {
