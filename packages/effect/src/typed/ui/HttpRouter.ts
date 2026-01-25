@@ -1,5 +1,6 @@
 import * as Effect from "../../Effect.ts"
 import * as Exit from "../../Exit.ts"
+import { dual } from "../../Function.ts"
 import * as Layer from "../../Layer.ts"
 import * as Option from "../../Option.ts"
 import * as Scope from "../../Scope.ts"
@@ -21,8 +22,13 @@ import {
 import { renderToHtmlString } from "../template/Html.ts"
 import type { RenderEvent } from "../template/RenderEvent.ts"
 
-export function mountForHttp<E, R>(router: HttpRouter, input: Matcher<RenderEvent, E, R>) {
-  return Effect.gen(function*() {
+export const ssrForHttp: {
+  <E, R>(
+    input: Matcher<RenderEvent, E, R>
+  ): (router: HttpRouter) => Effect.Effect<void>
+  <E, R>(router: HttpRouter, input: Matcher<RenderEvent, E, R>): Effect.Effect<void>
+} = dual(2, <E, R>(router: HttpRouter, input: Matcher<RenderEvent, E, R>) => {
+  return Effect.gen(function* () {
     const matcher = Option.match(yield* Effect.serviceOption(CurrentRoute), {
       onNone: () => input,
       onSome: (parent) => input.prefix(parent.route)
@@ -32,9 +38,9 @@ export function mountForHttp<E, R>(router: HttpRouter, input: Matcher<RenderEven
 
     yield* router.addAll(entries.map((e) => toRoute(e, currentServices)))
   })
-}
+})
 
-export function handleHttpServerError(router: HttpRouter) {
+export function handleHttpServerError(router: HttpRouter): Effect.Effect<void> {
   return router.addGlobalMiddleware((eff) =>
     Effect.catch(eff, (error) => {
       if (HttpServerError.isHttpServerError(error)) {
@@ -59,7 +65,7 @@ function toRoute(entry: CompiledEntry, currentServices: ServiceMap.ServiceMap<ne
     "~effect/http/HttpRouter/Route": "~effect/http/HttpRouter/Route",
     method: "GET",
     path: entry.route.path,
-    handler: Effect.gen(function*() {
+    handler: Effect.gen(function* () {
       const fiberId = yield* Effect.fiberId
       const rootScope = yield* Effect.scope
       const routeContext = yield* RouteContext

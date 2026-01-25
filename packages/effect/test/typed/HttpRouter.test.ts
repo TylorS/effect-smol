@@ -5,7 +5,7 @@ import { map } from "effect/typed/fx/Fx/combinators/map"
 import * as Matcher from "effect/typed/router/Matcher"
 import * as Route from "effect/typed/router/Route"
 import { html, StaticHtmlRenderTemplate } from "effect/typed/template"
-import { handleHttpServerError, mountForHttp } from "effect/typed/ui/HttpRouter"
+import { handleHttpServerError, ssrForHttp } from "effect/typed/ui/HttpRouter"
 import { HttpClient, HttpRouter } from "effect/unstable/http"
 
 describe("typed/ui/HttpRouter", () => {
@@ -15,12 +15,12 @@ describe("typed/ui/HttpRouter", () => {
       html`<div>Hello, world!</div>`
     )
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(ssrForHttp(matcher)).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const response = yield* HttpClient.get("/home").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -35,12 +35,12 @@ describe("typed/ui/HttpRouter", () => {
       (params) => html`<div>User ${params.pipe(map((p) => p.id))}</div>`
     )
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(ssrForHttp(matcher)).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const response = yield* HttpClient.get("/users/123").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -55,12 +55,12 @@ describe("typed/ui/HttpRouter", () => {
       html`<div>Search results</div>`
     )
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(ssrForHttp(matcher)).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const response = yield* HttpClient.get("/search?q=test").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -75,12 +75,12 @@ describe("typed/ui/HttpRouter", () => {
       .match(home, html`<div>Home</div>`)
       .match(about, html`<div>About</div>`)
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(ssrForHttp(matcher)).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const homeResponse = yield* HttpClient.get("/home").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -98,15 +98,15 @@ describe("typed/ui/HttpRouter", () => {
       html`<div>Home</div>`
     )
     const Live = HttpRouter.serve(
-      HttpRouter.use(Effect.fn(function*(r) {
-        yield* mountForHttp(r, matcher)
-        yield* handleHttpServerError(r)
+      HttpRouter.use(Effect.fn(function* (router) {
+        yield* ssrForHttp(router, matcher)
+        yield* handleHttpServerError(router)
       })).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const response = yield* HttpClient.get("/notfound")
       assert.strictEqual(response.status, 404)
     }).pipe(Effect.provide(Live))
@@ -118,12 +118,12 @@ describe("typed/ui/HttpRouter", () => {
       html`<div>Value: ${Effect.succeed("42")}</div>`
     )
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(ssrForHttp(matcher)).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const response = yield* HttpClient.get("/dynamic").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -137,12 +137,12 @@ describe("typed/ui/HttpRouter", () => {
       html`<div>Hello</div>`
     )
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(ssrForHttp(matcher)).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const response = yield* HttpClient.get("/home")
       const contentType = response.headers["content-type"]
       assert.strictEqual(contentType, "text/html; charset=utf-8")
@@ -156,12 +156,12 @@ describe("typed/ui/HttpRouter", () => {
       .match(users, html`<div>Users list</div>`)
       .match(user, (params) => html`<div>User ${params.pipe(map((p) => p.id))}</div>`)
     const Live = HttpRouter.serve(
-      HttpRouter.use((r) => mountForHttp(r, matcher)).pipe(
+      HttpRouter.use(ssrForHttp(matcher)).pipe(
         Layer.provide(StaticHtmlRenderTemplate)
       ),
       { disableListenLog: true, disableLogger: true }
     ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
-    return Effect.gen(function*() {
+    return Effect.gen(function* () {
       const listResponse = yield* HttpClient.get("/api/users").pipe(
         Effect.flatMap((r) => r.text)
       )
