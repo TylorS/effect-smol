@@ -29,7 +29,7 @@ describe("typed/ui/HttpRouter", () => {
   })
 
   it.effect("renders html template with route params", () => {
-    const users = Route.join(Route.Parse("users"), Route.Param("id"))
+    const users = Route.Join(Route.Parse("users"), Route.Param("id"))
     const matcher = Matcher.empty.match(
       users,
       (params) => html`<div>User ${params.pipe(map((p) => p.id))}</div>`
@@ -150,8 +150,8 @@ describe("typed/ui/HttpRouter", () => {
   })
 
   it.effect("handles nested routes", () => {
-    const users = Route.join(Route.Parse("api"), Route.Parse("users"))
-    const user = Route.join(users, Route.Param("id"))
+    const users = Route.Join(Route.Parse("api"), Route.Parse("users"))
+    const user = Route.Join(users, Route.Param("id"))
     const matcher = Matcher.empty
       .match(users, html`<div>Users list</div>`)
       .match(user, (params) => html`<div>User ${params.pipe(map((p) => p.id))}</div>`)

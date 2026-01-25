@@ -189,7 +189,7 @@ export const Parse = <const P extends string>(path: P): Route<Path.Join<Path.Par
   const asts = Path.parse(path) as ReadonlyArray<AST.PathAst>
   if (asts.length === 0) return Slash as unknown as Route<Path.Join<Path.ParseAsts<P>>>
   if (asts.length === 1) return make(AST.path(asts[0]))
-  return join<Array<any>>(...asts.map((ast) => make(AST.path(ast)))) as unknown as Route<Path.Join<Path.ParseAsts<P>>>
+  return Join<Array<any>>(...asts.map((ast) => make(AST.path(ast)))) as unknown as Route<Path.Join<Path.ParseAsts<P>>>
 }
 
 export const Slash = make<"/">(AST.path(AST.literal("")))
@@ -257,7 +257,7 @@ const removeSlash = (ast: AST.RouteAst): ReadonlyArray<AST.RouteAst> => {
   return [ast]
 }
 
-export const join = <const Routes extends AnyRoutes>(
+export const Join = <const Routes extends AnyRoutes>(
   ...routes: Routes
 ): Join<FlattenRoutes<Routes>> =>
   make(AST.join(routes.flatMap((route) => {

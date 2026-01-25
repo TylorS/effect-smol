@@ -51,17 +51,17 @@ describe("Route", () => {
 
   describe("join", () => {
     it("should join literal routes with slashes", () => {
-      const route = Route.join(Route.Parse("api"), Route.Parse("users"))
+      const route = Route.Join(Route.Parse("api"), Route.Parse("users"))
       expect(route.path).type.toBe<"/api/users">()
     })
 
     it("should join literal with param", () => {
-      const route = Route.join(Route.Parse("users"), Route.Param("id"))
+      const route = Route.Join(Route.Parse("users"), Route.Param("id"))
       expect(route.path).type.toBe<"/users/:id">()
     })
 
     it("should join multiple routes", () => {
-      const route = Route.join(
+      const route = Route.Join(
         Route.Parse("api"),
         Route.Parse("v1"),
         Route.Parse("users"),
@@ -73,22 +73,22 @@ describe("Route", () => {
     })
 
     it("should join with wildcard", () => {
-      const route = Route.join(Route.Parse("files"), Route.Wildcard)
+      const route = Route.Join(Route.Parse("files"), Route.Wildcard)
       expect(route.path).type.toBe<"/files/*">()
     })
 
     it("should join single route", () => {
-      const route = Route.join(Route.Parse("users"))
+      const route = Route.Join(Route.Parse("users"))
       expect(route.path).type.toBe<"/users">()
     })
 
     it("should join three params", () => {
-      const route = Route.join(Route.Param("a"), Route.Param("b"), Route.Param("c"))
+      const route = Route.Join(Route.Param("a"), Route.Param("b"), Route.Param("c"))
       expect(route.path).type.toBe<"/:a/:b/:c">()
     })
 
     it("should join param between literals", () => {
-      const route = Route.join(
+      const route = Route.Join(
         Route.Parse("users"),
         Route.Param("id"),
         Route.Parse("profile")
@@ -97,7 +97,7 @@ describe("Route", () => {
     })
 
     it("should join wildcard at end for catch-all", () => {
-      const route = Route.join(
+      const route = Route.Join(
         Route.Parse("docs"),
         Route.Param("version"),
         Route.Wildcard
@@ -108,17 +108,17 @@ describe("Route", () => {
 
   describe("Route type helpers", () => {
     it("Route.Path extracts path type", () => {
-      const route = Route.join(Route.Parse("users"), Route.Param("id"))
+      const route = Route.Join(Route.Parse("users"), Route.Param("id"))
       expect(hole<Route.Route.Path<typeof route>>()).type.toBe<"/users/:id">()
     })
 
     it("Route.Params extracts params type", () => {
-      const route = Route.join(Route.Parse("users"), Route.Param("id"))
+      const route = Route.Join(Route.Parse("users"), Route.Param("id"))
       expect(hole<Route.Route.Params<typeof route>>()).type.toBe<{ readonly id: string }>()
     })
 
     it("Route.Params extracts multiple params", () => {
-      const route = Route.join(
+      const route = Route.Join(
         Route.Parse("users"),
         Route.Param("userId"),
         Route.Parse("posts"),
@@ -131,7 +131,7 @@ describe("Route", () => {
     })
 
     it("Route.Params includes wildcard", () => {
-      const route = Route.join(Route.Parse("files"), Route.Wildcard)
+      const route = Route.Join(Route.Parse("files"), Route.Wildcard)
       expect(hole<Route.Route.Params<typeof route>>()).type.toBe<{ readonly "*": string }>()
     })
 
@@ -157,7 +157,7 @@ describe("Route", () => {
     })
 
     it("joined route combines params", () => {
-      const route = Route.join(
+      const route = Route.Join(
         Route.Parse("users"),
         Route.Param("userId"),
         Route.Parse("posts"),
