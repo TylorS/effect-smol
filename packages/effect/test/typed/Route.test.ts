@@ -80,7 +80,7 @@ describe("typed/router/Route", () => {
 
   describe("paramsSchema", () => {
     it.effect("decodes path params from literal route", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const route = Route.Parse("users")
         const decoded = yield* Schema.decodeEffect(route.paramsSchema)({})
 
@@ -88,7 +88,7 @@ describe("typed/router/Route", () => {
       }))
 
     it.effect("decodes path params from param route", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const route = Route.Param("id")
         const decoded = yield* Schema.decodeEffect(route.paramsSchema)({ id: "123" })
 
@@ -96,7 +96,7 @@ describe("typed/router/Route", () => {
       }))
 
     it.effect("decodes path params from joined route", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const route = Route.Join(Route.Parse("users"), Route.Param("id"))
         const decoded = yield* Schema.decodeEffect(route.paramsSchema)({ id: "123" })
 
@@ -104,7 +104,7 @@ describe("typed/router/Route", () => {
       }))
 
     it.effect("decodes wildcard params", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const route = Route.Join(Route.Parse("files"), Route.Wildcard)
         const decoded = yield* Schema.decodeEffect(route.paramsSchema)({ "*": "path/to/file" })
 
@@ -112,7 +112,7 @@ describe("typed/router/Route", () => {
       }))
 
     it.effect("decodes multiple params from joined route", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const route = Route.Join(
           Route.Parse("users"),
           Route.Param("userId"),
@@ -127,7 +127,7 @@ describe("typed/router/Route", () => {
 
   describe("pathSchema", () => {
     it.effect("decodes path-only params (excludes query)", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const route = Route.Join(Route.Parse("users"), Route.Param("id"))
         const decoded = yield* Schema.decodeEffect(route.pathSchema)({ id: "123" })
 
@@ -137,7 +137,7 @@ describe("typed/router/Route", () => {
 
   describe("querySchema", () => {
     it.effect("decodes empty query schema for path-only route", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const route = Route.Join(Route.Parse("users"), Route.Param("id"))
         const decoded = yield* Schema.decodeEffect(route.querySchema)({})
 

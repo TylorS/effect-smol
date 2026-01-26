@@ -10,7 +10,8 @@ import * as HttpServerError from "../../unstable/http/HttpServerError.ts"
 import * as HttpServerRequest from "../../unstable/http/HttpServerRequest.ts"
 import * as HttpServerResponse from "../../unstable/http/HttpServerResponse.ts"
 import { RefSubject } from "../fx/RefSubject.ts"
-import { CurrentRoute } from "../router/CurrentRoute.ts"
+import { initialMemory } from "../navigation/memory.ts"
+import { CurrentRoute, type CurrentRouteTree } from "../router/CurrentRoute.ts"
 import {
   compile,
   type CompiledEntry,
@@ -19,45 +20,49 @@ import {
   makeLayoutManager,
   type Matcher
 } from "../router/Matcher.ts"
+import { Join, Parse } from "../router/Route.ts"
+import type { Router } from "../router/Router.ts"
 import { renderToHtmlString } from "../template/Html.ts"
 import type { RenderEvent } from "../template/RenderEvent.ts"
+
+type ProvidedForSsr = Scope.Scope | Router
 
 export const ssrForHttp: {
   <E, R>(
     input: Matcher<RenderEvent, E, R>
-  ): (router: HttpRouter) => Effect.Effect<void>
-  <E, R>(router: HttpRouter, input: Matcher<RenderEvent, E, R>): Effect.Effect<void>
+  ): (router: HttpRouter) => Effect.Effect<void, never, Exclude<R, ProvidedForSsr>>
+  <E, R>(router: HttpRouter, input: Matcher<RenderEvent, E, R>): Effect.Effect<void, never, Exclude<R, ProvidedForSsr>>
 } = dual(2, <E, R>(router: HttpRouter, input: Matcher<RenderEvent, E, R>) => {
-  return Effect.gen(function* () {
+  return Effect.gen(function*() {
     const matcher = Option.match(yield* Effect.serviceOption(CurrentRoute), {
       onNone: () => input,
       onSome: (parent) => input.prefix(parent.route)
     })
     const entries = compile(matcher.cases)
-    const currentServices = yield* Effect.services<never>()
+    const currentServices = yield* Effect.services<R>()
 
     yield* router.addAll(entries.map((e) => toRoute(e, currentServices)))
   })
 })
 
 export function handleHttpServerError(router: HttpRouter): Effect.Effect<void> {
-  return router.addGlobalMiddleware((eff) =>
-    Effect.catch(eff, (error) => {
-      if (HttpServerError.isHttpServerError(error)) {
-        switch (error.reason._tag) {
-          case "RouteNotFound":
-            return Effect.succeed(HttpServerResponse.empty({ status: 404 }))
-          case "InternalError":
-            return Effect.succeed(HttpServerResponse.empty({ status: 500 }))
-          case "RequestParseError":
-            return Effect.succeed(HttpServerResponse.empty({ status: 400 }))
-          case "ResponseError":
-            return Effect.succeed(HttpServerResponse.empty({ status: 500 }))
-        }
-      }
-      return Effect.fail(error)
-    })
-  )
+  return router.addGlobalMiddleware(Effect.catch((error) =>
+    HttpServerError.isHttpServerError(error)
+      ? Effect.succeed(HttpServerResponse.text(error.message, { status: getStatus(error) }))
+      : Effect.fail(error)
+  ))
+}
+
+function getStatus(error: HttpServerError.HttpServerError): number {
+  switch (error.reason._tag) {
+    case "RouteNotFound":
+      return 404
+    case "RequestParseError":
+      return 400
+    case "InternalError":
+    case "ResponseError":
+      return 500
+  }
 }
 
 function toRoute(entry: CompiledEntry, currentServices: ServiceMap.ServiceMap<never>): Route<any, any> {
@@ -65,13 +70,30 @@ function toRoute(entry: CompiledEntry, currentServices: ServiceMap.ServiceMap<ne
     "~effect/http/HttpRouter/Route": "~effect/http/HttpRouter/Route",
     method: "GET",
     path: entry.route.path,
-    handler: Effect.gen(function* () {
+    handler: Effect.gen(function*() {
       const fiberId = yield* Effect.fiberId
       const rootScope = yield* Effect.scope
       const routeContext = yield* RouteContext
       const request = yield* HttpServerRequest.HttpServerRequest
       const searchParams = yield* HttpServerRequest.ParsedSearchParams
-
+      const provided = Layer.mergeAll(
+        initialMemory({ url: request.url }),
+        Layer.succeed(
+          CurrentRoute,
+          yield* Effect.serviceOption(CurrentRoute).pipe(
+            Effect.map(Option.match({
+              onNone: (): CurrentRouteTree => ({
+                route: Parse(request.url),
+                parent: undefined
+              }),
+              onSome: (parent): CurrentRouteTree => ({
+                route: Join(parent.route, Parse(request.url)),
+                parent
+              })
+            }))
+          )
+        )
+      )
       const input = { ...routeContext.params, ...searchParams }
 
       const params = yield* Effect.mapError(
@@ -86,7 +108,7 @@ function toRoute(entry: CompiledEntry, currentServices: ServiceMap.ServiceMap<ne
       const layerManager = makeLayerManager(memoMap, rootScope, fiberId)
       const layoutManager = makeLayoutManager(rootScope, fiberId)
       const catchManager = makeCatchManager(rootScope, fiberId)
-      const prepared = yield* layerManager.prepare(entry.layers)
+      const prepared = yield* layerManager.prepare(entry.layers.concat(provided))
 
       const guardExit = yield* entry.guard(params).pipe(
         Effect.provideServices(prepared.services),
