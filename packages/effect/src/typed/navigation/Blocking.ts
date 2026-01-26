@@ -15,7 +15,7 @@ import { Navigation } from "./Navigation.ts"
 /**
  * @since 1.0.0
  */
-export interface BlockNavigation extends RefSubject.Computed<Option.Option<Blocking>> {
+export interface BlockNavigation extends RefSubject.Filtered<Blocking> {
   readonly isBlocking: RefSubject.Computed<boolean>
 }
 
@@ -60,13 +60,13 @@ export interface UseBlockNavigationParams<R = never> {
 export const useBlockNavigation = <R = never>(
   params: UseBlockNavigationParams<R> = {}
 ): Effect.Effect<BlockNavigation, never, Navigation | R | Scope.Scope> =>
-  Effect.gen(function*() {
+  Effect.gen(function* () {
     const navigation = yield* Navigation
     const blockState = yield* RefSubject.make<InternalBlockState>(Unblocked)
 
     yield* navigation.onBeforeNavigation<R, never>((event) =>
       RefSubject.modifyEffect(blockState, (state) =>
-        Effect.gen(function*() {
+        Effect.gen(function* () {
           // Can't block twice
           if (state._tag === "Blocked") return [Option.none(), state] as const
 
@@ -84,7 +84,7 @@ export const useBlockNavigation = <R = never>(
     )
 
     const blockNavigation: BlockNavigation = Object.assign(
-      RefSubject.map(blockState, (s) => {
+      RefSubject.filterMap(blockState, (s) => {
         return s._tag === "Blocked" ? Option.some(blockedToBlocking(navigation, s)) : Option.none()
       }),
       {
