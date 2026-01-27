@@ -86,12 +86,14 @@ export function Link<const Opts extends LinkOptions>(
     const navigationHandler = makeLinkClickHandler(replace$)
     const userHandler = onclick ? EventHandler.fromEffectOrEventHandler(onclick) : undefined
     const clickHandler: EventHandler.EventHandler<MouseEvent, any, any> = userHandler
-      ? EventHandler.make((ev: MouseEvent) =>
-        Effect.gen(function*() {
+      ? EventHandler.make(
+        Effect.fn(function*(ev: MouseEvent) {
           yield* userHandler.handler(ev)
           if (ev.defaultPrevented) return
           yield* navigationHandler.handler(ev)
-        }), userHandler.options)
+        }),
+        userHandler.options
+      )
       : navigationHandler
 
     const props: Record<string, unknown> = { ...rest, onclick: clickHandler }
