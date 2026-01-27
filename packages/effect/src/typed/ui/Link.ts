@@ -51,16 +51,15 @@ export interface LinkOptions extends AnchorEventHandlers, AnchorRef, AnchorPrope
 }
 
 function makeLinkClickHandler(replace$: RefSubject.RefSubject<boolean>): EventHandler.EventHandler<
-  MouseEvent,
+  MouseEvent & { readonly currentTarget: HTMLAnchorElement },
   NavigationError,
   Navigation
 > {
-  return EventHandler.make((ev: MouseEvent) =>
+  return EventHandler.make((ev: MouseEvent & { readonly currentTarget: HTMLAnchorElement }) =>
     Effect.gen(function*() {
-      const anchor = ev.currentTarget as HTMLAnchorElement
-      const href = anchor.href
+      const href = ev.currentTarget.href
       if (ev.ctrlKey || ev.metaKey || ev.shiftKey) return
-      const t = anchor.target
+      const t = ev.currentTarget.target
       if (t && t !== "_self") return
       const nav = yield* Navigation
       const target = getUrl(nav.origin, href)
@@ -85,9 +84,9 @@ export function Link<const Opts extends LinkOptions>(
     const replace$ = yield* RefSubject.make(replace)
     const navigationHandler = makeLinkClickHandler(replace$)
     const userHandler = onclick ? EventHandler.fromEffectOrEventHandler(onclick) : undefined
-    const clickHandler: EventHandler.EventHandler<MouseEvent, any, any> = userHandler
+    const clickHandler = userHandler
       ? EventHandler.make(
-        Effect.fn(function*(ev: MouseEvent) {
+        Effect.fn(function*(ev: MouseEvent & { readonly currentTarget: HTMLAnchorElement }) {
           yield* userHandler.handler(ev)
           if (ev.defaultPrevented) return
           yield* navigationHandler.handler(ev)
