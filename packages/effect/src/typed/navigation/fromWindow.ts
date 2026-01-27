@@ -3,6 +3,7 @@
  */
 
 import * as Effect from "../../Effect.ts"
+import { Fiber } from "../../index.ts"
 import * as Layer from "../../Layer.ts"
 import * as Option from "../../Option.ts"
 import * as RefSubject from "../fx/RefSubject/RefSubject.ts"
@@ -12,30 +13,33 @@ import { Navigation } from "./Navigation.ts"
 
 export const fromWindow = (window: Window = globalThis.window) =>
   Layer.effect(Navigation)(
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const origin = window.location.origin
       const base = getBaseHref(window)
       const state = yield* RefSubject.make(
         Effect.sync((): NavigationState => getNavigationState(window.navigation, origin))
       )
 
+      const zip = Effect.zipWith(awaitNavigation, (destination: Destination, _) => destination)
+
       return yield* makeNavigationCore(
         origin,
         base,
         state,
-        Effect.fn(function*(before: BeforeNavigationEvent) {
+        Effect.fn(function* (before: BeforeNavigationEvent) {
+
           switch (before.type) {
             case "push":
             case "replace":
-              return yield* navigateCommit(window.navigation, before.to.url.href, {
+              return yield* zip(navigateCommit(window.navigation, before.to.url.href, {
                 history: before.type,
                 state: before.to.state,
                 info: before.info
-              })
+              }))
             case "reload":
-              return yield* reloadCommit(window.navigation, { state: before.to.state, info: before.info })
+              return yield* zip(reloadCommit(window.navigation, { state: before.to.state, info: before.info }))
             case "traverse":
-              return yield* traverseCommit(window.navigation, before.to.key!, { info: before.info })
+              return yield* zip(traverseCommit(window.navigation, before.to.key!, { info: before.info }))
           }
         })
       )
@@ -96,3 +100,18 @@ function getBaseHref(window: Window): string {
   const base = window.document.querySelector("base")
   return base ? base.href : "/"
 }
+
+const awaitNavigation = Effect.callback<void>((resume) => {
+  const handler = (event: NavigateEvent) => {
+    if (event.canIntercept) {
+      event.intercept({
+        handler: async () => resume(Effect.void),
+        focusReset: "after-transition",
+        scroll: "after-transition"
+      })
+    }
+  }
+
+  window.navigation.addEventListener("navigate", handler, { once: true })
+  return Effect.sync(() => window.navigation.removeEventListener("navigate", handler))
+})

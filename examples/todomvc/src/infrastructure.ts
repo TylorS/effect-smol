@@ -9,7 +9,7 @@ import * as Domain from "./domain"
 const TODOS_STORAGE_KEY = `@typed/todomvc/todos`
 
 class Todos extends ServiceMap.Service<Todos>()("TodosService", {
-  make: Effect.gen(function* () {
+  make: Effect.gen(function*() {
     const kv = yield* KeyValueStore.KeyValueStore
     return KeyValueStore.toSchemaStore(kv, Domain.TodoList)
   })
@@ -32,7 +32,7 @@ class Todos extends ServiceMap.Service<Todos>()("TodosService", {
 
   static readonly local = Layer.effect(
     Todos,
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const kv = yield* KeyValueStore.KeyValueStore
       return KeyValueStore.toSchemaStore(kv, Domain.TodoList)
     })
@@ -45,7 +45,7 @@ const FilterState = Router
   .match(Router.Slash, "all")
   .match(Router.Parse("active"), "active")
   .match(Router.Parse("completed"), "completed")
-  .pipe(Router.redirectTo('/'))
+  .pipe(Router.redirectTo("/"))
 
 const Model = Layer.mergeAll(
   App.TodoList.make(Todos.get),

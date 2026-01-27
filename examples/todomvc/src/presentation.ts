@@ -6,9 +6,9 @@ import { not } from "effect/Boolean"
 import { capitalize } from "effect/String"
 import { Fx, RefSubject } from "effect/typed/fx"
 import { EventHandler, html, many } from "effect/typed/template"
+import { Link } from "effect/typed/ui/Link"
 import * as App from "./application"
 import * as Domain from "./domain"
-import { Link } from "effect/typed/ui/Link"
 
 const onSubmit = EventHandler.make(() => App.createTodo, { preventDefault: true })
 
@@ -63,7 +63,7 @@ export const TodoApp = html`<section class="todoapp ${App.FilterState}">
 </section>`
 
 function TodoItem(todo: RefSubject.RefSubject<Domain.Todo>, id: Domain.TodoId) {
-  return Fx.gen(function* () {
+  return Fx.gen(function*() {
     // Track whether this todo is being edited
     const isEditing = yield* RefSubject.make(false)
 
