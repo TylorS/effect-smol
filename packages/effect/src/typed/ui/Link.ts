@@ -15,8 +15,8 @@ type EventHandlerProperty = `on${string}`
 
 type AnchorEventHandlers = {
   readonly [K in keyof HTMLAnchorElement as K extends EventHandlerProperty ? K : never]?:
-    | Effect.Effect<unknown, any, any>
-    | EventHandler.EventHandler<Event, any, any>
+  | Effect.Effect<unknown, any, any>
+  | EventHandler.EventHandler<Event, any, any>
 }
 
 type AnchorRef = {
@@ -56,7 +56,7 @@ function makeLinkClickHandler(replace$: RefSubject.RefSubject<boolean>): EventHa
   Navigation
 > {
   return EventHandler.make((ev: MouseEvent & { readonly currentTarget: HTMLAnchorElement }) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const href = ev.currentTarget.href
       if (ev.ctrlKey || ev.metaKey || ev.shiftKey) return
       const t = ev.currentTarget.target
@@ -79,19 +79,19 @@ function makeLinkClickHandler(replace$: RefSubject.RefSubject<boolean>): EventHa
 export function Link<const Opts extends LinkOptions>(
   options: Opts
 ): Fx<RenderEvent, Renderable.ErrorFromObject<Opts>, Renderable.ServicesFromObject<Opts> | Scope | RenderTemplate> {
-  return gen(function*() {
+  return gen(function* () {
     const { replace = false, onclick, content: children, ...rest } = options
     const replace$ = yield* RefSubject.make(replace)
     const navigationHandler = makeLinkClickHandler(replace$)
     const userHandler = onclick ? EventHandler.fromEffectOrEventHandler(onclick) : undefined
     const clickHandler = userHandler
       ? EventHandler.make(
-        Effect.fn(function*(ev: MouseEvent & { readonly currentTarget: HTMLAnchorElement }) {
+        Effect.fn(function* (ev: MouseEvent & { readonly currentTarget: HTMLAnchorElement }) {
           yield* userHandler.handler(ev)
           if (ev.defaultPrevented) return
           yield* navigationHandler.handler(ev)
         }),
-        userHandler.options
+        { ...userHandler.options, preventDefault: true }
       )
       : navigationHandler
 

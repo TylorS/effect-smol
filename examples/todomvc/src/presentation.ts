@@ -8,6 +8,7 @@ import { Fx, RefSubject } from "effect/typed/fx"
 import { EventHandler, html, many } from "effect/typed/template"
 import * as App from "./application"
 import * as Domain from "./domain"
+import { Link } from "effect/typed/ui/Link"
 
 const onSubmit = EventHandler.make(() => App.createTodo, { preventDefault: true })
 
@@ -62,7 +63,7 @@ export const TodoApp = html`<section class="todoapp ${App.FilterState}">
 </section>`
 
 function TodoItem(todo: RefSubject.RefSubject<Domain.Todo>, id: Domain.TodoId) {
-  return Fx.gen(function*() {
+  return Fx.gen(function* () {
     // Track whether this todo is being edited
     const isEditing = yield* RefSubject.make(false)
 
@@ -119,5 +120,6 @@ function TodoItem(todo: RefSubject.RefSubject<Domain.Todo>, id: Domain.TodoId) {
 function FilterLink(filter: Domain.FilterState) {
   const isSelected = Fx.map(App.FilterState, (state) => state === filter)
   const classes = Fx.when(isSelected, { onTrue: "selected", onFalse: "" })
-  return html`<li><a href="/#${filter}" class="${classes}">${capitalize(filter)}</a></li>`
+  const href = filter === "all" ? "/" : `/${filter}`
+  return html`<li>${Link({ href, content: capitalize(filter), class: classes })}</li>`
 }

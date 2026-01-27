@@ -9,6 +9,11 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true
   },
+  "references": [
+    {
+      "path": "../../packages/effect"
+    }
+  ],
   "include": [
     "src/**/*"
   ],

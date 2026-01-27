@@ -388,7 +388,8 @@ export const findHydratePath = (
     // Use secondary index to skip start comments without creating intermediate arrays
     let targetIndex = 0
 
-    for (const child of current.childNodes) {
+    for (let j = 0; j < current.childNodes.length; j++) {
+      const child = current.childNodes[j]
       if (isNotStartComment(child)) {
         if (targetIndex === index) {
           current = child
