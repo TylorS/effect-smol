@@ -1709,6 +1709,65 @@ export function fieldsAssign<const NewFields extends Struct.Fields>(fields: NewF
   return Struct_.lambda<fieldsAssign<NewFields>>((struct) => struct.mapFields(Struct_.assign(fields)))
 }
 
+export declare namespace extend {
+  export type Objects = Top & { readonly ast: AST.Objects }
+}
+
+export interface extend<Self extends extend.Objects, That extends extend.Objects> extends
+  Bottom<
+    Simplify<Self["Type"] & That["Type"]>,
+    Simplify<Self["Encoded"] & That["Encoded"]>,
+    Self["DecodingServices"] | That["DecodingServices"],
+    Self["EncodingServices"] | That["EncodingServices"],
+    AST.Objects,
+    extend<Self, That>,
+    Simplify<Self["~type.make.in"] & That["~type.make.in"]>,
+    Simplify<Self["Iso"] & That["Iso"]>
+  >
+{
+  readonly "~rebuild.out": this
+  readonly self: Self
+  readonly that: That
+}
+
+interface extendLambda<That extends extend.Objects> extends Lambda {
+  <Self extends extend.Objects>(self: Self): extend<Self, That>
+  <Members extends ReadonlyArray<extend.Objects>>(
+    self: Union<Members>
+  ): Union<{ readonly [K in keyof Members]: extend<Members[K], That> }>
+  readonly "~lambda.out": this["~lambda.in"] extends Union<infer Members extends ReadonlyArray<extend.Objects>>
+    ? Union<{ readonly [K in keyof Members]: extend<Members[K], That> }>
+    : this["~lambda.in"] extends extend.Objects ? extend<this["~lambda.in"], That>
+    : "Error: schema not eligible for extend"
+}
+
+/**
+ * @since 4.0.0
+ */
+export function extend<const That extends extend.Objects>(that: That) {
+  return Struct_.lambda<extendLambda<That>>((self) => {
+    if (!AST.isObjects(that.ast)) {
+      throw new globalThis.Error("extend: schema not eligible for extend")
+    }
+
+    if (AST.isUnion(self.ast)) {
+      const members = Arr.map(self.members, (member) => {
+        if (!AST.isObjects(member.ast)) {
+          throw new globalThis.Error("extend: schema not eligible for extend")
+        }
+        return make<any>(AST.structWithRest(member.ast, [that.ast]), { self: member, that })
+      })
+      return makeUnion(AST.union(members, self.ast.mode, self.ast.checks), members)
+    }
+
+    if (!AST.isObjects(self.ast)) {
+      throw new globalThis.Error("extend: schema not eligible for extend")
+    }
+
+    return make<any>(AST.structWithRest(self.ast, [that.ast]), { self, that })
+  })
+}
+
 /**
  * @category Struct transformations
  * @since 4.0.0

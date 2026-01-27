@@ -1,0 +1,31 @@
+import type * as Effect from "../../../../Effect.ts"
+import { dual } from "../../../../Function.ts"
+import * as sinkCore from "../../Sink/combinators.ts"
+import { make } from "../constructors/make.ts"
+import type { Fx } from "../Fx.ts"
+
+/**
+ * Effectfully loops over an Fx with an accumulator, producing a new value for each element.
+ *
+ * @param seed - The initial state.
+ * @param f - The effectful loop function.
+ * @returns An `Fx` emitting the transformed values.
+ * @since 1.0.0
+ * @category combinators
+ */
+export const loopEffect: {
+  <B, A, E2, R2, C>(
+    seed: B,
+    f: (acc: B, a: A) => Effect.Effect<readonly [C, B], E2, R2>
+  ): <E, R>(self: Fx<A, E | E2, R>) => Fx<C, E | E2, R | R2>
+
+  <A, E, R, B, C>(
+    self: Fx<A, E, R>,
+    seed: B,
+    f: (acc: B, a: A) => Effect.Effect<readonly [C, B], E, R>
+  ): Fx<C, E, R>
+} = dual(3, <A, E, R, B, C>(
+  self: Fx<A, E, R>,
+  seed: B,
+  f: (acc: B, a: A) => Effect.Effect<readonly [C, B], E, R>
+): Fx<C, E, R> => make<C, E, R>((sink) => self.run(sinkCore.loopEffect(seed, f)(sink))))

@@ -345,6 +345,20 @@ export declare namespace Yieldable {
    */
   export type Success<T> = T extends Yieldable<infer _Self, infer _A, infer _E, infer _R> ? _A
     : never
+
+  /**
+   * @since 4.0.0
+   * @category models
+   */
+  export type Error<T> = T extends Yieldable<infer _Self, infer _A, infer _E, infer _R> ? _E
+    : never
+
+  /**
+   * @since 4.0.0
+   * @category models
+   */
+  export type Services<T> = T extends Yieldable<infer _Self, infer _A, infer _E, infer _R> ? _R
+    : never
 }
 
 /**

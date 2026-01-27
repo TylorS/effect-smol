@@ -6399,6 +6399,47 @@ error message 2`
     })
   })
 
+  describe("extend", () => {
+    it("Struct extends Struct", async () => {
+      const schema = Schema.Struct({
+        a: Schema.String,
+        b: Schema.Number
+      }).pipe(Schema.extend(Schema.Struct({ c: Schema.Number })))
+      const asserts = new TestSchema.Asserts(schema)
+
+      const decoding = asserts.decoding()
+      await decoding.succeed({ a: "a", b: 1, c: 2 })
+      await decoding.fail(
+        { a: "a", b: 1 },
+        `Missing key
+  at ["c"]`
+      )
+    })
+
+    it("Union extends Struct", async () => {
+      const schema = Schema.Union([
+        Schema.Struct({
+          a: Schema.String
+        }),
+        Schema.Struct({
+          b: Schema.Number
+        })
+      ]).pipe(Schema.extend(Schema.Struct({ c: Schema.Number })))
+      const asserts = new TestSchema.Asserts(schema)
+
+      const decoding = asserts.decoding()
+      await decoding.succeed({ a: "a", c: 1 })
+      await decoding.succeed({ b: 1, c: 1 })
+    })
+
+    it("should throw on duplicate property signatures", () => {
+      throws(
+        () => Schema.Struct({ a: Schema.Number }).pipe(Schema.extend(Schema.Struct({ a: Schema.Number }))),
+        new Error(`Duplicate identifiers: ["a"]. ts(2300)`)
+      )
+    })
+  })
+
   describe("extendTo", () => {
     it("Struct", async () => {
       const schema = Schema.Struct({

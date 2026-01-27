@@ -1,0 +1,136 @@
+import * as Effect from "../../Effect.ts"
+import { dual } from "../../Function.ts"
+import * as Schema from "../../Schema.ts"
+import { sha1 } from "./_sha.ts"
+import { uuidStringify } from "./_uuid-stringify.ts"
+
+export const Uuid5 = Schema.String.pipe(Schema.check(Schema.isUUID(5)), Schema.brand("@typed/id/UUID5"))
+export type Uuid5 = typeof Uuid5.Type
+
+export const isUuid5: (value: string) => value is Uuid5 = Schema.is(Uuid5)
+
+export type Uuid5Namespace = Uint8Array
+
+const textEncoder = new TextEncoder()
+
+// Pre-defined namespaces from RFC 4122
+export const Uuid5Namespace = {
+  DNS: new Uint8Array([
+    0x6b,
+    0xa7,
+    0xb8,
+    0x10,
+    0x9d,
+    0xad,
+    0x11,
+    0xd1,
+    0x80,
+    0xb4,
+    0x00,
+    0xc0,
+    0x4f,
+    0xd4,
+    0x30,
+    0xc8
+  ]),
+
+  URL: new Uint8Array([
+    0x6b,
+    0xa7,
+    0xb8,
+    0x11,
+    0x9d,
+    0xad,
+    0x11,
+    0xd1,
+    0x80,
+    0xb4,
+    0x00,
+    0xc0,
+    0x4f,
+    0xd4,
+    0x30,
+    0xc8
+  ]),
+
+  OID: new Uint8Array([
+    0x6b,
+    0xa7,
+    0xb8,
+    0x12,
+    0x9d,
+    0xad,
+    0x11,
+    0xd1,
+    0x80,
+    0xb4,
+    0x00,
+    0xc0,
+    0x4f,
+    0xd4,
+    0x30,
+    0xc8
+  ]),
+
+  X500: new Uint8Array([
+    0x6b,
+    0xa7,
+    0xb8,
+    0x14,
+    0x9d,
+    0xad,
+    0x11,
+    0xd1,
+    0x80,
+    0xb4,
+    0x00,
+    0xc0,
+    0x4f,
+    0xd4,
+    0x30,
+    0xc8
+  ])
+} as const
+
+export const uuid5: {
+  (
+    namespace: Uuid5Namespace
+  ): (name: string) => Effect.Effect<Uuid5>
+  (
+    name: string,
+    namespace: Uuid5Namespace
+  ): Effect.Effect<Uuid5>
+} = dual(2, function uuid5(
+  name: string,
+  namespace: Uuid5Namespace
+): Effect.Effect<Uuid5> {
+  return Effect.gen(function*() {
+    // Convert name to UTF-8 bytes
+    const nameBytes = textEncoder.encode(name)
+
+    // Concatenate namespace and name
+    const buffer = new Uint8Array(namespace.length + nameBytes.length)
+    buffer.set(namespace)
+    buffer.set(nameBytes, namespace.length)
+
+    // Hash the concatenated bytes
+    const hash = yield* sha1(buffer)
+
+    // Format as UUID v5
+    const result = new Uint8Array(16)
+
+    // Copy first 16 bytes of the hash
+    result.set(hash.subarray(0, 16))
+
+    // Set version (5) and variant bits
+    result[6] = (result[6] & 0x0f) | 0x50 // version 5
+    result[8] = (result[8] & 0x3f) | 0x80 // variant 1
+
+    return Uuid5.makeUnsafe(uuidStringify(result))
+  })
+})
+
+export const dnsUuid5 = uuid5(Uuid5Namespace.DNS)
+export const urlUuid5 = uuid5(Uuid5Namespace.URL)
+export const oidUuid5 = uuid5(Uuid5Namespace.OID)
+export const x500Uuid5 = uuid5(Uuid5Namespace.X500)
