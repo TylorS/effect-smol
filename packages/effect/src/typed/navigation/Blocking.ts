@@ -60,13 +60,13 @@ export interface UseBlockNavigationParams<R = never> {
 export const useBlockNavigation = <R = never>(
   params: UseBlockNavigationParams<R> = {}
 ): Effect.Effect<BlockNavigation, never, Navigation | R | Scope.Scope> =>
-  Effect.gen(function* () {
+  Effect.gen(function*() {
     const navigation = yield* Navigation
     const blockState = yield* RefSubject.make<InternalBlockState>(Unblocked)
 
     yield* navigation.onBeforeNavigation<R, never>((event) =>
       RefSubject.modifyEffect(blockState, (state) =>
-        Effect.gen(function* () {
+        Effect.gen(function*() {
           // Can't block twice
           if (state._tag === "Blocked") return [Option.none(), state] as const
 

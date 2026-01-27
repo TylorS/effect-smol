@@ -15,8 +15,7 @@ import * as RefSubject from "./RefSubject.ts"
  * @since 1.18.0
  * @category models
  */
-export interface RefDuration<in out E = never, out R = never>
-  extends RefSubject.RefSubject<Duration.Duration, E, R> { }
+export interface RefDuration<in out E = never, out R = never> extends RefSubject.RefSubject<Duration.Duration, E, R> {}
 
 /**
  * Creates a new `RefDuration` from a Duration, `Effect`, or `Fx`.

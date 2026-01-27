@@ -3,11 +3,11 @@
  * @since 1.18.0
  */
 
-import * as Option from "../../../Option.ts"
 import type * as Effect from "../../../Effect.ts"
 import * as Equivalence_ from "../../../Equivalence.ts"
 import type { Equivalence } from "../../../Equivalence.ts"
 import { dual } from "../../../Function.ts"
+import * as Option from "../../../Option.ts"
 import type * as Scope from "../../../Scope.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import * as RefSubject from "./RefSubject.ts"
@@ -18,7 +18,8 @@ import * as RefSubject from "./RefSubject.ts"
  * @category models
  */
 export interface RefOption<in out A, in out E = never, out R = never>
-  extends RefSubject.RefSubject<Option.Option<A>, E, R> { }
+  extends RefSubject.RefSubject<Option.Option<A>, E, R>
+{}
 
 /**
  * Creates a new `RefOption` from an Option, `Effect`, or `Fx`.
@@ -169,5 +170,4 @@ export const exists: {
  * @since 1.18.0
  * @category filtered
  */
-export const getValue = <A, E, R>(ref: RefOption<A, E, R>): RefSubject.Filtered<A, E, R> =>
-  RefSubject.compact(ref)
+export const getValue = <A, E, R>(ref: RefOption<A, E, R>): RefSubject.Filtered<A, E, R> => RefSubject.compact(ref)

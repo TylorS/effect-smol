@@ -3,13 +3,13 @@
  * @since 1.18.0
  */
 
-import * as Tuple from "../../../Tuple.ts"
 import type * as Effect from "../../../Effect.ts"
 import { equals } from "../../../Equal.ts"
 import * as Equivalence_ from "../../../Equivalence.ts"
 import type { Equivalence } from "../../../Equivalence.ts"
 import { dual } from "../../../Function.ts"
 import type * as Scope from "../../../Scope.ts"
+import * as Tuple from "../../../Tuple.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import * as RefSubject from "./RefSubject.ts"
 
@@ -19,7 +19,8 @@ import * as RefSubject from "./RefSubject.ts"
  * @category models
  */
 export interface RefTuple<in out T extends ReadonlyArray<unknown>, in out E = never, out R = never>
-  extends RefSubject.RefSubject<T, E, R> { }
+  extends RefSubject.RefSubject<T, E, R>
+{}
 
 /**
  * Creates a new `RefTuple` from a tuple, `Effect`, or `Fx`.

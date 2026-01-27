@@ -16,8 +16,7 @@ import * as RefSubject from "./RefSubject.ts"
  * @since 1.18.0
  * @category models
  */
-export interface RefDateTime<in out E = never, out R = never>
-  extends RefSubject.RefSubject<DateTime.DateTime, E, R> { }
+export interface RefDateTime<in out E = never, out R = never> extends RefSubject.RefSubject<DateTime.DateTime, E, R> {}
 
 /**
  * Creates a new `RefDateTime` from a DateTime, `Effect`, or `Fx`.

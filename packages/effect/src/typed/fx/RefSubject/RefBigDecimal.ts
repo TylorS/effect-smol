@@ -16,7 +16,8 @@ import * as RefSubject from "./RefSubject.ts"
  * @category models
  */
 export interface RefBigDecimal<in out E = never, out R = never>
-  extends RefSubject.RefSubject<BigDecimal.BigDecimal, E, R> { }
+  extends RefSubject.RefSubject<BigDecimal.BigDecimal, E, R>
+{}
 
 /**
  * Creates a new `RefBigDecimal` from a BigDecimal, `Effect`, or `Fx`.
@@ -91,8 +92,13 @@ export const multiply: {
  * @category computed
  */
 export const divide: {
-  (that: BigDecimal.BigDecimal): <E, R>(ref: RefBigDecimal<E, R>) => RefSubject.Computed<BigDecimal.BigDecimal | undefined, E, R>
-  <E, R>(ref: RefBigDecimal<E, R>, that: BigDecimal.BigDecimal): RefSubject.Computed<BigDecimal.BigDecimal | undefined, E, R>
+  (
+    that: BigDecimal.BigDecimal
+  ): <E, R>(ref: RefBigDecimal<E, R>) => RefSubject.Computed<BigDecimal.BigDecimal | undefined, E, R>
+  <E, R>(
+    ref: RefBigDecimal<E, R>,
+    that: BigDecimal.BigDecimal
+  ): RefSubject.Computed<BigDecimal.BigDecimal | undefined, E, R>
 } = dual(2, function divide<E, R>(ref: RefBigDecimal<E, R>, that: BigDecimal.BigDecimal) {
   return RefSubject.map(ref, (self) => BigDecimal.divide(self, that))
 })

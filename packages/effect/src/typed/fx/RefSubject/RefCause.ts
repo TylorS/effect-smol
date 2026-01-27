@@ -19,7 +19,8 @@ import * as RefSubject from "./RefSubject.ts"
  * @category models
  */
 export interface RefCause<in out E, in out Err = never, out R = never>
-  extends RefSubject.RefSubject<Cause.Cause<E>, Err, R> { }
+  extends RefSubject.RefSubject<Cause.Cause<E>, Err, R>
+{}
 
 /**
  * Creates a new `RefCause` from a Cause, `Effect`, or `Fx`.
@@ -136,5 +137,4 @@ export const size = <E, Err, R>(ref: RefCause<E, Err, R>): RefSubject.Computed<n
  */
 export const failures = <E, Err, R>(
   ref: RefCause<E, Err, R>
-): RefSubject.Computed<ReadonlyArray<Cause.Failure<E>>, Err, R> =>
-  RefSubject.map(ref, (self) => self.failures)
+): RefSubject.Computed<ReadonlyArray<Cause.Failure<E>>, Err, R> => RefSubject.map(ref, (self) => self.failures)

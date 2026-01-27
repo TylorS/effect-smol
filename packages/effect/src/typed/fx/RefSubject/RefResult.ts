@@ -3,11 +3,11 @@
  * @since 1.18.0
  */
 
-import * as Result from "../../../Result.ts"
 import type * as Effect from "../../../Effect.ts"
 import * as Equivalence_ from "../../../Equivalence.ts"
 import type { Equivalence } from "../../../Equivalence.ts"
 import { dual } from "../../../Function.ts"
+import * as Result from "../../../Result.ts"
 import type * as Scope from "../../../Scope.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import * as RefSubject from "./RefSubject.ts"
@@ -18,7 +18,8 @@ import * as RefSubject from "./RefSubject.ts"
  * @category models
  */
 export interface RefResult<in out A, in out E, in out Err = never, out R = never>
-  extends RefSubject.RefSubject<Result.Result<A, E>, Err, R> { }
+  extends RefSubject.RefSubject<Result.Result<A, E>, Err, R>
+{}
 
 /**
  * Creates a new `RefResult` from a Result, `Effect`, or `Fx`.

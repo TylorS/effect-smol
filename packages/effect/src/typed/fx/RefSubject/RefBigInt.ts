@@ -17,8 +17,7 @@ import * as RefSubject from "./RefSubject.ts"
  * @since 1.18.0
  * @category models
  */
-export interface RefBigInt<in out E = never, out R = never>
-  extends RefSubject.RefSubject<bigint, E, R> { }
+export interface RefBigInt<in out E = never, out R = never> extends RefSubject.RefSubject<bigint, E, R> {}
 
 /**
  * Creates a new `RefBigInt` from a BigInt, `Effect`, or `Fx`.
@@ -114,8 +113,7 @@ export const mod: {
  * @since 1.18.0
  * @category computed
  */
-export const abs = <E, R>(ref: RefBigInt<E, R>): RefSubject.Computed<bigint, E, R> =>
-  RefSubject.map(ref, BigInt_.abs)
+export const abs = <E, R>(ref: RefBigInt<E, R>): RefSubject.Computed<bigint, E, R> => RefSubject.map(ref, BigInt_.abs)
 
 /**
  * Negate the current state of a RefBigInt.

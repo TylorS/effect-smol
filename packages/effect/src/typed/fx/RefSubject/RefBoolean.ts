@@ -17,8 +17,7 @@ import * as RefSubject from "./RefSubject.ts"
  * @since 1.18.0
  * @category models
  */
-export interface RefBoolean<in out E = never, out R = never>
-  extends RefSubject.RefSubject<boolean, E, R> { }
+export interface RefBoolean<in out E = never, out R = never> extends RefSubject.RefSubject<boolean, E, R> {}
 
 /**
  * Creates a new `RefBoolean` from a boolean, `Effect`, or `Fx`.
@@ -58,16 +57,14 @@ export const toggle = <E, R>(ref: RefBoolean<E, R>): Effect.Effect<boolean, E, R
  * @since 1.18.0
  * @category combinators
  */
-export const setTrue = <E, R>(ref: RefBoolean<E, R>): Effect.Effect<boolean, E, R> =>
-  RefSubject.set(ref, true)
+export const setTrue = <E, R>(ref: RefBoolean<E, R>): Effect.Effect<boolean, E, R> => RefSubject.set(ref, true)
 
 /**
  * Set the current state of a RefBoolean to false.
  * @since 1.18.0
  * @category combinators
  */
-export const setFalse = <E, R>(ref: RefBoolean<E, R>): Effect.Effect<boolean, E, R> =>
-  RefSubject.set(ref, false)
+export const setFalse = <E, R>(ref: RefBoolean<E, R>): Effect.Effect<boolean, E, R> => RefSubject.set(ref, false)
 
 // ========================================
 // Computed

@@ -3,25 +3,23 @@
  * @since 1.18.0
  */
 
-import * as String_ from "../../../String.ts"
 import type * as Effect from "../../../Effect.ts"
 import * as Equivalence_ from "../../../Equivalence.ts"
 import type { Equivalence } from "../../../Equivalence.ts"
 import { dual } from "../../../Function.ts"
 import type * as Scope from "../../../Scope.ts"
+import * as String_ from "../../../String.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import * as RefSubject from "./RefSubject.ts"
 
-const isRefStringDataFirst = (args: IArguments) =>
-  RefSubject.isRefSubject(args[0])
+const isRefStringDataFirst = (args: IArguments) => RefSubject.isRefSubject(args[0])
 
 /**
  * A RefString is a RefSubject specialized over a string value.
  * @since 1.18.0
  * @category models
  */
-export interface RefString<in out E = never, out R = never>
-  extends RefSubject.RefSubject<string, E, R> { }
+export interface RefString<in out E = never, out R = never> extends RefSubject.RefSubject<string, E, R> {}
 
 /**
  * Creates a new `RefString` from a string, `Effect`, or `Fx`.
@@ -85,8 +83,7 @@ export const toLowerCase = <E, R>(ref: RefString<E, R>): RefSubject.Computed<str
  * @since 1.18.0
  * @category computed
  */
-export const trim = <E, R>(ref: RefString<E, R>): RefSubject.Computed<string, E, R> =>
-  RefSubject.map(ref, String_.trim)
+export const trim = <E, R>(ref: RefString<E, R>): RefSubject.Computed<string, E, R> => RefSubject.map(ref, String_.trim)
 
 /**
  * Trim whitespace from the start of the current state of a RefString.

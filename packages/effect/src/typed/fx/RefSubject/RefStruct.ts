@@ -3,13 +3,13 @@
  * @since 1.18.0
  */
 
-import * as Struct from "../../../Struct.ts"
 import type * as Effect from "../../../Effect.ts"
 import { equals } from "../../../Equal.ts"
 import * as Equivalence_ from "../../../Equivalence.ts"
 import type { Equivalence } from "../../../Equivalence.ts"
 import { dual } from "../../../Function.ts"
 import type * as Scope from "../../../Scope.ts"
+import * as Struct from "../../../Struct.ts"
 import type * as Fx from "../Fx/Fx.ts"
 import * as RefSubject from "./RefSubject.ts"
 
@@ -19,7 +19,8 @@ import * as RefSubject from "./RefSubject.ts"
  * @category models
  */
 export interface RefStruct<in out S extends object, in out E = never, out R = never>
-  extends RefSubject.RefSubject<S, E, R> { }
+  extends RefSubject.RefSubject<S, E, R>
+{}
 
 /**
  * Creates a new `RefStruct` from a struct, `Effect`, or `Fx`.
@@ -180,8 +181,7 @@ export const get: {
  */
 export const keys = <S extends object, E, R>(
   ref: RefStruct<S, E, R>
-): RefSubject.Computed<Array<(keyof S) & string>, E, R> =>
-  RefSubject.map(ref, Struct.keys)
+): RefSubject.Computed<Array<(keyof S) & string>, E, R> => RefSubject.map(ref, Struct.keys)
 
 /**
  * Get the values of the current state of a RefStruct.

@@ -5,7 +5,7 @@ import * as RefResult from "effect/typed/fx/RefSubject/RefResult"
 
 describe("RefResult", () => {
   it.effect("creates and gets value", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const value = Result.succeed(42)
       const ref = yield* RefResult.make(value)
       const current = yield* ref
@@ -16,7 +16,7 @@ describe("RefResult", () => {
     }))
 
   it.effect("sets Success value", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const ref = yield* RefResult.make<number, string>(Result.fail("error"))
       yield* RefResult.setSuccess(ref, 10)
       const result = yield* ref
@@ -27,7 +27,7 @@ describe("RefResult", () => {
     }))
 
   it.effect("sets Failure value", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const ref = yield* RefResult.make<number, string>(Result.succeed(42))
       yield* RefResult.setFailure(ref, "error")
       const result = yield* ref
@@ -38,7 +38,7 @@ describe("RefResult", () => {
     }))
 
   it.effect("maps Success value", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const ref = yield* RefResult.make(Result.succeed(5))
       const result = yield* RefResult.map(ref, (n) => n * 2)
       expect(Result.isSuccess(result)).toBe(true)
@@ -48,14 +48,14 @@ describe("RefResult", () => {
     }))
 
   it.effect("checks if Success", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const ref = yield* RefResult.make(Result.succeed(42))
       const isSuccess = yield* RefResult.isSuccess(ref)
       expect(isSuccess).toBe(true)
     }))
 
   it.effect("checks if Failure", () =>
-    Effect.gen(function* () {
+    Effect.gen(function*() {
       const ref = yield* RefResult.make(Result.fail("error"))
       const isFailure = yield* RefResult.isFailure(ref)
       expect(isFailure).toBe(true)

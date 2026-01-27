@@ -22,7 +22,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/home").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -41,7 +41,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/users/123").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -60,7 +60,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/search?q=test").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -79,7 +79,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const homeResponse = yield* HttpClient.get("/home").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -96,7 +96,7 @@ describe("typed/ui/HttpRouter", () => {
       Route.Parse("home"),
       html`<div>Home</div>`
     )
-    const Live = HttpRouter.use(Effect.fn(function* (router) {
+    const Live = HttpRouter.use(Effect.fn(function*(router) {
       yield* ssrForHttp(router, matcher)
       yield* handleHttpServerError(router)
     })).pipe(
@@ -104,7 +104,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/notfound")
       assert.strictEqual(response.status, 404)
     }).pipe(Effect.provide(Live))
@@ -120,7 +120,7 @@ describe("typed/ui/HttpRouter", () => {
       Layer.provideMerge(NodeHttpServer.layerTest),
       Layer.provide(StaticHtmlRenderTemplate)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/dynamic").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -138,7 +138,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/home")
       const contentType = response.headers["content-type"]
       assert.strictEqual(contentType, "text/html; charset=utf-8")
@@ -156,7 +156,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const listResponse = yield* HttpClient.get("/api/users").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -171,7 +171,7 @@ describe("typed/ui/HttpRouter", () => {
   it.effect("provides Navigation with correct base and origin", () => {
     const matcher = Matcher.empty.match(
       Route.Parse("test"),
-      Fx.gen(function* () {
+      Fx.gen(function*() {
         const origin = yield* Navigation.origin
         const base = yield* Navigation.base
         const currentEntry = yield* Navigation.currentEntry
@@ -183,7 +183,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/test").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -196,7 +196,7 @@ describe("typed/ui/HttpRouter", () => {
   it.effect("provides CurrentRoute with correct route path", () => {
     const matcher = Matcher.empty.match(
       Route.Parse("users"),
-      Fx.gen(function* () {
+      Fx.gen(function*() {
         const currentRoute = yield* CurrentRoute
         return html`<div data-path="${currentRoute.route.path}"></div>`
       })
@@ -206,7 +206,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/users").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -217,7 +217,7 @@ describe("typed/ui/HttpRouter", () => {
   it.effect("provides CurrentRoute with no parent for root routes", () => {
     const matcher = Matcher.empty.match(
       Route.Parse("home"),
-      Fx.gen(function* () {
+      Fx.gen(function*() {
         const currentRoute = yield* CurrentRoute
         const hasParent = currentRoute.parent !== undefined
         return html`<div data-has-parent="${hasParent}"></div>`
@@ -228,7 +228,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/home").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -243,7 +243,7 @@ describe("typed/ui/HttpRouter", () => {
       .match(Route.Slash, html`<div>API</div>`)
       .match(
         users,
-        Fx.gen(function* () {
+        Fx.gen(function*() {
           const currentRoute = yield* CurrentRoute
           const hasParent = currentRoute.parent !== undefined
           const parentPath = currentRoute.parent?.route.path ?? "none"
@@ -256,7 +256,7 @@ describe("typed/ui/HttpRouter", () => {
       Layer.provideMerge(NodeHttpServer.layerTest),
       Layer.provide(CurrentRoute.extend(api))
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/api/users").pipe(
         Effect.flatMap((r) => r.text)
       )
@@ -268,7 +268,7 @@ describe("typed/ui/HttpRouter", () => {
   it.effect("provides Navigation with correct currentEntry for different paths", () => {
     const matcher = Matcher.empty.match(
       Route.Parse("about"),
-      Fx.gen(function* () {
+      Fx.gen(function*() {
         const currentEntry = yield* Navigation.currentEntry
         return html`<div data-pathname="${currentEntry.url.pathname}"></div>`
       })
@@ -278,7 +278,7 @@ describe("typed/ui/HttpRouter", () => {
       HttpRouter.serve,
       Layer.provideMerge(NodeHttpServer.layerTest)
     )
-    return Effect.gen(function* () {
+    return Effect.gen(function*() {
       const response = yield* HttpClient.get("/about").pipe(
         Effect.flatMap((r) => r.text)
       )
