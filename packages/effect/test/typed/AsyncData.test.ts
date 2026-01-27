@@ -9,14 +9,14 @@ import * as AsyncData from "effect/typed/async-data/AsyncData"
 describe("AsyncData", () => {
   describe("constructors", () => {
     it.effect("NoData", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.NoData
         assert(AsyncData.isNoData(data))
         assert(data._tag === "NoData")
       }))
 
     it.effect("loading without progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.loading()
         assert(AsyncData.isLoading(data))
         assert(data._tag === "Loading")
@@ -24,7 +24,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("loading with progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const progress = { loaded: 50, total: 100 }
         const data = AsyncData.loading(progress)
         assert(AsyncData.isLoading(data))
@@ -33,7 +33,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("success without progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.success(42)
         assert(AsyncData.isSuccess(data))
         assert(data._tag === "Success")
@@ -42,7 +42,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("success with progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const progress = { loaded: 75, total: 100 }
         const data = AsyncData.success(42, progress)
         assert(AsyncData.isSuccess(data))
@@ -52,7 +52,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("failure without progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         const data = AsyncData.failure(cause)
         assert(AsyncData.isFailure(data))
@@ -62,7 +62,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("failure with progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         const progress = { loaded: 25 }
         const data = AsyncData.failure(cause, progress)
@@ -72,7 +72,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("optimistic", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const previous = AsyncData.success(10)
         const data = AsyncData.optimistic(previous, 20)
         assert(AsyncData.isOptimistic(data))
@@ -84,28 +84,28 @@ describe("AsyncData", () => {
 
   describe("type guards", () => {
     it.effect("isNoData", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         assert(AsyncData.isNoData(AsyncData.NoData))
         assert(!AsyncData.isNoData(AsyncData.loading()))
         assert(!AsyncData.isNoData(AsyncData.success(1)))
       }))
 
     it.effect("isLoading", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         assert(AsyncData.isLoading(AsyncData.loading()))
         assert(!AsyncData.isLoading(AsyncData.NoData))
         assert(!AsyncData.isLoading(AsyncData.success(1)))
       }))
 
     it.effect("isSuccess", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         assert(AsyncData.isSuccess(AsyncData.success(1)))
         assert(!AsyncData.isSuccess(AsyncData.NoData))
         assert(!AsyncData.isSuccess(AsyncData.loading()))
       }))
 
     it.effect("isFailure", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         assert(AsyncData.isFailure(AsyncData.failure(cause)))
         assert(!AsyncData.isFailure(AsyncData.NoData))
@@ -113,7 +113,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("isOptimistic", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const previous = AsyncData.success(10)
         const data = AsyncData.optimistic(previous, 20)
         assert(AsyncData.isOptimistic(data))
@@ -122,7 +122,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("isAsyncData", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         assert(AsyncData.isAsyncData(AsyncData.NoData))
         assert(AsyncData.isAsyncData(AsyncData.loading()))
         assert(AsyncData.isAsyncData(AsyncData.success(1)))
@@ -133,7 +133,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("isRefreshing", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const progress = { loaded: 50 }
         const successWithProgress = AsyncData.success(1, progress)
         const failureWithProgress = AsyncData.failure(Cause.fail("error"), progress)
@@ -144,7 +144,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("isPending", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         assert(AsyncData.isPending(AsyncData.loading()))
         const progress = { loaded: 50 }
         assert(AsyncData.isPending(AsyncData.success(1, progress)))
@@ -156,7 +156,7 @@ describe("AsyncData", () => {
 
   describe("extractors", () => {
     it.effect("getSuccess", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const successData = AsyncData.success(42)
         const successOption = AsyncData.getSuccess(successData)
         assert(Option.isSome(successOption))
@@ -171,7 +171,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("getCause", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         const failureData = AsyncData.failure(cause)
         const causeOption = AsyncData.getCause(failureData)
@@ -183,7 +183,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("getError", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const error = "error"
         const cause = Cause.fail(error)
         const failureData = AsyncData.failure(cause)
@@ -198,7 +198,7 @@ describe("AsyncData", () => {
 
   describe("transformations", () => {
     it.effect("map", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.success(5)
         const mapped = AsyncData.map(data, (n) => n * 2)
         assert(AsyncData.isSuccess(mapped))
@@ -215,7 +215,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("map preserves progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const progress = { loaded: 50, total: 100 }
         const data = AsyncData.success(5, progress)
         const mapped = AsyncData.map(data, (n) => n * 2)
@@ -225,7 +225,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("flatMap", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.success(5)
         const flatMapped = AsyncData.flatMap(data, (n) => AsyncData.success(n * 2))
         assert(AsyncData.isSuccess(flatMapped))
@@ -245,7 +245,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("mapError", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         const data = AsyncData.failure(cause)
         const mapped = AsyncData.mapError(data, (e) => `mapped: ${e}`)
@@ -263,7 +263,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("mapError preserves progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const progress = { loaded: 50 }
         const cause = Cause.fail("error")
         const data = AsyncData.failure(cause, progress)
@@ -275,14 +275,14 @@ describe("AsyncData", () => {
 
   describe("utilities", () => {
     it.effect("startLoading from NoData", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.NoData
         const started = AsyncData.startLoading(data)
         assert(AsyncData.isLoading(started))
       }))
 
     it.effect("startLoading from Success", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.success(42)
         const progress = { loaded: 50 }
         const started = AsyncData.startLoading(data, progress)
@@ -292,7 +292,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("startLoading from Failure", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         const data = AsyncData.failure(cause)
         const progress = { loaded: 50 }
@@ -303,7 +303,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("startLoading from Optimistic", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const previous = AsyncData.success(10)
         const data = AsyncData.optimistic(previous, 20)
         const progress = { loaded: 50 }
@@ -315,7 +315,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("stopLoading from Success with progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const progress = { loaded: 50 }
         const data = AsyncData.success(42, progress)
         const stopped = AsyncData.stopLoading(data)
@@ -325,7 +325,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("stopLoading from Failure with progress", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         const progress = { loaded: 50 }
         const data = AsyncData.failure(cause, progress)
@@ -336,7 +336,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("stopLoading from Optimistic", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const previous = AsyncData.success(10, { loaded: 50 })
         const data = AsyncData.optimistic(previous, 20)
         const stopped = AsyncData.stopLoading(data)
@@ -347,14 +347,14 @@ describe("AsyncData", () => {
       }))
 
     it.effect("stopLoading from NoData", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const data = AsyncData.NoData
         const stopped = AsyncData.stopLoading(data)
         assert(AsyncData.isNoData(stopped))
       }))
 
     it.effect("match", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const noDataResult = AsyncData.match(AsyncData.NoData, {
           NoData: () => "no-data",
           Loading: () => "loading",
@@ -404,7 +404,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("fromExit Success", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const exit = Exit.succeed(42)
         const data = AsyncData.fromExit(exit)
         assert(AsyncData.isSuccess(data))
@@ -412,7 +412,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("fromExit Failure", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const cause = Cause.fail("error")
         const exit = Exit.failCause(cause)
         const data = AsyncData.fromExit(exit)
@@ -421,7 +421,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("fromResult Success", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const result = Result.succeed(42)
         const data = AsyncData.fromResult(result)
         assert(AsyncData.isSuccess(data))
@@ -429,7 +429,7 @@ describe("AsyncData", () => {
       }))
 
     it.effect("fromResult Failure", () =>
-      Effect.gen(function* () {
+      Effect.gen(function*() {
         const result = Result.fail("error")
         const data = AsyncData.fromResult(result)
         assert(AsyncData.isFailure(data))
