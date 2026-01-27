@@ -25,8 +25,19 @@ type AnchorRef = {
   ) => void | Effect.Effect<unknown, any, any> | Stream<unknown, any, any> | Fx<unknown, any, any>
 }
 
+type IfEquals<X, Y, Output> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? Output
+  : never
+
+type WritableKeys<T> = {
+  [P in keyof T]-?: IfEquals<
+    { [Q in P]: T[P] },
+    { -readonly [Q in P]: T[P] },
+    P
+  >
+}[keyof T]
+
 type AnchorProperties = {
-  readonly [K in keyof HTMLAnchorElement as K extends EventHandlerProperty | "ref" ? never : K]?: Renderable<
+  readonly [K in WritableKeys<HTMLAnchorElement> as K extends EventHandlerProperty | "ref" ? never : K]?: Renderable<
     HTMLAnchorElement[K],
     any,
     any
@@ -35,7 +46,8 @@ type AnchorProperties = {
 
 export interface LinkOptions extends AnchorEventHandlers, AnchorRef, AnchorProperties {
   readonly href: Renderable<string, any, any>
-  readonly replace?: boolean
+  readonly content: Renderable<string | number | boolean | null | undefined | void | RenderEvent, any, any>
+  readonly replace?: boolean // false
 }
 
 function makeLinkClickHandler(replace$: RefSubject.RefSubject<boolean>): EventHandler.EventHandler<
@@ -65,37 +77,25 @@ function makeLinkClickHandler(replace$: RefSubject.RefSubject<boolean>): EventHa
  * and navigates via `Navigation.navigate` instead of full page load. Requires
  * `Navigation` and `RenderTemplate` in the Effect context (e.g. `BrowserRouter`).
  */
-export function Link<const Opts extends LinkOptions>(options: Opts) {
-  return <Values extends ReadonlyArray<Renderable.Any> = readonly []>(
-    template: TemplateStringsArray,
-    ...values: Values
-  ): Fx<
-    RenderEvent,
-    Renderable.ErrorFromObject<Opts> | Renderable.Error<Values[number]>,
-    Renderable.ServicesFromObject<Opts> | Renderable.Services<Values[number]> | Scope | RenderTemplate
-  > =>
-    gen(function*() {
-      const { replace = false, onclick, ...rest } = options
-      const replace$ = yield* RefSubject.make(replace)
-      const navigationHandler = makeLinkClickHandler(replace$)
+export function Link<const Opts extends LinkOptions>(
+  options: Opts
+): Fx<RenderEvent, Renderable.ErrorFromObject<Opts>, Renderable.ServicesFromObject<Opts> | Scope | RenderTemplate> {
+  return gen(function*() {
+    const { replace = false, onclick, content: children, ...rest } = options
+    const replace$ = yield* RefSubject.make(replace)
+    const navigationHandler = makeLinkClickHandler(replace$)
+    const userHandler = onclick ? EventHandler.fromEffectOrEventHandler(onclick) : undefined
+    const clickHandler: EventHandler.EventHandler<MouseEvent, any, any> = userHandler
+      ? EventHandler.make((ev: MouseEvent) =>
+        Effect.gen(function*() {
+          yield* userHandler.handler(ev)
+          if (ev.defaultPrevented) return
+          yield* navigationHandler.handler(ev)
+        }), userHandler.options)
+      : navigationHandler
 
-      // Merge navigation handler with user-provided onclick if present
-      const clickHandler: EventHandler.EventHandler<MouseEvent, any, any> = onclick
-        ? EventHandler.make((ev: MouseEvent) =>
-          Effect.gen(function*() {
-            const userHandler = EventHandler.fromEffectOrEventHandler(
-              onclick as Effect.Effect<unknown, any, any> | EventHandler.EventHandler<MouseEvent, any, any>
-            )
-            yield* userHandler.handler(ev)
-            if (ev.defaultPrevented) return
-            yield* navigationHandler.handler(ev)
-          })
-        )
-        : navigationHandler
+    const props: Record<string, unknown> = { ...rest, onclick: clickHandler }
 
-      // Build properties object with all options except href and replace
-      const props: Record<string, unknown> = { ...rest, onclick: clickHandler }
-
-      return html`<a ...${props}>${html(template, ...values)}</a>`
-    })
+    return html`<a ...${props}>${children}</a>`
+  })
 }

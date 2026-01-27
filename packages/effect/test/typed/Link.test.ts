@@ -9,12 +9,12 @@ import { Link } from "effect/typed/ui/Link"
 import { Window } from "happy-dom"
 
 describe("typed/ui/Link", () => {
-  it.effect("renders <a> with href and children", () =>
+  it.effect("renders <a> with href and content", () =>
     Effect.gen(function*() {
       const [window, layer] = createHappyDomLayer()
 
       const [root] = yield* render(
-        Link({ href: "/about" })`Go to about`,
+        Link({ href: "/about", content: "Go to about" }),
         window.document.body
       ).pipe(Fx.provide(layer), Fx.take(1), Fx.collectAll)
 
@@ -29,7 +29,7 @@ describe("typed/ui/Link", () => {
     const [window, layer] = createHappyDomLayer({ url: "http://localhost/" })
     return Effect.gen(function*() {
       const [root] = yield* render(
-        Link({ href: "/about" })`Go`,
+        Link({ href: "/about", content: "Go" }),
         window.document.body
       ).pipe(Fx.take(1), Fx.collectAll)
 
@@ -51,7 +51,7 @@ describe("typed/ui/Link", () => {
     const [window, layer] = createHappyDomLayer()
     return Effect.gen(function*() {
       const [root] = yield* render(
-        Link({ href: "/other" })`Go`,
+        Link({ href: "/other", content: "Go" }),
         window.document.body
       ).pipe(Fx.take(1), Fx.collectAll)
 
