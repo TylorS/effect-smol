@@ -14,7 +14,10 @@ export interface MemoryOptions {
   readonly maxEntries?: number | undefined
 
   // If you want to use a custom commit function, you can provide it here.
-  readonly commit?: (before: BeforeNavigationEvent) => Effect.Effect<Destination, NavigationError>
+  readonly commit?: (
+    before: BeforeNavigationEvent,
+    runHandlers: (destination: Destination) => Effect.Effect<void>
+  ) => Effect.Effect<Destination, NavigationError>
 }
 
 export interface InitialMemoryOptions {
@@ -36,7 +39,7 @@ const limitEntries = (maxEntries: number) => (state: NavigationState): Navigatio
 
 export const memory = (options: MemoryOptions) =>
   Layer.effect(Navigation)(
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const origin = options.origin ?? "http://localhost"
       const base = options.base ?? "/"
       const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES
@@ -61,7 +64,7 @@ export const memory = (options: MemoryOptions) =>
   )
 
 export const initialMemory = (options: InitialMemoryOptions) =>
-  Layer.unwrap(Effect.gen(function*() {
+  Layer.unwrap(Effect.gen(function* () {
     const origin = options.origin ?? "http://localhost"
     const url = getUrl(origin, options.url)
     const entry = proposedToDestination({ url, state: options.state, sameDocument: url.origin === origin })
@@ -74,7 +77,16 @@ export const initialMemory = (options: InitialMemoryOptions) =>
     })
   }))
 
-const defaultCommit = (before: BeforeNavigationEvent) => Effect.succeed(proposedToDestination(before.to))
+const defaultCommit = (
+  before: BeforeNavigationEvent,
+  runHandlers: (destination: Destination) => Effect.Effect<void>
+) =>
+  Effect.gen(function* () {
+    const destination = proposedToDestination(before.to)
+    yield* runHandlers(destination)
+    return destination
+  })
+
 const proposedToDestination = (before: ProposedDestination) => ({
   key: before.key ?? crypto.randomUUID(),
   url: before.url,

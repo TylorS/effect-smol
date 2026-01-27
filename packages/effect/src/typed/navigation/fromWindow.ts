@@ -19,25 +19,23 @@ export const fromWindow = (window: Window = globalThis.window) =>
         Effect.sync((): NavigationState => getNavigationState(window.navigation, origin))
       )
 
-      const zip = Effect.zipWith(awaitNavigation, (destination: Destination, _) => destination)
-
       return yield* makeNavigationCore(
         origin,
         base,
         state,
-        (before: BeforeNavigationEvent) => {
+        (before: BeforeNavigationEvent, runHandlers: (destination: Destination) => Effect.Effect<void>) => {
           switch (before.type) {
             case "push":
             case "replace":
-              return zip(navigateCommit(window.navigation, before.to.url.href, {
+              return navigateCommit(window.navigation, before.to.url.href, {
                 history: before.type,
                 state: before.to.state,
                 info: before.info
-              }))
+              }, runHandlers, origin)
             case "reload":
-              return zip(reloadCommit(window.navigation, { state: before.to.state, info: before.info }))
+              return reloadCommit(window.navigation, { state: before.to.state, info: before.info }, runHandlers, origin)
             case "traverse":
-              return zip(traverseCommit(window.navigation, before.to.key!, { info: before.info }))
+              return traverseCommit(window.navigation, before.to.key!, { info: before.info }, runHandlers, origin)
           }
         }
       )
@@ -47,33 +45,45 @@ export const fromWindow = (window: Window = globalThis.window) =>
 function navigateCommit(
   navigation: globalThis.Navigation,
   url: string,
-  options?: NavigationNavigateOptions
+  options: NavigationNavigateOptions | undefined,
+  runHandlers: (destination: Destination) => Effect.Effect<void>,
+  origin: string
 ): Effect.Effect<Destination, NavigationError> {
-  return Effect.tryPromise({
-    try: () => navigation.navigate(url, options).committed.then((entry) => navigationToDestination(entry, origin)),
-    catch: (error) => new NavigationError({ error })
-  })
+  return awaitNavigationWithHandlers(
+    navigation,
+    () => navigation.navigate(url, options),
+    runHandlers,
+    origin
+  )
 }
 
 function reloadCommit(
   navigation: globalThis.Navigation,
-  options?: NavigationReloadOptions
+  options: NavigationReloadOptions | undefined,
+  runHandlers: (destination: Destination) => Effect.Effect<void>,
+  origin: string
 ): Effect.Effect<Destination, NavigationError> {
-  return Effect.tryPromise({
-    try: () => navigation.reload(options).committed.then((entry) => navigationToDestination(entry, origin)),
-    catch: (error) => new NavigationError({ error })
-  })
+  return awaitNavigationWithHandlers(
+    navigation,
+    () => navigation.reload(options),
+    runHandlers,
+    origin
+  )
 }
 
 function traverseCommit(
   navigation: globalThis.Navigation,
   key: string,
-  options?: NavigationOptions
+  options: NavigationOptions | undefined,
+  runHandlers: (destination: Destination) => Effect.Effect<void>,
+  origin: string
 ): Effect.Effect<Destination, NavigationError> {
-  return Effect.tryPromise({
-    try: () => navigation.traverseTo(key, options).committed.then((entry) => navigationToDestination(entry, origin)),
-    catch: (error) => new NavigationError({ error })
-  })
+  return awaitNavigationWithHandlers(
+    navigation,
+    () => navigation.traverseTo(key, options),
+    runHandlers,
+    origin
+  )
 }
 
 function getNavigationState(navigation: globalThis.Navigation, origin: string): NavigationState {
@@ -99,17 +109,61 @@ function getBaseHref(window: Window): string {
   return base ? base.href : "/"
 }
 
-const awaitNavigation = Effect.callback<void>((resume) => {
-  const handler = (event: NavigateEvent) => {
-    if (event.canIntercept) {
-      event.intercept({
-        handler: async () => resume(Effect.void),
-        focusReset: "after-transition",
-        scroll: "after-transition"
-      })
-    }
-  }
+function awaitNavigationWithHandlers(
+  navigation: globalThis.Navigation,
+  navigateFn: () => NavigationResult,
+  runHandlers: (destination: Destination) => Effect.Effect<void>,
+  origin: string
+): Effect.Effect<Destination, NavigationError> {
+  return Effect.callback<Destination, NavigationError>((resume) => {
+    let result: NavigationResult | null = null
+    let resolved = false
 
-  window.navigation.addEventListener("navigate", handler, { once: true })
-  return Effect.sync(() => window.navigation.removeEventListener("navigate", handler))
-})
+    const resolveOnce = (effect: Effect.Effect<Destination, NavigationError>) => {
+      if (!resolved) {
+        resolved = true
+        resume(effect)
+      }
+    }
+
+    const handler = (event: NavigateEvent) => {
+      if (event.canIntercept && result && !resolved) {
+        event.intercept({
+          handler: async () => {
+            try {
+              // Wait for the committed entry to get the destination
+              const entry = await result!.committed
+              const destination = navigationToDestination(entry, origin)
+
+              // Run handlers inside the intercept handler
+              // This ensures everything is rendered before scroll/focus restoration
+              await Effect.runPromise(runHandlers(destination))
+
+              resolveOnce(Effect.succeed(destination))
+            } catch (error) {
+              resolveOnce(Effect.fail(new NavigationError({ error })))
+            }
+          },
+          focusReset: "after-transition",
+          scroll: "after-transition"
+        })
+      }
+    }
+
+    navigation.addEventListener("navigate", handler, { once: true })
+
+    // Now call the navigation API (this will trigger the navigate event synchronously)
+    result = navigateFn()
+
+    // Fallback: if intercept wasn't called (shouldn't happen for same-document navigations)
+    result.finished.then(
+      (entry) => {
+        const destination = navigationToDestination(entry, origin)
+        resolveOnce(Effect.succeed(destination))
+      }, (error) => {
+        resolveOnce(Effect.fail(new NavigationError({ error })))
+      })
+
+    return Effect.sync(() => navigation.removeEventListener("navigate", handler))
+  })
+}

@@ -24,11 +24,14 @@ export type NavigationState = {
 
 const MAX_DEPTH = 10
 
-export const makeNavigationCore = Effect.fn(function*(
+export const makeNavigationCore = Effect.fn(function* (
   origin: string,
   base: string,
   state: RefSubject.RefSubject<NavigationState>,
-  commit: (before: BeforeNavigationEvent) => Effect.Effect<Destination, NavigationError>
+  commit: (
+    before: BeforeNavigationEvent,
+    runHandlers: (destination: Destination) => Effect.Effect<void>
+  ) => Effect.Effect<Destination, NavigationError>
 ) {
   const entries = RefSubject.map(state, (s) => s.entries)
   const currentEntry = RefSubject.map(state, (s) => s.entries[s.index])
@@ -44,7 +47,7 @@ export const makeNavigationCore = Effect.fn(function*(
   )
 
   const runBeforeHandlers = (event: BeforeNavigationEvent) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const handlers = yield* beforeHandlers
       const matches: Array<
         Effect.Effect<unknown, RedirectError | CancelNavigation>
@@ -78,7 +81,7 @@ export const makeNavigationCore = Effect.fn(function*(
     })
 
   const runHandlers = (event: NavigationEvent) =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       const eventHandlers = yield* handlers
       const matches: Array<Effect.Effect<unknown>> = []
 
@@ -94,7 +97,41 @@ export const makeNavigationCore = Effect.fn(function*(
       }
     })
 
-  const runNavigationEvent = Effect.fn(function*(
+  const updateState = (ref: RefSubject.GetSetDelete<NavigationState>, before: BeforeNavigationEvent, current: NavigationState, destination: Destination) =>
+    Effect.gen(function* () {
+      const event: NavigationEvent = {
+        type: before.type,
+        info: before.info,
+        destination
+      }
+
+      if (before.type === "push") {
+        const index = current.index + 1
+        const entries = current.entries.slice(0, index).concat([destination])
+        yield* ref.set({ entries, index, transition: Option.none() })
+      } else if (before.type === "replace") {
+        const index = current.index
+        const beforeEntries = current.entries.slice(0, index)
+        const after = current.entries.slice(index + 1)
+        const entries = [...beforeEntries, destination, ...after]
+
+        yield* ref.set({ entries, index, transition: Option.none() })
+      } else if (before.type === "traverse") {
+        const nextIndex = current.index + before.delta
+
+        yield* ref.set({
+          entries: current.entries,
+          index: nextIndex,
+          transition: Option.none()
+        })
+      } else if (before.type === "reload") {
+        yield* ref.set({ ...current, transition: Option.none() })
+      }
+
+      yield* runHandlers(event)
+    })
+
+  const runNavigationEvent = Effect.fn(function* (
     before: BeforeNavigationEvent,
     ref: RefSubject.GetSetDelete<NavigationState>,
     depth: number
@@ -111,40 +148,7 @@ export const makeNavigationCore = Effect.fn(function*(
       return yield* handleError(beforeError.value, ref, depth)
     }
 
-    const to = yield* commit(before)
-
-    const event: NavigationEvent = {
-      type: before.type,
-      info: before.info,
-      destination: to
-    }
-
-    if (before.type === "push") {
-      const index = current.index + 1
-      const entries = current.entries.slice(0, index).concat([to])
-      yield* ref.set({ entries, index, transition: Option.none() })
-    } else if (before.type === "replace") {
-      const index = current.index
-      const before = current.entries.slice(0, index)
-      const after = current.entries.slice(index + 1)
-      const entries = [...before, to, ...after]
-
-      yield* ref.set({ entries, index, transition: Option.none() })
-    } else if (before.type === "traverse") {
-      const nextIndex = current.index + before.delta
-
-      yield* ref.set({
-        entries: current.entries,
-        index: nextIndex,
-        transition: Option.none()
-      })
-    } else if (before.type === "reload") {
-      yield* ref.set({ ...current, transition: Option.none() })
-    }
-
-    yield* runHandlers(event)
-
-    return to
+    return yield* commit(before, (destination) => updateState(ref, before, current, destination))
   })
 
   const handleError = (
@@ -152,7 +156,7 @@ export const makeNavigationCore = Effect.fn(function*(
     ref: RefSubject.GetSetDelete<NavigationState>,
     depth: number
   ): Effect.Effect<Destination, NavigationError> =>
-    Effect.gen(function*() {
+    Effect.gen(function* () {
       if (depth >= MAX_DEPTH) {
         return yield* Effect.die(`Redirect loop detected.`)
       }
@@ -172,7 +176,7 @@ export const makeNavigationCore = Effect.fn(function*(
     pathOrUrl: string | URL,
     options?: NavigationNavigateOptions
   ) =>
-    state.updates(Effect.fn(function*(ref) {
+    state.updates(Effect.fn(function* (ref) {
       const state = yield* ref.get
       const from = state.entries[state.index]
       const history = options?.history ?? "auto"
@@ -202,7 +206,7 @@ export const makeNavigationCore = Effect.fn(function*(
     key: Destination["key"],
     options?: { readonly info?: unknown }
   ) =>
-    state.updates(Effect.fn(function*(ref) {
+    state.updates(Effect.fn(function* (ref) {
       const state = yield* ref.get
       const { entries, index } = state
       const from = entries[index]
@@ -223,14 +227,14 @@ export const makeNavigationCore = Effect.fn(function*(
       return yield* runNavigationEvent(event, ref, 0)
     }))
 
-  const back = Effect.fn(function*(options?: { readonly info?: unknown }) {
+  const back = Effect.fn(function* (options?: { readonly info?: unknown }) {
     const { entries, index } = yield* state
     if (index === 0) return entries[index]
     const { key } = entries[index - 1]
     return yield* traverseTo(key, options)
   })
 
-  const forward = Effect.fn(function*(options?: { readonly info?: unknown }) {
+  const forward = Effect.fn(function* (options?: { readonly info?: unknown }) {
     const { entries, index } = yield* state
     if (index === entries.length - 1) return entries[index]
     const { key } = entries[index + 1]
@@ -240,7 +244,7 @@ export const makeNavigationCore = Effect.fn(function*(
   const reload = (
     options?: { readonly info?: unknown }
   ) =>
-    state.updates(Effect.fn(function*(ref) {
+    state.updates(Effect.fn(function* (ref) {
       const { entries, index } = yield* ref.get
       const current = entries[index]
 
@@ -298,7 +302,7 @@ export const makeNavigationCore = Effect.fn(function*(
 
   const updateCurrentEntry = (options: { readonly state: unknown }) =>
     state.updates((ref) =>
-      Effect.gen(function*() {
+      Effect.gen(function* () {
         const { entries, index } = yield* ref.get
         const current = entries[index]
         return yield* runNavigationEvent(
