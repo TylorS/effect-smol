@@ -3,7 +3,6 @@
  */
 
 import * as Effect from "../../Effect.ts"
-import { Fiber } from "../../index.ts"
 import * as Layer from "../../Layer.ts"
 import * as Option from "../../Option.ts"
 import * as RefSubject from "../fx/RefSubject/RefSubject.ts"
