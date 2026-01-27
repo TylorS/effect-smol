@@ -26,22 +26,21 @@ export const fromWindow = (window: Window = globalThis.window) =>
         origin,
         base,
         state,
-        Effect.fn(function* (before: BeforeNavigationEvent) {
-
+        (before: BeforeNavigationEvent) => {
           switch (before.type) {
             case "push":
             case "replace":
-              return yield* zip(navigateCommit(window.navigation, before.to.url.href, {
+              return zip(navigateCommit(window.navigation, before.to.url.href, {
                 history: before.type,
                 state: before.to.state,
                 info: before.info
               }))
             case "reload":
-              return yield* zip(reloadCommit(window.navigation, { state: before.to.state, info: before.info }))
+              return zip(reloadCommit(window.navigation, { state: before.to.state, info: before.info }))
             case "traverse":
-              return yield* zip(traverseCommit(window.navigation, before.to.key!, { info: before.info }))
+              return zip(traverseCommit(window.navigation, before.to.key!, { info: before.info }))
           }
-        })
+        }
       )
     })
   )
